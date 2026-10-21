@@ -1,0 +1,42 @@
+# Secrets - never commit
+.env
+.env.*
+*.env
+!.env.example
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+google-services.json
+
+# Python / Flask backend
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+instance/
+*.bak
+
+# Node (Android app / tooling)
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# Local DB dumps and uploads
+*.sql.gz
+ddb/*.sql
+uploads/
+local_uploads/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
