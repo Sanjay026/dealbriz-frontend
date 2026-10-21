@@ -1,0 +1,2371 @@
+/* =====================================================
+   DealBriz — DealLock (website)
+
+   Offers in chat (from the buyer or the seller), the deal warning for both
+   sides (buyer first, then the seller with an SMS code), both sides'
+   documents, cancel requests (agree / disagree / force cancel), the
+   loan, the handover meeting and its code, My Deals, the staff Deals
+   section and the Lender portal of the admin panel.
+
+   Loaded after api-client.js and app.js and uses their globals (apiFetch,
+   escapeHtml, showToast, pushModal, closeTopModal, MODAL_HIDE, currentUser,
+   currentChatConversation, ...). app.js calls into this file only through
+   a handful of hooks, each guarded with `typeof fn === 'function'`, so the
+   rest of the site keeps working even if this file fails to load.
+
+   Everything shown here comes from the server. Nothing is invented: no
+   counts, no statuses, no "online" hints. The server also says what the
+   viewer may do (can_respond, can_withdraw, can_cancel, can_confirm,
+   can_upload_docs, can_review_docs...) so the buttons here and in the
+   Android app follow the same rules.
+   ===================================================== */
+
+/* ---------- API ---------- */
+const dealsApi = {
+  rules: () => apiFetch('/deals/rules'),
+  thread: (productId, otherId) =>
+    apiFetch(`/deals/thread?product_id=${encodeURIComponent(productId)}&other_id=${encodeURIComponent(otherId)}`),
+  sendOffer: ({ productId, buyerId, price, note }) =>
+    apiFetch('/deals/offers', { method: 'POST', body: { product_id: productId, buyer_id: buyerId, price, note } }),
+  counter: (id, price, note) =>
+    apiFetch(`/deals/offers/${id}/counter`, { method: 'POST', body: { price, note } }),
+  accept: (id) => apiFetch(`/deals/offers/${id}/accept`, { method: 'POST', body: {} }),
+  decline: (id) => apiFetch(`/deals/offers/${id}/decline`, { method: 'POST', body: {} }),
+  withdraw: (id) => apiFetch(`/deals/offers/${id}/withdraw`, { method: 'POST', body: {} }),
+  mine: (status = 'all') => apiFetch(`/deals/mine?status=${encodeURIComponent(status)}`),
+  get: (id) => apiFetch(`/deals/${id}`),
+  confirmSendCode: (id) => apiFetch(`/deals/${id}/confirm/send-code`, { method: 'POST', body: {} }),
+  confirm: (id, code) => apiFetch(`/deals/${id}/confirm`, { method: 'POST', body: { acknowledged: true, code } }),
+  notices: () => apiFetch('/deals/notices'),
+  acknowledge: (id) => apiFetch(`/deals/${id}/acknowledge`, { method: 'POST', body: { acknowledged: true } }),
+  cancelAnswer: (id, agree) => apiFetch(`/deals/${id}/cancel/answer`, { method: 'POST', body: { agree } }),
+  cancelWithdraw: (id) => apiFetch(`/deals/${id}/cancel/withdraw`, { method: 'POST', body: {} }),
+  cancelForce: (id) => apiFetch(`/deals/${id}/cancel/force`, { method: 'POST', body: { acknowledged: true } }),
+  cancel: (id, reason) => apiFetch(`/deals/${id}/cancel`, { method: 'POST', body: { reason } }),
+  loanAnswer: (id, hadLoan) => apiFetch(`/deals/${id}/documents/loan-answer`, { method: 'POST', body: { had_loan: hadLoan } }),
+  uploadDoc: (id, type, file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFetch(`/deals/${id}/documents/${encodeURIComponent(type)}`, { method: 'POST', body: form, isForm: true });
+  },
+  reviewDoc: (dealId, docId, decision, reason) =>
+    apiFetch(`/deals/${dealId}/documents/${docId}/review`, { method: 'POST', body: { decision, reason } }),
+  docFileUrl: (dealId, docId) => `${API_BASE}/deals/${encodeURIComponent(dealId)}/documents/${encodeURIComponent(docId)}/file`,
+  handover: (id, step, body = {}) => apiFetch(`/deals/${id}/handover/${step}`, { method: 'POST', body }),
+  dispute: (id, reason) => apiFetch(`/deals/${id}/dispute`, { method: 'POST', body: { reason } }),
+  applyLoan: (body) => apiFetch('/loans/apply', { method: 'POST', body }),
+  staffQueue: (status = '') => apiFetch(`/deals/staff/queue${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  staffFinancer: (id, financerId) => apiFetch(`/deals/staff/${id}/financer`, { method: 'POST', body: { financer_id: financerId } }),
+  staffReady: (id, note) => apiFetch(`/deals/staff/${id}/ready-to-pay`, { method: 'POST', body: { note } }),
+  staffPaid: (id, utr) => apiFetch(`/deals/staff/${id}/paid`, { method: 'POST', body: { utr } }),
+  staffResolve: (id, outcome, note) => apiFetch(`/deals/staff/${id}/resolve`, { method: 'POST', body: { outcome, note } }),
+};
+
+/* Lender portal. Staff (deals.manage) pass the lender they are looking at;
+   a lender user's own lender comes from their account on the server. */
+const lenderApi = {
+  q: (fid, extra = '') => {
+    const parts = [];
+    if (fid) parts.push(`financer_id=${encodeURIComponent(fid)}`);
+    if (extra) parts.push(extra);
+    return parts.length ? `?${parts.join('&')}` : '';
+  },
+  me: () => apiFetch('/lender/me'),
+  loans: (fid, status = '') => apiFetch(`/lender/loans${lenderApi.q(fid, status ? `status=${encodeURIComponent(status)}` : '')}`),
+  loan: (fid, id) => apiFetch(`/lender/loans/${id}${lenderApi.q(fid)}`),
+  setStatus: (fid, id, status, notes) =>
+    apiFetch(`/lender/loans/${id}/status${lenderApi.q(fid)}`, { method: 'POST', body: { status, decision_notes: notes } }),
+  setDetails: (fid, id, ref, kfs) =>
+    apiFetch(`/lender/loans/${id}/details${lenderApi.q(fid)}`, { method: 'POST', body: { nbfc_application_reference: ref, kfs_url: kfs } }),
+  deals: (fid, status = '') => apiFetch(`/lender/deals${lenderApi.q(fid, status ? `status=${encodeURIComponent(status)}` : '')}`),
+  ready: (fid, id, note) => apiFetch(`/lender/deals/${id}/ready-to-pay${lenderApi.q(fid)}`, { method: 'POST', body: { note } }),
+  paid: (fid, id, utr) => apiFetch(`/lender/deals/${id}/paid${lenderApi.q(fid)}`, { method: 'POST', body: { utr } }),
+};
+
+/* ---------- Small helpers ---------- */
+const dlEsc = (v) => (v === null || v === undefined ? '' : escapeHtml(String(v)));
+
+function dlRupees(n) {
+  const v = Number(n);
+  if (!isFinite(v)) return '₹0';
+  return '₹' + Math.round(v).toLocaleString('en-IN');
+}
+
+function dlWhen(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+}
+
+function dlDay(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/* "3,40,000" / "₹ 340000" / "340000" -> 340000 (whole rupees) or NaN. */
+function dlParseRupees(text) {
+  const clean = String(text || '').replace(/[₹,\s]/g, '');
+  if (!/^\d+$/.test(clean)) return NaN;
+  return parseInt(clean, 10);
+}
+
+/* Live Indian grouping (2,45,000) while typing, without moving the cursor.
+
+   Rewriting el.value puts the browser's cursor at the end, so editing a
+   digit in the middle ("2,50,000" -> "2,45,000") kept deleting the last
+   zeros instead. The cursor is tracked as "how many digits are to its
+   left", which survives the commas moving around, and put back there. */
+function dlFormatRupeeInput(el) {
+  const raw = el.value;
+  const caret = el.selectionStart == null ? raw.length : el.selectionStart;
+  let digitsBefore = raw.slice(0, caret).replace(/\D/g, '').length;
+  let digits = raw.replace(/\D/g, '').slice(0, 10);
+  const trimmed = digits.replace(/^0+(?=\d)/, '');          // "05" -> "5"
+  digitsBefore = Math.max(0, digitsBefore - (digits.length - trimmed.length));
+  digits = trimmed;
+  const formatted = digits ? Number(digits).toLocaleString('en-IN') : '';
+  if (formatted === raw) return;
+  el.value = formatted;
+  if (document.activeElement !== el) return;
+  let pos = 0;
+  for (let seen = 0; pos < formatted.length && seen < digitsBefore; pos++) {
+    if (/\d/.test(formatted[pos])) seen++;
+  }
+  el.setSelectionRange(pos, pos);
+}
+
+/* Backspace just after a comma (or Delete just before one) would remove
+   only the comma, which the formatter puts straight back, so the key
+   seemed dead. Delete the digit beyond it instead. beforeinput rather than
+   keydown because Android keyboards don't report Backspace as a key. */
+document.addEventListener('beforeinput', (e) => {
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement) || !el.hasAttribute('data-rupee')) return;
+  const back = e.inputType === 'deleteContentBackward';
+  if (!back && e.inputType !== 'deleteContentForward') return;
+  const s = el.selectionStart, t = el.selectionEnd, v = el.value;
+  if (s == null || s !== t) return;
+  const comma = back ? s - 1 : s;
+  if (v[comma] !== ',') return;
+  const digitAt = back ? comma - 1 : comma + 1;
+  if (digitAt < 0 || digitAt >= v.length) return;
+  e.preventDefault();
+  el.value = v.slice(0, digitAt) + v.slice(digitAt + 1);
+  const newCaret = back ? digitAt : comma;
+  el.setSelectionRange(newCaret, newCaret);
+  el.dispatchEvent(new Event('input', { bubbles: true }));  // reformat + recalculate
+}, true);
+
+const DEAL_STATUS_LABEL = {
+  awaiting_seller: 'Awaiting confirmation',
+  docs_pending: 'Documents pending',
+  locked: 'Locked',
+  loan_in_progress: 'Loan in progress',
+  ready_to_pay: 'Ready to pay',
+  paid: 'Paid',
+  completed: 'Completed',
+  released: 'Released',
+  disputed: 'Under review',
+};
+
+const OFFER_STATUS_LABEL = {
+  open: 'Waiting for reply',
+  countered: 'Countered',
+  accepted: 'Accepted',
+  declined: 'Declined',
+  expired: 'Expired',
+  superseded: 'Replaced',
+  withdrawn: 'Withdrawn',
+};
+
+const RELEASE_REASON_LABEL = {
+  buyer_withdrew: 'the buyer withdrew before the seller confirmed',
+  seller_cancelled: 'the seller cancelled',
+  mutual_cancel: 'both sides agreed to cancel',
+  buyer_force_cancel: 'the buyer force-cancelled',
+  seller_force_cancel: 'the seller force-cancelled',
+  buyer_no_response: 'the buyer didn’t accept the deal warning in time',
+  seller_declined: 'the seller decided not to lock it',
+  seller_no_response: 'the seller didn’t confirm in time',
+  reservation_expired: 'the reservation ended',
+  account_suspended: 'an account was suspended',
+  staff_action: 'DealBriz support released it',
+  loan_rejected: 'the loan was not approved',
+};
+
+const LOAN_STATUS_LABEL = {
+  pending: 'Application received',
+  review: 'Under review',
+  approved: 'Approved',
+  rejected: 'Not approved',
+  disbursed: 'Paid out',
+  completed: 'Closed',
+  cancelled: 'Withdrawn',
+};
+
+const DOC_STATUS_LABEL = {
+  missing: 'Not uploaded',
+  uploaded: 'Being checked',
+  approved: 'Verified',
+  rejected: 'Upload again',
+};
+
+const LOAN_TYPE_LABEL = { vehicle: 'Vehicle loan', personal: 'Personal loan' };
+
+function dealPill(status) {
+  return `<span class="deal-pill deal-pill-${dlEsc(status)}">${dlEsc(DEAL_STATUS_LABEL[status] || status)}</span>`;
+}
+
+function loanTypeTag(type) {
+  if (!type) return '';
+  return `<span class="deal-type deal-type-${dlEsc(type)}"><i class="fas ${type === 'vehicle' ? 'fa-car' : 'fa-user'}"></i> ${dlEsc(LOAN_TYPE_LABEL[type] || type)}</span>`;
+}
+
+const isVehicle = (d) => (d && (d.loan_type || 'vehicle')) === 'vehicle';
+const itemWord = (d) => (isVehicle(d) ? 'vehicle' : 'item');
+
+const LIVE_DEAL = ['awaiting_seller', 'docs_pending', 'locked', 'loan_in_progress', 'ready_to_pay', 'paid', 'disputed'];
+
+/* Closes a modal and resolves once the browser has finished the history
+   step closeTopModal() started. Opening the next modal before that
+   finishes would push its history entry in the middle of the Back. */
+function dlCloseModalThen(name) {
+  return new Promise(resolve => {
+    if (!modalStack.includes(name)) { resolve(); return; }
+    let done = false;
+    const finish = () => { if (done) return; done = true; window.removeEventListener('popstate', finish); resolve(); };
+    window.addEventListener('popstate', finish);
+    setTimeout(finish, 600);
+    closeTopModal(name);
+  });
+}
+
+function dlOpenOverlay(id, stackName) {
+  document.getElementById(id).classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  pushModal(stackName);
+}
+
+/* Register our overlays with app.js's modal stack (Back button, Escape),
+   and close on a backdrop click like the others. The warning closes only
+   with its own buttons: it must be read, not clicked away by accident. */
+MODAL_HIDE.dealOffer = () => document.getElementById('dealOfferModal')?.classList.add('hidden');
+MODAL_HIDE.deal = () => { document.getElementById('dealModal')?.classList.add('hidden'); dealModalState = null; };
+MODAL_HIDE.dealLoan = () => document.getElementById('dealLoanModal')?.classList.add('hidden');
+MODAL_HIDE.dealOtp = () => { document.getElementById('dealOtpModal')?.classList.add('hidden'); dlOtpStop(); };
+MODAL_HIDE.dealWarn = () => {
+  document.getElementById('dealWarnModal')?.classList.add('hidden');
+  const r = dlWarnResolve; dlWarnResolve = null;
+  if (r) r(false);   // closed with Back/Escape = not agreed
+};
+MODAL_HIDE.dealNotice = () => {
+  document.getElementById('dealNoticeModal')?.classList.add('hidden');
+  // Closed with Back/Escape without tapping OK: not recorded as seen, and
+  // not shown again until the next page load, so it doesn't nag.
+  if (dlNoticeDeal) dlNoticeSkipped.add('cancel:' + dlNoticeDeal.id);
+  dlNoticeDeal = null;
+};
+document.addEventListener('DOMContentLoaded', () => {
+  [['dealOfferModal', 'dealOffer'], ['dealModal', 'deal'], ['dealLoanModal', 'dealLoan'], ['dealOtpModal', 'dealOtp']].forEach(([id, name]) => {
+    document.getElementById(id)?.addEventListener('click', e => {
+      if (e.target.id === id) closeTopModal(name);
+    });
+  });
+});
+
+let dealRulesCache = null;
+async function dlRules() {
+  if (dealRulesCache) return dealRulesCache;
+  try { dealRulesCache = await dealsApi.rules(); } catch { dealRulesCache = null; }
+  return dealRulesCache || { offer_valid_hours: 48, max_counter_rounds: 3, reservation_days: 7, confirm_hours: 24,
+    cancel_limit: 3, ban_days: 7, categories: [], doc_types: [], doc_max_mb: 8, doc_extensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'] };
+}
+
+/* =====================================================
+   THE DEAL WARNING (English + Hindi, big, centred)
+   Both sides read it before a deal is locked: first the BUYER, after an
+   offer is accepted (the seller can't confirm until the buyer has), then
+   the SELLER, before the SMS code. The server refuses both steps without
+   the tick. Making, countering and accepting offers shows no warning.
+   ===================================================== */
+let dlWarnResolve = null;
+
+function dlWarnContent(kind, ctx, rules) {
+  const days = rules.reservation_days, limit = rules.cancel_limit, ban = rules.ban_days;
+  const docsDays = rules.docs_days || days;
+  const price = `<strong>${dlRupees(ctx.price)}</strong>`;
+  const vehicle = (ctx.loanType || 'vehicle') === 'vehicle';
+  const title = `<strong>${dlEsc(ctx.title || 'this listing')}</strong>`;
+  if (kind === 'seller') {
+    const buyer = dlEsc(ctx.buyer || 'the buyer');
+    return {
+      titleEn: 'You are about to lock this deal',
+      titleHi: 'आप यह डील लॉक करने जा रहे हैं',
+      en: [
+        `You agree to sell ${title} to ${buyer} for ${price}. From now on no one else can start a deal on it.`,
+        vehicle
+          ? `Next, within ${docsDays} days, you upload your documents (RC, insurance, PUC, PAN, masked Aadhaar and bank proof) and the buyer uploads their PAN and masked Aadhaar. Only when DealBriz or the lender has verified all of them is the deal locked, and the listing reserved for this buyer for ${days} days.`
+          : `Next, within ${docsDays} days, the buyer uploads their PAN and masked Aadhaar. Only when they are verified is the deal locked, and the listing reserved for this buyer for ${days} days.`,
+        `The lender pays you directly, never through DealBriz. Hand over the ${vehicle ? 'vehicle' : 'item'} only after the money is in your bank, then enter the buyer’s handover code.`,
+        `After you confirm, cancelling needs the buyer’s agreement. If they don’t agree you can force-cancel, but force-cancelling ${limit} deals in a row stops you posting listings or making deals for ${ban} days.`,
+      ],
+      hi: [
+        `आप ${title} को ${buyer} को ${price} में बेचने के लिए सहमत हैं। अब कोई और इस पर डील शुरू नहीं कर सकता।`,
+        vehicle
+          ? `इसके बाद ${docsDays} दिन के अंदर आप अपने दस्तावेज़ (RC, बीमा, PUC, PAN, मास्क्ड आधार और बैंक प्रूफ़) अपलोड करें और खरीदार अपना PAN और मास्क्ड आधार अपलोड करे। DealBriz या लोन देने वाली कंपनी द्वारा सभी की जाँच होने पर ही डील लॉक होगी और लिस्टिंग ${days} दिन के लिए इसी खरीदार के लिए रिज़र्व होगी।`
+          : `इसके बाद ${docsDays} दिन के अंदर खरीदार अपना PAN और मास्क्ड आधार अपलोड करे। उनकी जाँच होने पर ही डील लॉक होगी और लिस्टिंग ${days} दिन के लिए इसी खरीदार के लिए रिज़र्व होगी।`,
+        `लोन देने वाली कंपनी सीधे आपको भुगतान करती है, DealBriz के ज़रिए कभी नहीं। ${vehicle ? 'वाहन' : 'सामान'} तभी सौंपें जब पैसे आपके बैंक में आ जाएँ, फिर खरीदार का हैंडओवर कोड डालें।`,
+        `पुष्टि के बाद डील रद्द करने के लिए खरीदार की सहमति चाहिए। सहमति न मिलने पर आप फ़ोर्स कैंसल कर सकते हैं, लेकिन लगातार ${limit} डील फ़ोर्स कैंसल करने पर आप ${ban} दिन तक न लिस्टिंग डाल पाएँगे, न डील कर पाएँगे।`,
+      ],
+    };
+  }
+  if (kind === 'buyer') {
+    return {
+      titleEn: 'Read this before the seller locks the deal',
+      titleHi: 'डील लॉक होने से पहले इसे ज़रूर पढ़ें',
+      en: [
+        `You are agreeing to buy ${title} at ${price}. The seller takes the final decision, and can confirm only after you accept this.`,
+        `After the seller confirms, you upload your PAN card and masked Aadhaar${vehicle ? ', and the seller uploads the vehicle documents' : ''}, within ${docsDays} days. Only when DealBriz or the lender has verified them is the deal locked, and the listing reserved for you for ${days} days.`,
+        `Apply for the loan as soon as the deal locks. If the lender isn’t ready to pay within those ${days} days, the deal is released.`,
+        `After the seller confirms, cancelling needs the seller’s agreement. If they don’t agree you can force-cancel, but force-cancelling ${limit} deals in a row stops you posting listings or making deals for ${ban} days.`,
+        `DealBriz never asks you to send money. Pay the down payment only at the handover meeting, and give your handover code only after you have the ${vehicle ? 'vehicle and its papers' : 'item'}.`,
+      ],
+      hi: [
+        `आप ${title} को ${price} में खरीदने के लिए सहमत हो रहे हैं। अंतिम फ़ैसला विक्रेता का है, और वह आपकी सहमति के बाद ही पुष्टि कर सकता है।`,
+        `विक्रेता की पुष्टि के बाद ${docsDays} दिन के अंदर आप अपना PAN कार्ड और मास्क्ड आधार अपलोड करें${vehicle ? ', और विक्रेता वाहन के दस्तावेज़ अपलोड करे' : ''}। DealBriz या लोन देने वाली कंपनी द्वारा जाँच होने पर ही डील लॉक होगी और लिस्टिंग ${days} दिन के लिए आपके लिए रिज़र्व होगी।`,
+        `डील लॉक होते ही लोन के लिए आवेदन करें। अगर उन ${days} दिनों में लोन देने वाली कंपनी भुगतान के लिए तैयार नहीं होती, तो डील रद्द हो जाएगी।`,
+        `विक्रेता की पुष्टि के बाद डील रद्द करने के लिए विक्रेता की सहमति चाहिए। सहमति न मिलने पर आप फ़ोर्स कैंसल कर सकते हैं, लेकिन लगातार ${limit} डील फ़ोर्स कैंसल करने पर आप ${ban} दिन तक न लिस्टिंग डाल पाएँगे, न डील कर पाएँगे।`,
+        `DealBriz कभी पैसे भेजने के लिए नहीं कहता। डाउन पेमेंट सिर्फ़ हैंडओवर मीटिंग में दें, और अपना हैंडओवर कोड ${vehicle ? 'वाहन और उसके कागज़' : 'सामान'} मिलने के बाद ही दें।`,
+      ],
+    };
+  }
+  return null;
+}
+
+/* Resolves true only when the person ticked "I understand" and pressed
+   Continue. Any other way out resolves false. */
+async function dlWarn(kind, ctx) {
+  const rules = await dlRules();
+  const c = dlWarnContent(kind, ctx, rules);
+  if (!c) return false;
+  document.getElementById('dealWarnTitle').innerHTML =
+    `${dlEsc(c.titleEn)}<span lang="hi">${dlEsc(c.titleHi)}</span>`;
+  document.getElementById('dealWarnBody').innerHTML = `
+    <div class="deal-warn-lang" lang="en"><ul>${c.en.map(x => `<li>${x}</li>`).join('')}</ul></div>
+    <div class="deal-warn-lang" lang="hi"><div class="deal-warn-langname">हिंदी</div><ul>${c.hi.map(x => `<li>${x}</li>`).join('')}</ul></div>`;
+  const check = document.getElementById('dealWarnCheck');
+  check.checked = false;
+  document.getElementById('dealWarnGo').disabled = true;
+  if (dlWarnResolve) { const old = dlWarnResolve; dlWarnResolve = null; old(false); }
+  return new Promise(resolve => {
+    dlWarnResolve = resolve;
+    dlOpenOverlay('dealWarnModal', 'dealWarn');
+    document.querySelector('#dealWarnModal .deal-warn-box')?.scrollTo?.({ top: 0 });
+  });
+}
+
+function dlWarnToggle() {
+  document.getElementById('dealWarnGo').disabled = !document.getElementById('dealWarnCheck').checked;
+}
+
+async function dlWarnAnswer(ok) {
+  const r = dlWarnResolve;
+  dlWarnResolve = null;   // so closing below doesn't count as "not agreed"
+  const agreed = !!ok && document.getElementById('dealWarnCheck').checked;
+  await dlCloseModalThen('dealWarn');
+  if (r) r(agreed);
+}
+
+/* =====================================================
+   POPUPS FOR THINGS WAITING ON THE VIEWER
+   - the buyer's deal warning, after an offer is accepted (the seller can't
+     confirm until the buyer accepts it)
+   - a cancel request from the other side, to agree or disagree with
+   Checked on sign-in, with the nav badges every minute, and whenever an
+   open chat's deal changes. One popup at a time. Closing one without an
+   answer hides it until the next page load; the deal sheet still has the
+   same buttons.
+   ===================================================== */
+const dlNoticeSkipped = new Set();    // "warn:<id>" / "cancel:<id>" closed without answering
+let dlNoticeBusy = false;
+let dlNoticeDeal = null;              // the deal the cancel-request popup is showing
+
+async function dealsCheckBuyerNotices() {
+  if (!currentUser || dlNoticeBusy) return;
+  dlNoticeBusy = true;
+  try {
+    const n = await dealsApi.notices();
+    const warn = (n.warnings || []).find(d => d.can_acknowledge && !dlNoticeSkipped.has('warn:' + d.id));
+    if (warn) { await dlBuyerAcceptWarning(warn, { fromPopup: true }); return; }
+    const req = (n.cancel_requests || []).find(d => d.can_answer_cancel && !dlNoticeSkipped.has('cancel:' + d.id));
+    if (req) await dlShowCancelRequest(req);
+  } catch (err) {
+    console.warn('Deal notice check failed:', err);
+  } finally {
+    dlNoticeBusy = false;
+  }
+}
+
+/* The buyer reads and ticks the warning; the server records it and the
+   seller is told they can confirm. Returns true if accepted. */
+async function dlBuyerAcceptWarning(d, { fromPopup = false } = {}) {
+  const ok = await dlWarn('buyer', {
+    price: d.agreed_price, title: d.product && d.product.title, loanType: d.loan_type,
+  });
+  if (!ok) { if (fromPopup) dlNoticeSkipped.add('warn:' + d.id); return false; }
+  try {
+    const fresh = await dealsApi.acknowledge(d.id);
+    showToast('Thanks. The seller can now confirm the deal.', 'success');
+    if (dealModalState && dealModalState.deal.id === d.id) { dealModalState.deal = fresh; renderDealModal(); }
+    if (currentChatConversation) refreshChatDealBar();
+    if (currentPage === 'mydeals') renderMyDeals();
+    return true;
+  } catch (err) {
+    showToast(err.message || 'Could not save that. Please try again.', 'error');
+    return false;
+  }
+}
+
+async function dlShowCancelRequest(d) {
+  const who = d.cancel_request.by_role === 'seller' ? 'seller' : 'buyer';
+  const whoHi = who === 'seller' ? 'विक्रेता' : 'खरीदार';
+  const reason = d.cancel_request.reason;
+  dlNoticeDeal = d;
+  document.getElementById('dealNoticeTitle').innerHTML =
+    `${dlEsc(`The ${who} asked to cancel this deal`)}<span lang="hi">${dlEsc(`${whoHi} ने यह डील रद्द करने को कहा है`)}</span>`;
+  document.getElementById('dealNoticeBody').innerHTML = `
+    <div class="deal-warn-lang" lang="en"><ul>
+      <li><strong>${dlEsc((d.product && d.product.title) || 'Listing')}</strong> at <strong>${dlRupees(d.agreed_price)}</strong>.${reason ? ` Reason: “${dlEsc(reason)}”` : ''}</li>
+      <li><strong>Agree</strong>: the deal is cancelled, the listing goes back on sale, and nobody is penalised.</li>
+      <li><strong>Disagree</strong>: the deal carries on. The ${who} can still force-cancel, which counts against them.</li>
+      <li>Answer by <strong>${dlEsc(dlWhen(d.cancel_request.expires_at))}</strong>. If you don’t, the request lapses and the deal carries on.</li>
+    </ul></div>
+    <div class="deal-warn-lang" lang="hi"><div class="deal-warn-langname">हिंदी</div><ul>
+      <li><strong>सहमत</strong>: डील रद्द हो जाएगी, लिस्टिंग फिर से बिक्री पर आ जाएगी, और किसी पर कोई जुर्माना नहीं होगा।</li>
+      <li><strong>असहमत</strong>: डील जारी रहेगी। ${whoHi} फिर भी फ़ोर्स कैंसल कर सकता है, जो उसके ख़िलाफ़ गिना जाएगा।</li>
+    </ul></div>`;
+  document.getElementById('dealNoticeError').classList.add('hidden');
+  document.getElementById('dealNoticeActions').innerHTML = `
+    <button class="deal-btn" onclick="dlNoticeCancelAnswer(null)">View deal</button>
+    <button class="deal-btn" onclick="dlNoticeCancelAnswer(false)">Disagree <span lang="hi">/ असहमत</span></button>
+    <button class="deal-btn deal-btn-danger" onclick="dlNoticeCancelAnswer(true)">Agree to cancel <span lang="hi">/ सहमत</span></button>`;
+  dlOpenOverlay('dealNoticeModal', 'dealNotice');
+  document.querySelector('#dealNoticeModal .deal-warn-box')?.scrollTo?.({ top: 0 });
+}
+
+/* agree true/false answers; null just opens the deal (no answer yet). */
+async function dlNoticeCancelAnswer(agree) {
+  const d = dlNoticeDeal;
+  if (!d) return;
+  if (agree === null) {
+    dlNoticeSkipped.add('cancel:' + d.id);
+    dlNoticeDeal = null;
+    await dlCloseModalThen('dealNotice');
+    openDeal(d.id);
+    return;
+  }
+  const err = document.getElementById('dealNoticeError');
+  const btns = document.querySelectorAll('#dealNoticeActions .deal-btn');
+  btns.forEach(b => { b.disabled = true; });
+  try {
+    await dealsApi.cancelAnswer(d.id, agree);
+  } catch (e) {
+    err.textContent = e.message || 'Could not save that. Please try again.';
+    err.classList.remove('hidden');
+    btns.forEach(b => { b.disabled = false; });
+    return;
+  }
+  dlNoticeDeal = null;   // answered: closing below must not mark it skipped
+  await dlCloseModalThen('dealNotice');
+  showToast(agree ? 'Deal cancelled. Nobody is penalised.' : 'You disagreed. The deal carries on.', 'success');
+  if (currentChatConversation) loadChatMessages();
+  if (currentPage === 'mydeals') renderMyDeals();
+  setTimeout(dealsCheckBuyerNotices, 300);
+}
+
+/* =====================================================
+   CHAT: offer cards, system lines, the deal bar
+   ===================================================== */
+
+let dealChatThread = null;      // last /deals/thread response for the open chat
+let dealChatSignature = null;   // last message id seen; a change means "refresh the bar"
+
+/* Called by loadChatMessages() for every message. Returns HTML for offer
+   and system messages, or '' to let app.js draw a normal bubble. */
+function renderDealChatMessage(m, isSent, time) {
+  const kind = m.kind || 'text';
+  if (kind === 'system') {
+    return `<div class="chat-system"><i class="fas fa-circle-info"></i><span>${dlEsc(m.body)}</span><time>${dlEsc(time)}</time></div>`;
+  }
+  if (kind !== 'offer' || !m.offer) return '';
+
+  const o = m.offer;
+  const isCounter = o.round_number > 1;
+  const rules = (dealChatThread && dealChatThread.rules) || { max_counter_rounds: 3 };
+  const countersLeft = Math.max(0, rules.max_counter_rounds - (o.round_number - 1));
+  const who = o.from_role === 'buyer' ? 'Buyer’s' : 'Seller’s';
+  const label = isCounter ? `${who} counter-offer` : `${who} offer`;
+  const meta = o.status === 'open'
+    ? `Valid till ${dlEsc(dlWhen(o.expires_at))}`
+    : dlEsc(OFFER_STATUS_LABEL[o.status] || o.status);
+
+  let actions = '';
+  if (o.can_respond) {
+    actions = `
+      <div class="deal-card-actions">
+        <button class="deal-btn deal-btn-primary" onclick="dealAcceptOffer('${dlEsc(o.id)}', ${Number(o.price)})"><i class="fas fa-check"></i> Accept</button>
+        ${countersLeft > 0 ? `<button class="deal-btn" onclick="openOfferComposer('counter', '${dlEsc(o.id)}', ${Number(o.price)}, ${countersLeft})">Counter</button>` : ''}
+        <button class="deal-btn deal-btn-quiet" onclick="dealDeclineOffer('${dlEsc(o.id)}')">Decline</button>
+      </div>
+      ${countersLeft === 0 ? `<div class="deal-card-hint">No counter-offers left. Accept or decline.</div>` : ''}`;
+  } else if (o.can_withdraw) {
+    actions = `
+      <div class="deal-card-actions">
+        <button class="deal-btn deal-btn-quiet" onclick="dealWithdrawOffer('${dlEsc(o.id)}')">Withdraw</button>
+      </div>`;
+  }
+
+  return `
+    <div class="deal-card ${isSent ? 'sent' : 'received'} deal-card-${dlEsc(o.status)}">
+      <div class="deal-card-kicker"><i class="fas fa-handshake"></i> ${label}</div>
+      <div class="deal-card-price">${dlRupees(o.price)}</div>
+      ${o.note ? `<div class="deal-card-note">${dlEsc(o.note)}</div>` : ''}
+      <div class="deal-card-meta"><span class="deal-dot deal-dot-${dlEsc(o.status)}"></span>${meta}</div>
+      ${actions}
+      <div class="chat-msg-time">${dlEsc(time)}</div>
+    </div>`;
+}
+
+/* Called by loadChatMessages() after each draw. The bar is refetched only
+   when the conversation changed: every deal action writes a chat message,
+   so a new last message is the signal. */
+function dealsAfterChatRender(msgs) {
+  const last = msgs && msgs.length ? msgs[msgs.length - 1].id : 'none';
+  if (last === dealChatSignature) return;
+  dealChatSignature = last;
+  refreshChatDealBar();
+}
+
+function dealsOnChatOpen() {
+  dealChatThread = null;
+  dealChatSignature = null;
+  const bar = document.getElementById('chatDealBar');
+  if (bar) { bar.innerHTML = ''; bar.classList.add('hidden'); }
+}
+
+async function refreshChatDealBar() {
+  const c = currentChatConversation;
+  const bar = document.getElementById('chatDealBar');
+  if (!c || !bar || !c.listingId || !c.sellerId) return;
+  let t;
+  try { t = await dealsApi.thread(c.listingId, c.sellerId); }
+  catch { bar.classList.add('hidden'); return; }
+  // The chat may have closed or switched while we waited.
+  if (currentChatConversation !== c) return;
+  dealChatThread = t;
+  bar.innerHTML = chatDealBarHtml(t);
+  bar.classList.toggle('hidden', !bar.innerHTML.trim());
+  // Something in this chat's deal now waits on the viewer: the buyer's
+  // warning, or the other side's cancel request.
+  if (t.deal && ((t.deal.can_acknowledge && !dlNoticeSkipped.has('warn:' + t.deal.id))
+      || (t.deal.can_answer_cancel && !dlNoticeSkipped.has('cancel:' + t.deal.id)))) dealsCheckBuyerNotices();
+}
+
+function chatDealBarHtml(t) {
+  const deal = t.deal;
+  const isSeller = t.my_role === 'seller';
+  const cats = (t.rules && t.rules.categories) || [];
+  const inScope = t.product && (cats.includes('all') || cats.includes(t.product.category));
+
+  if (deal && (LIVE_DEAL.includes(deal.status) || deal.status === 'completed')) {
+    let line = `${dealPill(deal.status)} <strong>${dlRupees(deal.agreed_price)}</strong>`;
+    if (deal.status === 'awaiting_seller') {
+      const step = deal.waiting_for_buyer_ack
+        ? (isSeller ? 'buyer accepts the warning' : 'accept the warning')
+        : (isSeller ? 'confirm' : 'seller confirms');
+      line += ` <span class="deal-bar-muted">· ${step} by ${dlEsc(dlWhen(deal.confirm_by))}</span>`;
+    } else if (deal.status === 'docs_pending') {
+      line += ` <span class="deal-bar-muted">· documents due by ${dlEsc(dlDay(deal.reserved_until))}</span>`;
+    } else if (['locked', 'loan_in_progress'].includes(deal.status)) {
+      line += ` <span class="deal-bar-muted">· reserved till ${dlEsc(dlDay(deal.reserved_until))}</span>`;
+    }
+    if (deal.cancel_request) {
+      line += ` <span class="deal-bar-attn">· ${deal.can_answer_cancel ? 'cancel requested: answer it' : 'you asked to cancel'}</span>`;
+    }
+    const btn = deal.can_confirm
+      ? `<button class="deal-btn deal-btn-primary" onclick="openDealAndConfirm('${dlEsc(deal.id)}')"><i class="fas fa-lock"></i> Confirm deal</button>`
+      : deal.can_acknowledge
+        ? `<button class="deal-btn deal-btn-primary" onclick="openDeal('${dlEsc(deal.id)}').then(() => dealStartBuyerAccept())"><i class="fas fa-shield-halved"></i> Accept warning</button>`
+        : `<button class="deal-btn deal-btn-primary" onclick="openDeal('${dlEsc(deal.id)}')">Open deal</button>`;
+    return `
+      <div class="deal-bar">
+        <div class="deal-bar-text">${line}</div>
+        ${btn}
+      </div>`;
+  }
+
+  if (!isSeller && t.listing_reserved_for_someone_else) {
+    return `<div class="deal-bar deal-bar-info"><i class="fas fa-lock"></i> Another buyer is in a deal for this listing right now.</div>`;
+  }
+  if (!inScope) return '';
+
+  if (t.can_send_offer) {
+    const pending = t.current_offer;   // only ever the viewer's own, when sending is allowed
+    const type = loanTypeTag(t.loan_type);
+    const idle = isSeller
+      ? `<span class="deal-bar-muted">Agree a price and lock it for an EMI deal</span>`
+      : `<span class="deal-bar-muted">Make an offer and buy on EMI</span>`;
+    return `
+      <div class="deal-bar">
+        <div class="deal-bar-text">${pending ? `Your offer: <strong>${dlRupees(pending.price)}</strong>` : idle} ${type}</div>
+        <button class="deal-btn deal-btn-primary" onclick="openOfferComposer('new')"><i class="fas fa-handshake"></i> ${pending ? 'New offer' : (isSeller ? 'Send offer' : 'Make offer')}</button>
+      </div>`;
+  }
+  if (t.cannot_send_offer_reason) {
+    const icon = t.my_deal_ban_until ? 'fa-ban' : 'fa-circle-info';
+    return `<div class="deal-bar deal-bar-info${t.my_deal_ban_until ? ' deal-bar-ban' : ''}"><i class="fas ${icon}"></i> ${dlEsc(t.cannot_send_offer_reason)}</div>`;
+  }
+  return '';
+}
+
+/* ---------- Offer composer (new offer or counter) ---------- */
+let offerComposer = null;
+
+async function openOfferComposer(mode, offerId = null, offerPrice = null, countersLeft = null) {
+  const c = currentChatConversation;
+  if (!c) return;
+  const rules = await dlRules();
+  const isSeller = dealChatThread?.my_role === 'seller';
+  offerComposer = { mode, offerId, isSeller };
+  const isCounter = mode === 'counter';
+  const listPrice = dealChatThread?.product?.price;
+  const startPrice = isCounter ? offerPrice : listPrice;
+
+  document.getElementById('dealOfferTitle').textContent = isCounter ? 'Counter-offer' : (isSeller ? 'Send a deal offer' : 'Make an offer');
+  document.getElementById('dealOfferSub').textContent = isCounter
+    ? `Their offer: ${dlRupees(offerPrice)}. ${countersLeft} counter-offer${countersLeft === 1 ? '' : 's'} left.`
+    : (listPrice ? `Listed at ${dlRupees(listPrice)}.` : '');
+  const price = document.getElementById('dealOfferPrice');
+  price.value = startPrice ? Math.round(startPrice).toLocaleString('en-IN') : '';
+  document.getElementById('dealOfferNote').value = '';
+  document.getElementById('dealOfferError').classList.add('hidden');
+  document.getElementById('dealOfferSubmit').textContent = isCounter ? 'Send counter-offer' : 'Send offer';
+  document.getElementById('dealOfferInfo').innerHTML = isSeller
+    ? `Valid for ${rules.offer_valid_hours} hours. If the buyer accepts, they read the deal warning, then you confirm with an SMS code. The deal locks once both sides’ documents are verified.`
+    : `Valid for ${rules.offer_valid_hours} hours. If it’s accepted, you read the deal warning and the seller confirms. The deal locks, and the listing is reserved for you for ${rules.reservation_days} days, once both sides’ documents are verified.`;
+  dlOpenOverlay('dealOfferModal', 'dealOffer');
+  setTimeout(() => price.focus(), 50);
+}
+
+function closeOfferComposer() { closeTopModal('dealOffer'); }
+
+async function submitOfferComposer() {
+  const c = currentChatConversation;
+  const errEl = document.getElementById('dealOfferError');
+  const btn = document.getElementById('dealOfferSubmit');
+  const price = dlParseRupees(document.getElementById('dealOfferPrice').value);
+  const note = document.getElementById('dealOfferNote').value.trim();
+  if (!c || !offerComposer) return;
+  if (!price || price < 1) {
+    errEl.textContent = 'Enter the price in rupees.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  errEl.classList.add('hidden');
+  const composer = offerComposer;
+  // No warning here, for either side: the warning comes with the seller's
+  // final confirmation, and the buyer is told when that happens.
+  btn.disabled = true;
+  try {
+    if (composer.mode === 'counter') {
+      await dealsApi.counter(composer.offerId, price, note);
+    } else if (composer.isSeller) {
+      // In a seller's chat the other party is the buyer.
+      await dealsApi.sendOffer({ productId: c.listingId, buyerId: c.sellerId, price, note });
+    } else {
+      await dealsApi.sendOffer({ productId: c.listingId, price, note });
+    }
+    await dlCloseModalThen('dealOffer');
+    showToast(composer.mode === 'counter' ? 'Counter-offer sent.' : 'Offer sent.', 'success');
+    await loadChatMessages();
+  } catch (err) {
+    errEl.textContent = err.message || 'Could not send the offer.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function dealAcceptOffer(offerId, price) {
+  const isSeller = dealChatThread?.my_role === 'seller';
+  const rules = await dlRules();
+  if (isSeller) {
+    if (!confirm(`Accept ${dlRupees(price)}?\n\nThe buyer then reads and accepts the deal warning, and after that you confirm with an SMS code. Until you confirm, you can still say no.`)) return;
+  } else {
+    if (!confirm(`Accept ${dlRupees(price)}?\n\nNext you read and accept the deal warning, then the seller confirms with an SMS code.`)) return;
+  }
+  try {
+    const deal = await dealsApi.accept(offerId);
+    showToast(isSeller ? 'Accepted. The buyer now accepts the deal warning, then you confirm.' : 'Accepted.', 'success');
+    await loadChatMessages();
+    if (isSeller) { openDeal(deal.id); return; }
+    // The buyer's turn: the warning, straight away.
+    await dlBuyerAcceptWarning({ ...deal, product: dealChatThread && dealChatThread.product });
+    openDeal(deal.id);
+  } catch (err) {
+    showToast(err.message || 'Could not accept the offer.', 'error');
+    loadChatMessages();
+  }
+}
+
+async function dealDeclineOffer(offerId) {
+  if (!confirm('Decline this offer?')) return;
+  try { await dealsApi.decline(offerId); await loadChatMessages(); }
+  catch (err) { showToast(err.message || 'Could not decline.', 'error'); loadChatMessages(); }
+}
+
+async function dealWithdrawOffer(offerId) {
+  if (!confirm('Withdraw your offer?')) return;
+  try { await dealsApi.withdraw(offerId); await loadChatMessages(); }
+  catch (err) { showToast(err.message || 'Could not withdraw.', 'error'); loadChatMessages(); }
+}
+
+/* =====================================================
+   SELLER CONFIRMATION: warning, then the SMS code
+   ===================================================== */
+let dlOtpState = null;
+
+async function openDealAndConfirm(dealId) {
+  await openDeal(dealId);
+  const d = dealModalState && dealModalState.deal;
+  if (d && d.can_confirm) dealStartConfirm();
+}
+
+/* The buyer's "Read and accept the deal warning" button in the deal sheet. */
+async function dealStartBuyerAccept() {
+  const d = dealModalState && dealModalState.deal;
+  if (!d || !d.can_acknowledge) return;
+  await dlBuyerAcceptWarning(d);
+}
+
+async function dealStartConfirm() {
+  const d = dealModalState && dealModalState.deal;
+  if (!d || !d.can_confirm) {
+    if (d && d.waiting_for_buyer_ack) showToast('Waiting for the buyer to accept the deal warning first.', 'info');
+    return;
+  }
+  const ok = await dlWarn('seller', {
+    price: d.agreed_price, title: d.product && d.product.title,
+    buyer: d.other_user && d.other_user.name, loanType: d.loan_type,
+  });
+  if (!ok) return;
+  dlOtpState = { dealId: d.id, timer: null };
+  document.getElementById('dealOtpSub').textContent = 'Sending the code to your mobile number...';
+  document.getElementById('dealOtpCode').value = '';
+  document.getElementById('dealOtpError').classList.add('hidden');
+  dlOpenOverlay('dealOtpModal', 'dealOtp');
+  await dlOtpSend();
+}
+
+function dlOtpStop() {
+  if (dlOtpState && dlOtpState.timer) clearInterval(dlOtpState.timer);
+  if (dlOtpState) dlOtpState.timer = null;
+}
+
+function dlOtpCountdown(seconds) {
+  const btn = document.getElementById('dealOtpResend');
+  dlOtpStop();
+  let left = seconds;
+  const tick = () => {
+    if (left <= 0) { dlOtpStop(); btn.disabled = false; btn.textContent = 'Send the code again'; return; }
+    btn.disabled = true;
+    btn.textContent = `Send again in ${left}s`;
+    left -= 1;
+  };
+  tick();
+  if (dlOtpState) dlOtpState.timer = setInterval(tick, 1000);
+}
+
+async function dlOtpSend() {
+  if (!dlOtpState) return;
+  const err = document.getElementById('dealOtpError');
+  const sub = document.getElementById('dealOtpSub');
+  const btn = document.getElementById('dealOtpResend');
+  btn.disabled = true;
+  err.classList.add('hidden');
+  try {
+    const r = await dealsApi.confirmSendCode(dlOtpState.dealId);
+    sub.textContent = `We sent a 6-digit code to ${r.sent_to}. It works for ${r.expires_in_minutes} minutes.`;
+    dlOtpCountdown(r.resend_after_seconds || 60);
+    setTimeout(() => document.getElementById('dealOtpCode').focus(), 50);
+  } catch (e) {
+    err.textContent = e.message || 'Could not send the code.';
+    err.classList.remove('hidden');
+    sub.textContent = 'The code is sent by SMS to the mobile number on your profile.';
+    btn.disabled = false;
+    btn.textContent = 'Send the code again';
+  }
+}
+
+async function dlOtpSubmit() {
+  if (!dlOtpState) return;
+  const code = document.getElementById('dealOtpCode').value.replace(/\D/g, '');
+  const err = document.getElementById('dealOtpError');
+  const btn = document.getElementById('dealOtpSubmit');
+  if (code.length !== 6) { err.textContent = 'Enter the 6-digit code from the SMS.'; err.classList.remove('hidden'); return; }
+  btn.disabled = true;
+  err.classList.add('hidden');
+  const dealId = dlOtpState.dealId;
+  try {
+    const d = await dealsApi.confirm(dealId, code);
+    await dlCloseModalThen('dealOtp');
+    showToast(d.status === 'locked' ? 'Deal locked.' : 'Confirmed. Now both of you upload your documents.', 'success');
+    if (modalStack.includes('deal')) { dealModalState = { deal: d, panel: null }; renderDealModal(); }
+    else openDeal(dealId);
+    if (currentChatConversation) loadChatMessages();
+    if (currentPage === 'mydeals') renderMyDeals();
+  } catch (e) {
+    err.textContent = e.message || 'That didn’t work. Please try again.';
+    err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* =====================================================
+   DEAL SHEET (opened from chat, My Deals, or a listing)
+   ===================================================== */
+let dealModalState = null;
+
+async function openDeal(dealId) {
+  if (!currentUser) { pendingAction = () => openDeal(dealId); openModal(); return; }
+  const body = document.getElementById('dealModalBody');
+  body.innerHTML = `<div class="deal-loading"><i class="fas fa-spinner fa-spin"></i> Loading deal...</div>`;
+  if (!modalStack.includes('deal')) dlOpenOverlay('dealModal', 'deal');
+  await reloadDealModal(dealId);
+}
+
+async function reloadDealModal(dealId) {
+  const body = document.getElementById('dealModalBody');
+  let d;
+  try { d = await dealsApi.get(dealId); }
+  catch (err) {
+    body.innerHTML = `<div class="deal-loading">${dlEsc(err.message || 'Could not load this deal.')}</div>`;
+    return;
+  }
+  await dlRules();
+  dealModalState = { deal: d, panel: null, uploading: null };
+  renderDealModal();
+}
+
+function renderDealModal() {
+  if (!dealModalState) return;
+  const d = dealModalState.deal;
+  const body = document.getElementById('dealModalBody');
+  const p = d.product || {};
+  const other = d.other_user || {};
+  const role = d.my_role;
+
+  body.innerHTML = `
+    ${dealModalState.notice ? `<div class="deal-ban-banner"><i class="fas fa-ban"></i> ${dlEsc(dealModalState.notice)}</div>` : ''}
+    <div class="deal-head">
+      <div class="deal-head-img"><i class="fas ${isVehicle(d) ? 'fa-car' : 'fa-box'}"></i>${p.image_url ? `<img src="${dlEsc(toAbsoluteUrl(p.image_url))}" alt="" onerror="this.remove()">` : ''}</div>
+      <div class="deal-head-text">
+        <div class="deal-head-title">${dlEsc(p.title || 'Listing')}</div>
+        <div class="deal-head-sub">${role === 'seller' ? 'Buyer' : 'Seller'}: ${dlEsc(other.name || '—')}</div>
+        <div class="deal-head-type">${loanTypeTag(d.loan_type)}</div>
+      </div>
+    </div>
+    <div class="deal-price-row">
+      <div><span class="deal-label">Agreed price</span><strong>${dlRupees(d.agreed_price)}</strong></div>
+      ${dealPill(d.status)}
+    </div>
+
+    ${dealStepper(d)}
+    ${dealNextStepHtml(d)}
+    ${dealDocsHtml(d)}
+    ${d.loan ? dealLoanHtml(d) : ''}
+    ${dealTimelineHtml(d)}
+    ${dealFooterHtml(d)}`;
+}
+
+function dealStepper(d) {
+  const status = d.status;
+  if (status === 'released') {
+    return `<div class="deal-ended"><i class="fas fa-rotate-left"></i> This deal was released. The listing is back on sale.</div>`;
+  }
+  const steps = [['awaiting_seller', 'Warning & confirm'], ['docs_pending', 'Documents']];
+  steps.push(['locked', 'Locked'], ['loan_in_progress', 'Loan'], ['ready_to_pay', 'Ready to pay'],
+    ['paid', 'Paid'], ['completed', 'Done']);
+  const order = steps.map(s => s[0]);
+  const at = status === 'disputed' ? order.indexOf('paid') : order.indexOf(status);
+  return `<ol class="deal-steps" style="grid-template-columns:repeat(${steps.length},1fr)">${steps.map(([key, label], i) => `
+    <li class="${i < at || status === 'completed' ? 'is-done' : i === at ? 'is-current' : ''}">
+      <span class="deal-step-dot">${i < at || status === 'completed' ? '<i class="fas fa-check"></i>' : i + 1}</span>
+      <span class="deal-step-label">${label}</span>
+    </li>`).join('')}</ol>`;
+}
+
+function docsProgress(d, party = null) {
+  const need = (d.documents || []).filter(x => x.required && (!party || x.party === party));
+  return { need: need.length, approved: need.filter(x => x.status === 'approved').length,
+    uploaded: need.filter(x => ['uploaded', 'approved'].includes(x.status)).length,
+    rejected: need.filter(x => x.status === 'rejected').length };
+}
+
+/* What happens next, for whoever is looking, plus their buttons. */
+function dealNextStepHtml(d) {
+  const role = d.my_role;
+  const loan = d.loan;
+  const lender = (loan && loan.lender) || d.lender || 'the lender';
+  const box = (icon, title, text, actions = '', extra = '') => `
+    <div class="deal-next ${extra}">
+      <div class="deal-next-head"><i class="fas ${icon}"></i> ${title}</div>
+      ${text ? `<p>${text}</p>` : ''}
+      ${actions}
+    </div>`;
+
+  switch (d.status) {
+    case 'awaiting_seller':
+      if (role === 'seller') {
+        return d.waiting_for_buyer_ack
+          ? box('fa-hourglass-half', 'Waiting for the buyer to accept the deal warning',
+              `The buyer reads and accepts the deal warning first, by <strong>${dlEsc(dlWhen(d.confirm_by))}</strong>. Then you decide: confirm with the SMS code, or decline. Nobody else can start a deal on this listing meanwhile.`,
+              `<button class="deal-btn deal-btn-primary deal-btn-wide" disabled><i class="fas fa-shield-halved"></i> Confirm with SMS code</button>
+               <button class="deal-btn deal-btn-quiet deal-btn-wide" onclick="dealSetPanel('cancel')">Decline this deal</button>`)
+          : box('fa-lock', 'Confirm and lock this deal',
+              `The buyer agreed to <strong>${dlRupees(d.agreed_price)}</strong> and accepted the deal warning. The decision is yours: confirm with the SMS code by <strong>${dlEsc(dlWhen(d.confirm_by))}</strong>, or decline. If you do neither, the deal is released.`,
+              `<button class="deal-btn deal-btn-primary deal-btn-wide" onclick="dealStartConfirm()"><i class="fas fa-shield-halved"></i> Confirm with SMS code</button>
+               <button class="deal-btn deal-btn-quiet deal-btn-wide" onclick="dealSetPanel('cancel')">Decline this deal</button>`);
+      }
+      return d.can_acknowledge
+        ? box('fa-shield-halved', 'Read and accept the deal warning',
+            `Before the seller can lock this deal, read what it means for you and accept it, by <strong>${dlEsc(dlWhen(d.confirm_by))}</strong>. If you don’t, the deal is released.`,
+            `<button class="deal-btn deal-btn-primary deal-btn-wide" onclick="dealStartBuyerAccept()"><i class="fas fa-shield-halved"></i> Read and accept the deal warning</button>`, 'deal-next-attn')
+        : box('fa-hourglass-half', 'Waiting for the seller to confirm',
+            `You accepted the deal warning. The seller takes the final decision, by <strong>${dlEsc(dlWhen(d.confirm_by))}</strong>. Nobody else can start a deal on this listing meanwhile.`);
+
+    case 'docs_pending': {
+      const pr = docsProgress(d);
+      const otherRole = role === 'seller' ? 'buyer' : 'seller';
+      const mine = docsProgress(d, role);
+      const theirs = docsProgress(d, otherRole);
+      const bar = `<div class="deal-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${pr.need}" aria-valuenow="${pr.approved}">
+          <span style="width:${pr.need ? Math.round(100 * pr.approved / pr.need) : 0}%"></span></div>
+        <div class="deal-progress-text">${pr.approved} of ${pr.need} verified${mine.rejected ? ` · <strong class="deal-red">${mine.rejected} of yours to upload again</strong>` : ''}</div>`;
+      const otherLine = !theirs.need ? ''
+        : (d.docs_uploaded || {})[otherRole]
+          ? `<p class="deal-small"><i class="fas fa-circle-check deal-green"></i> The ${otherRole} has uploaded their documents. ${theirs.approved === theirs.need ? 'All verified.' : 'They’re being checked.'}</p>`
+          : `<p class="deal-small"><i class="fas fa-hourglass-half"></i> Waiting for the ${otherRole} to upload their documents (${theirs.uploaded} of ${theirs.need} so far).</p>`;
+      const who = d.lender ? `${dlEsc(d.lender)} or DealBriz` : 'DealBriz or the lender';
+      const myText = mine.need
+        ? ((d.docs_uploaded || {})[role]
+            ? `Your documents are uploaded and being checked by ${who}.`
+            : `Upload your documents below.`)
+        : '';
+      return box('fa-file-shield', 'Documents pending',
+        `${myText} The deal locks, and the listing is reserved${role === 'buyer' ? ' for you' : ''} for ${((dealRulesCache || {}).reservation_days) || 7} days, once both sides’ documents are verified. Documents due by <strong>${dlEsc(dlWhen(d.reserved_until))}</strong>, or the deal is released.`,
+        bar + otherLine, 'deal-next-docs');
+    }
+
+    case 'locked':
+      return role === 'buyer'
+        ? box('fa-file-signature', 'Next: your loan application',
+            `The listing is reserved for you until <strong>${dlEsc(dlWhen(d.reserved_until))}</strong>. Apply now so the lender has time to check you${isVehicle(d) ? ' and the vehicle' : ''}.`,
+            `<button class="deal-btn deal-btn-primary deal-btn-wide" onclick="openLoanForm()"><i class="fas fa-hand-holding-usd"></i> Apply for the loan</button>`)
+        : box('fa-hourglass-half', 'Waiting for the buyer to apply for the loan',
+            `The listing is reserved for this buyer until <strong>${dlEsc(dlWhen(d.reserved_until))}</strong>. If the loan isn't ready to pay by then, the deal is released automatically.`);
+
+    case 'loan_in_progress': {
+      const st = loan ? (LOAN_STATUS_LABEL[loan.status] || loan.status) : 'In progress';
+      return box('fa-magnifying-glass-dollar', `Loan: ${dlEsc(st)}`,
+        loan && loan.status === 'approved'
+          ? `The loan is approved. ${dlEsc(lender)} will ${isVehicle(d) ? 'check the vehicle and documents, then ' : ''}mark the deal Ready to pay. Reserved until <strong>${dlEsc(dlWhen(d.reserved_until))}</strong>.`
+          : `${role === 'buyer' ? 'Your application is' : 'The buyer’s application is'} with the lender. Reserved until <strong>${dlEsc(dlWhen(d.reserved_until))}</strong>.`);
+    }
+
+    case 'ready_to_pay':
+      return box('fa-people-arrows', 'Handover meeting',
+        `${dlEsc(lender)} is ready to pay. Meet to hand over the ${itemWord(d)}. The seller keeps ${isVehicle(d) ? 'the keys, RC and forms' : 'the item'} until the money arrives.`,
+        dealHandoverHtml(d) + (role === 'buyer' ? handoverCodeCard(d) : ''));
+
+    case 'paid':
+      return box('fa-indian-rupee-sign', `${dlEsc(lender)} paid the seller`,
+        `UTR <strong class="deal-utr">${dlEsc(d.utr)}</strong>`,
+        dealPaidActionsHtml(d));
+
+    case 'disputed':
+      return box('fa-life-ring', 'Under review by DealBriz support',
+        `Support will contact both of you. ${isVehicle(d) ? 'Keys, RC and forms' : 'The item'} should stay where ${isVehicle(d) ? 'they are' : 'it is'} until it is sorted out.`);
+
+    case 'completed':
+      return box('fa-circle-check', 'Deal completed',
+        `Completed on ${dlEsc(dlWhen(d.completed_at))}.${d.utr ? ` UTR <strong class="deal-utr">${dlEsc(d.utr)}</strong>.` : ''}`);
+
+    case 'released': {
+      const why = RELEASE_REASON_LABEL[d.release_reason] || 'it was released';
+      return box('fa-circle-info', 'Deal released', `Released because ${dlEsc(why)}.${d.release_note ? ` Note: ${dlEsc(d.release_note)}` : ''}`);
+    }
+  }
+  return '';
+}
+
+/* The buyer's code. Only the buyer gets it from the server. */
+function handoverCodeCard(d) {
+  if (!d.handover_code) return '';
+  return `
+    <div class="deal-code-card">
+      <div class="deal-code-label">Your handover code</div>
+      <div class="deal-code" aria-label="Handover code">${dlEsc(d.handover_code.split('').join(' '))}</div>
+      <p>Give this code to the seller only after you have the ${isVehicle(d) ? 'vehicle, keys, original RC and signed forms' : 'item'}. The seller enters it to finish the deal. Don’t share it before that.</p>
+    </div>`;
+}
+
+function dealHandoverHtml(d) {
+  const role = d.my_role;
+  const tick = (done, label, sub = '') => `
+    <li class="${done ? 'is-done' : ''}">
+      <i class="fas ${done ? 'fa-circle-check' : 'fa-circle'}"></i>
+      <div><strong>${label}</strong>${sub ? `<span>${sub}</span>` : ''}</div>
+    </li>`;
+
+  const checklist = `
+    <ul class="deal-checklist">
+      ${tick(!!d.down_payment_at, 'Down payment paid to the seller',
+        d.down_payment_at ? dlRupees(d.down_payment) + ' by UPI' : 'Buyer pays by UPI and records it')}
+      ${tick(!!d.buyer_ready_at, 'Buyer ready', d.buyer_ready_at ? dlEsc(dlWhen(d.buyer_ready_at)) : (isVehicle(d) ? 'Hypothecation form signed' : 'Loan papers signed'))}
+      ${tick(!!d.seller_ready_at, 'Seller ready', d.seller_ready_at ? dlEsc(dlWhen(d.seller_ready_at)) : (isVehicle(d) ? 'RC transfer forms signed' : 'Ready to hand over'))}
+    </ul>`;
+
+  let actions = '';
+  if (role === 'buyer') {
+    if (!d.down_payment_at) {
+      const suggested = d.loan && d.loan.down_payment != null ? Math.round(d.loan.down_payment).toLocaleString('en-IN') : '';
+      actions = `
+        <div class="deal-inline-form">
+          <label for="dealDownPayment">Down payment paid (₹)</label>
+          <div class="deal-inline-row">
+            <input id="dealDownPayment" data-rupee inputmode="numeric" value="${suggested}" oninput="dlFormatRupeeInput(this)" placeholder="0 if none">
+            <button class="deal-btn deal-btn-primary" onclick="dealRecordDownPayment()">Record</button>
+          </div>
+        </div>`;
+    } else if (!d.buyer_ready_at) {
+      actions = `<button class="deal-btn deal-btn-primary deal-btn-wide" onclick="dealReady()"><i class="fas fa-check"></i> I'm ready</button>`;
+    }
+  } else if (role === 'seller' && !d.seller_ready_at) {
+    actions = `<button class="deal-btn deal-btn-primary deal-btn-wide" onclick="dealReady()"><i class="fas fa-check"></i> I'm ready</button>`;
+  }
+  if (d.buyer_ready_at && d.seller_ready_at) {
+    actions = `<div class="deal-wait"><i class="fas fa-spinner fa-spin"></i> Both ready. Waiting for the lender to pay the seller.</div>`;
+  }
+  return checklist + actions;
+}
+
+function dealPaidActionsHtml(d) {
+  const role = d.my_role;
+  if (role === 'seller') {
+    const codeForm = `
+      <p class="deal-small">Check your bank for the payment first. Then hand over the ${isVehicle(d) ? 'vehicle, keys, original RC and signed forms' : 'item'} and ask the buyer for their 6-digit handover code.</p>
+      <div class="deal-inline-form">
+        <label for="dealHandoverCode">Buyer’s handover code</label>
+        <div class="deal-inline-row">
+          <input id="dealHandoverCode" class="deal-code-input" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="6 digits"
+                 oninput="this.value=this.value.replace(/\\D/g,'').slice(0,6)" onkeydown="if(event.key==='Enter') dealEnterHandoverCode()">
+          <button class="deal-btn deal-btn-primary" onclick="dealEnterHandoverCode()">Finish deal</button>
+        </div>
+      </div>`;
+    if (!d.money_received_at) {
+      return codeForm + `
+        <button class="deal-btn deal-btn-quiet deal-btn-wide" onclick="dealMoneyReceived()">No code? Confirm the money arrived and let the buyer confirm instead</button>`;
+    }
+    return codeForm + `<div class="deal-wait"><i class="fas fa-circle-check"></i> You confirmed the money arrived. Waiting for the buyer to confirm the ${itemWord(d)}, or enter their code.</div>`;
+  }
+  // Buyer
+  const card = handoverCodeCard(d);
+  if (!d.money_received_at) {
+    return card + `<div class="deal-wait"><i class="fas fa-hourglass-half"></i> The seller checks the money arrived, then hands over the ${itemWord(d)}.</div>`;
+  }
+  return card + `<p class="deal-small">The seller confirmed the money. Once you have the ${isVehicle(d) ? 'vehicle, keys, original RC and signed forms' : 'item'}, confirm here (or give the seller your code).</p>
+    <button class="deal-btn deal-btn-primary deal-btn-wide" onclick="dealVehicleReceived()"><i class="fas ${isVehicle(d) ? 'fa-key' : 'fa-box-open'}"></i> ${isVehicle(d) ? 'Vehicle received' : 'Item received'}</button>`;
+}
+
+/* ---------- Documents (each side uploads its own) ---------- */
+function dealDocsHtml(d) {
+  const role = d.my_role;
+  if (!role || d.status === 'awaiting_seller') return '';
+  const all = d.documents || [];
+  const docs = all.filter(x => x.party === role);
+  const pending = d.status === 'docs_pending';
+
+  // After the lock the list is history: one line is enough.
+  if (!pending) {
+    const verified = all.filter(x => x.required && x.status === 'approved').length;
+    if (!verified) return '';
+    return `<div class="deal-section"><h4>Documents</h4>
+      <div class="deal-row"><span><i class="fas fa-circle-check deal-green"></i> ${verified} document${verified === 1 ? '' : 's'} verified (both sides)</span>
+      <strong>${d.docs_approved_at ? dlEsc(dlDay(d.docs_approved_at)) : ''}</strong></div></div>`;
+  }
+  if (!docs.length && !(role === 'seller' && d.docs_question_pending)) return '';
+
+  const rules = dealRulesCache || {};
+  const accept = (rules.doc_extensions || ['jpg', 'jpeg', 'png', 'webp', 'pdf']).map(x => '.' + x).join(',');
+  let question = '';
+  if (role === 'seller' && d.can_upload_docs && isVehicle(d)) {
+    const v = d.vehicle_had_loan;
+    question = `
+      <div class="deal-doc-question ${v === null || v === undefined ? 'is-open' : ''}">
+        <div><strong>Has this vehicle ever had a loan on it?</strong>
+          <span>Look for a bank’s name (“hypothecated to”) on the RC. If yes, you also need the loan NOC.</span></div>
+        <div class="deal-doc-yesno">
+          <button class="deal-btn ${v === true ? 'deal-btn-primary' : ''}" onclick="dealLoanAnswer(true)">Yes</button>
+          <button class="deal-btn ${v === false ? 'deal-btn-primary' : ''}" onclick="dealLoanAnswer(false)">No</button>
+        </div>
+      </div>`;
+  }
+
+  const rows = docs.map(item => {
+    const doc = item.document;
+    const st = item.status;
+    const busy = dealModalState && dealModalState.uploading === item.type;
+    const right = `<span class="deal-doc-status deal-doc-${dlEsc(st)}">${dlEsc(DOC_STATUS_LABEL[st] || st)}</span>`;
+    let actions = '';
+    if (d.can_upload_docs && item.required && st !== 'approved') {
+      actions = busy
+        ? `<span class="deal-small"><i class="fas fa-spinner fa-spin"></i> Uploading...</span>`
+        : `<label class="deal-btn deal-btn-sm ${st === 'missing' || st === 'rejected' ? 'deal-btn-primary' : ''}">
+             <i class="fas fa-upload"></i> ${st === 'missing' ? 'Upload' : 'Replace'}
+             <input type="file" accept="${accept}" class="deal-file" onchange="dealUploadDoc('${dlEsc(item.type)}', this)">
+           </label>`;
+    }
+    return `
+      <li class="deal-doc deal-doc-row-${dlEsc(st)}${item.required ? '' : ' is-extra'}">
+        <div class="deal-doc-main">
+          <div class="deal-doc-name">${dlEsc(item.label)}${item.required ? '' : ' <small>(not needed now)</small>'}</div>
+          ${st !== 'approved' ? `<div class="deal-doc-hint">${dlEsc(item.hint)}</div>` : ''}
+          ${doc && doc.file_name && st !== 'rejected' ? `<div class="deal-doc-hint"><i class="fas fa-paperclip"></i> ${dlEsc(doc.file_name)}</div>` : ''}
+          ${st === 'rejected' && doc && doc.reject_reason ? `<div class="deal-doc-reason"><i class="fas fa-circle-exclamation"></i> ${dlEsc(doc.reject_reason)}</div>` : ''}
+        </div>
+        <div class="deal-doc-side">${right}<div class="deal-doc-actions">${actions}</div></div>
+      </li>`;
+  }).join('');
+
+  return `
+    <div class="deal-section deal-docs">
+      <h4>Your documents</h4>
+      ${question}
+      ${docs.length ? `<ul class="deal-doc-list">${rows}</ul>` : ''}
+      <p class="deal-small"><i class="fas fa-lock"></i> Private: once uploaded, only DealBriz’s superadmin and the lender can open them. JPG, PNG or PDF, up to ${rules.doc_max_mb || 8} MB each. Aadhaar only masked (first 8 digits hidden).</p>
+    </div>`;
+}
+
+async function dealLoanAnswer(hadLoan) {
+  if (!dealModalState) return;
+  const id = dealModalState.deal.id;
+  try {
+    const d = await dealsApi.loanAnswer(id, hadLoan);
+    dealModalState.deal = d;
+    renderDealModal();
+  } catch (err) {
+    showToast(err.message || 'Could not save that.', 'error');
+  }
+}
+
+async function dealUploadDoc(type, input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file || !dealModalState) return;
+  const rules = await dlRules();
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (!(rules.doc_extensions || []).includes(ext)) { showToast('Upload a JPG, PNG, WEBP or PDF file.', 'error'); return; }
+  if (file.size > (rules.doc_max_mb || 8) * 1024 * 1024) { showToast(`Files can be up to ${rules.doc_max_mb || 8} MB.`, 'error'); return; }
+  const id = dealModalState.deal.id;
+  dealModalState.uploading = type;
+  renderDealModal();
+  try {
+    const d = await dealsApi.uploadDoc(id, type, file);
+    if (!dealModalState || dealModalState.deal.id !== id) return;
+    dealModalState.deal = d;
+    showToast('Uploaded. It will be checked soon.', 'success');
+  } catch (err) {
+    showToast(err.message || 'Upload failed. Please try again.', 'error');
+  }
+  if (dealModalState && dealModalState.deal.id === id) {
+    dealModalState.uploading = null;
+    renderDealModal();
+  }
+}
+
+/* Opens a private document. The window is opened straight away (inside
+   the click) so it isn't blocked as a popup, and pointed at the file once
+   the session is known to be fresh, since the file link carries no token
+   of its own. */
+async function dlViewDoc(dealId, docId) {
+  const w = window.open('about:blank', '_blank');
+  try { await apiFetch('/auth/me'); } catch { /* the file request will say what's wrong */ }
+  const url = dealsApi.docFileUrl(dealId, docId);
+  if (w) { try { w.opener = null; } catch { /* ignore */ } w.location.href = url; }
+  else window.location.href = url;
+}
+
+function dealLoanHtml(d) {
+  const l = d.loan;
+  const rows = [
+    ['Status', LOAN_STATUS_LABEL[l.status] || l.status],
+    l.lender ? ['Lender', l.lender] : null,
+    l.loan_amount != null ? ['Loan amount', dlRupees(l.loan_amount)] : null,
+    l.down_payment != null ? ['Down payment', dlRupees(l.down_payment)] : null,
+    l.monthly_emi != null ? ['EMI', `${dlRupees(l.monthly_emi)} × ${l.tenure_months} months`] : null,
+    l.interest_rate != null ? ['Interest', `${l.interest_rate}% p.a.`] : null,
+    l.nbfc_application_reference ? ['Lender reference', l.nbfc_application_reference] : null,
+  ].filter(Boolean);
+  return `
+    <div class="deal-section">
+      <h4>Loan</h4>
+      ${rows.map(([k, v]) => `<div class="deal-row"><span>${k}</span><strong>${dlEsc(v)}</strong></div>`).join('')}
+      ${l.kfs_url ? `<a class="deal-link" href="${dlEsc(l.kfs_url)}" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-contract"></i> Key Fact Statement</a>` : ''}
+    </div>`;
+}
+
+const DOC_LABEL = (t) => {
+  const found = ((dealRulesCache && dealRulesCache.doc_types) || []).find(x => x.type === t);
+  return found ? found.label : String(t || '').replace(/_/g, ' ');
+};
+
+const DEAL_EVENT_TEXT = {
+  accepted: (e) => `Offer of ${dlRupees(e.data.price)} accepted`,
+  buyer_acknowledged: () => 'Buyer accepted the deal warning',
+  seller_confirmed: () => 'Seller confirmed the deal',
+  cancel_requested: (e) => `${e.data.by === 'seller' ? 'Seller' : 'Buyer'} asked to cancel${e.data.reason ? `: ${dlEsc(e.data.reason)}` : ''}`,
+  cancel_agreed: (e) => `${e.data.by === 'seller' ? 'Seller' : 'Buyer'} agreed to cancel`,
+  cancel_disagreed: (e) => `${e.data.by === 'seller' ? 'Seller' : 'Buyer'} disagreed with cancelling`,
+  cancel_withdrawn: (e) => `${e.data.by === 'seller' ? 'Seller' : 'Buyer'} withdrew the cancel request`,
+  cancel_request_expired: () => 'Cancel request lapsed (no answer in time)',
+  force_cancelled: (e) => `${e.data.by === 'seller' ? 'Seller' : 'Buyer'} force-cancelled`,
+  loan_answer: (e) => `Seller said the vehicle ${e.data.had_loan ? 'had' : 'never had'} a loan`,
+  document_uploaded: (e) => `${dlEsc(DOC_LABEL(e.data.doc_type))} uploaded`,
+  document_approved: (e) => `${dlEsc(DOC_LABEL(e.data.doc_type))} verified`,
+  document_rejected: (e) => `${dlEsc(DOC_LABEL(e.data.doc_type))} sent back${e.data.reason ? `: ${dlEsc(e.data.reason)}` : ''}`,
+  locked: (e) => (e.data && e.data.price ? `Deal locked at ${dlRupees(e.data.price)}` : 'Deal locked'),
+  lender_set: (e) => (e.data && e.data.lender ? `Lender set: ${dlEsc(e.data.lender)}` : 'Lender cleared'),
+  loan_applied: () => 'Buyer applied for the loan',
+  loan_approved: () => 'Loan approved',
+  ready_to_pay: () => 'Lender ready to pay',
+  down_payment_recorded: (e) => `Down payment of ${dlRupees(e.data.amount)} recorded`,
+  ready: (e) => `${e.data.role === 'seller' ? 'Seller' : 'Buyer'} ready at the handover`,
+  payout_requested: () => 'Payout requested from the lender',
+  paid: (e) => `Lender paid the seller (UTR ${dlEsc(e.data.utr)})`,
+  money_received: () => 'Seller confirmed the money arrived',
+  vehicle_received: () => 'Buyer confirmed receiving it',
+  handover_code_confirmed: () => 'Seller entered the buyer’s handover code',
+  handover_code_reset: () => 'Handover code changed after wrong tries',
+  completed: () => 'Deal completed',
+  released: (e) => `Deal released: ${dlEsc(RELEASE_REASON_LABEL[e.data.reason] || 'released')}`,
+  disputed: () => 'Problem reported to support',
+  dispute_resolved: (e) => `Support resolved the problem${e.data.note ? `: ${dlEsc(e.data.note)}` : ''}`,
+};
+
+function dealTimelineHtml(d, { staff = false } = {}) {
+  const events = (d.events || []).filter(e => staff || DEAL_EVENT_TEXT[e.event_type]);
+  if (!events.length) return '';
+  return `
+    <div class="deal-section">
+      <h4>Timeline</h4>
+      <ol class="deal-timeline">
+        ${events.map(e => `
+          <li><span>${(DEAL_EVENT_TEXT[e.event_type] || (() => dlEsc(e.event_type.replace(/_/g, ' '))))(e)}</span>
+              <time>${dlEsc(dlWhen(e.created_at))}</time></li>`).join('')}
+      </ol>
+    </div>`;
+}
+
+function dealFooterHtml(d) {
+  const panel = dealModalState && dealModalState.panel;
+  const role = d.my_role;
+  const other = role === 'seller' ? 'buyer' : 'seller';
+  const bits = [];
+  const rules = dealRulesCache || { cancel_limit: 3, ban_days: 7, cancel_request_hours: 24 };
+
+  if (panel === 'cancel') {
+    let title, warn, button;
+    if (d.status === 'awaiting_seller' && role === 'seller') {
+      title = 'Decline this deal?';
+      button = 'Decline deal';
+      warn = `<p class="deal-small">The buyer is told and the listing stays on sale. Declining before you confirm doesn’t count against you.</p>`;
+    } else if (d.status === 'awaiting_seller') {
+      title = 'Withdraw from this deal?';
+      button = 'Withdraw';
+      warn = `<p class="deal-small">The seller hasn’t confirmed yet, so this doesn’t count against you.</p>`;
+    } else {
+      title = 'Ask to cancel this deal?';
+      button = 'Send cancel request';
+      warn = `<p class="deal-small">The ${other} is asked to agree. If they agree, the deal is cancelled and nobody is penalised. They have ${rules.cancel_request_hours || 24} hours to answer. While you wait, you can also force-cancel, which counts against you.</p>`;
+    }
+    return `
+      <div class="deal-confirm">
+        <h4>${title}</h4>
+        ${warn}
+        <textarea id="dealCancelReason" rows="2" maxlength="255" placeholder="Reason (optional, the other side sees it)"></textarea>
+        <div class="deal-confirm-actions">
+          <button class="deal-btn" onclick="dealSetPanel(null)">Keep the deal</button>
+          <button class="deal-btn deal-btn-danger" onclick="dealConfirmCancel()">${button}</button>
+        </div>
+      </div>`;
+  }
+  if (panel === 'force') {
+    return `
+      <div class="deal-confirm deal-force">
+        <h4>Force cancel this deal?</h4>
+        <p class="deal-warn"><i class="fas fa-triangle-exclamation"></i><span>This ends the deal now, without the ${other}’s agreement, and <strong>counts against you</strong>. Force-cancel ${rules.cancel_limit} deals in a row and you can’t post listings or make deals for ${rules.ban_days} days. Finishing a deal resets the count.<br><span lang="hi">इससे डील अभी ख़त्म हो जाएगी, ${other === 'seller' ? 'विक्रेता' : 'खरीदार'} की सहमति के बिना, और यह <strong>आपके ख़िलाफ़ गिना जाएगा</strong>। लगातार ${rules.cancel_limit} डील फ़ोर्स कैंसल करने पर आप ${rules.ban_days} दिन तक न लिस्टिंग डाल पाएँगे, न डील कर पाएँगे।</span></span></p>
+        ${role === 'buyer' ? '<p class="deal-small">The listing goes back on sale and your loan application is withdrawn.</p>' : '<p class="deal-small">The listing goes back on sale.</p>'}
+        <label class="deal-warn-check">
+          <input type="checkbox" id="dealForceCheck" onchange="document.getElementById('dealForceGo').disabled = !this.checked">
+          <span>I understand this counts against me.<br><span lang="hi">मैं समझता/समझती हूँ कि यह मेरे ख़िलाफ़ गिना जाएगा।</span></span>
+        </label>
+        <div class="deal-confirm-actions">
+          <button class="deal-btn" onclick="dealSetPanel(null)">Keep the deal</button>
+          <button id="dealForceGo" class="deal-btn deal-btn-danger" disabled onclick="dealForceCancel()">Force cancel</button>
+        </div>
+      </div>`;
+  }
+  if (panel === 'dispute') {
+    return `
+      <div class="deal-confirm">
+        <h4>Report a problem</h4>
+        <p class="deal-small">DealBriz support will contact both of you. The lender has already paid, so the deal can't simply be cancelled.</p>
+        <textarea id="dealDisputeReason" rows="3" maxlength="255" placeholder="What went wrong?"></textarea>
+        <div class="deal-confirm-actions">
+          <button class="deal-btn" onclick="dealSetPanel(null)">Back</button>
+          <button class="deal-btn deal-btn-danger" onclick="dealConfirmDispute()">Send to support</button>
+        </div>
+      </div>`;
+  }
+
+  // An open cancel request, from either side.
+  let request = '';
+  const cr = d.cancel_request;
+  if (cr && d.can_answer_cancel) {
+    request = `
+      <div class="deal-cancel-req is-theirs">
+        <div class="deal-cancel-req-head"><i class="fas fa-circle-question"></i> The ${dlEsc(cr.by_role)} asked to cancel this deal</div>
+        ${cr.reason ? `<p class="deal-small">Reason: “${dlEsc(cr.reason)}”</p>` : ''}
+        <p class="deal-small">Agree and the deal is cancelled, with no penalty for anyone. Disagree and it carries on. Answer by <strong>${dlEsc(dlWhen(cr.expires_at))}</strong>.</p>
+        <div class="deal-confirm-actions">
+          <button class="deal-btn" onclick="dealAnswerCancel(false)">Disagree</button>
+          <button class="deal-btn deal-btn-danger" onclick="dealAnswerCancel(true)">Agree to cancel</button>
+        </div>
+      </div>`;
+  } else if (cr && d.can_withdraw_cancel) {
+    request = `
+      <div class="deal-cancel-req is-mine">
+        <div class="deal-cancel-req-head"><i class="fas fa-hourglass-half"></i> You asked to cancel this deal</div>
+        <p class="deal-small">Waiting for the ${other} to agree, until <strong>${dlEsc(dlWhen(cr.expires_at))}</strong>. If they agree, nobody is penalised.</p>
+        <div class="deal-confirm-actions">
+          <button class="deal-btn" onclick="dealWithdrawCancel()">Withdraw request</button>
+          <button class="deal-btn deal-btn-quiet-danger" onclick="dealSetPanel('force')">Force cancel</button>
+        </div>
+      </div>`;
+  }
+
+  bits.push(`<button class="deal-btn" onclick="dealOpenChat()"><i class="fas fa-comment-dots"></i> Chat</button>`);
+  if (d.can_cancel && !(d.status === 'awaiting_seller' && role === 'seller')) {
+    bits.push(`<button class="deal-btn deal-btn-quiet-danger" onclick="dealSetPanel('cancel')">Withdraw</button>`);
+  }
+  if (d.can_request_cancel) {
+    bits.push(`<button class="deal-btn deal-btn-quiet-danger" onclick="dealSetPanel('cancel')">Cancel deal</button>`);
+  }
+  if (d.status === 'paid') bits.push(`<button class="deal-btn deal-btn-quiet-danger" onclick="dealSetPanel('dispute')">Report a problem</button>`);
+  return `${request}<div class="deal-footer">${bits.join('')}</div>`;
+}
+
+function dealSetPanel(panel) {
+  if (!dealModalState) return;
+  dealModalState.panel = panel;
+  renderDealModal();
+  if (panel) {
+    const box = document.querySelector('#dealModal .deal-confirm');
+    box?.scrollIntoView?.({ block: 'nearest' });
+    box?.querySelector('textarea')?.focus();
+  }
+}
+
+/* One wrapper for every deal action: run it, then redraw the sheet (and
+   the chat behind it, which gets a system message for most actions).
+   Returns the action's result, or null if it failed. */
+async function dealAct(fn, okMessage) {
+  if (!dealModalState) return null;
+  const id = dealModalState.deal.id;
+  let result = null;
+  document.querySelectorAll('#dealModal .deal-btn').forEach(b => { b.disabled = true; });
+  try {
+    result = await fn(id);
+    if (okMessage) showToast(okMessage, 'success');
+  } catch (err) {
+    showToast(err.message || 'That didn’t work. Please try again.', 'error');
+  }
+  await reloadDealModal(id);
+  if (currentChatConversation) loadChatMessages();
+  if (currentPage === 'mydeals') renderMyDeals();
+  return result;
+}
+
+function dealRecordDownPayment() {
+  const raw = document.getElementById('dealDownPayment').value.trim();
+  const amount = raw === '' ? NaN : dlParseRupees(raw);
+  if (isNaN(amount)) { showToast('Enter the down payment in rupees (0 if none).', 'error'); return; }
+  dealAct(id => dealsApi.handover(id, 'down-payment', { amount }), 'Down payment recorded.');
+}
+
+function dealReady() {
+  if (!confirm('Tap Ready only when the forms are signed. Ready?')) return;
+  dealAct(id => dealsApi.handover(id, 'ready'), 'Marked ready.');
+}
+
+function dealMoneyReceived() {
+  if (!confirm('Confirm the money has arrived in your bank account?')) return;
+  dealAct(id => dealsApi.handover(id, 'money-received'), 'Confirmed.');
+}
+
+function dealVehicleReceived() {
+  const d = dealModalState && dealModalState.deal;
+  const what = isVehicle(d) ? 'the vehicle, keys, original RC and signed forms' : 'the item';
+  if (!confirm(`Confirm you have ${what}?`)) return;
+  dealAct(id => dealsApi.handover(id, 'vehicle-received'), 'Deal completed.');
+}
+
+async function dealEnterHandoverCode() {
+  const el = document.getElementById('dealHandoverCode');
+  const code = (el?.value || '').replace(/\D/g, '');
+  if (code.length !== 6) { showToast('Enter the buyer’s 6-digit code.', 'error'); return; }
+  if (!confirm('Finish the deal? Only do this once the money is in your bank and you have handed everything over.')) return;
+  dealAct(id => dealsApi.handover(id, 'code', { code }), 'Deal completed.');
+}
+
+async function dealConfirmCancel() {
+  const reason = (document.getElementById('dealCancelReason')?.value || '').trim();
+  const d = dealModalState && dealModalState.deal;
+  if (!d) return;
+  const ok = d.status === 'awaiting_seller'
+    ? (d.my_role === 'seller' ? 'Deal declined.' : 'You withdrew from the deal.')
+    : 'Cancel request sent. You’ll be told when they answer.';
+  await dealAct(id => dealsApi.cancel(id, reason), ok);
+}
+
+async function dealWithdrawCancel() {
+  await dealAct(id => dealsApi.cancelWithdraw(id), 'Cancel request withdrawn.');
+}
+
+async function dealAnswerCancel(agree) {
+  if (agree && !confirm('Agree to cancel? The deal ends and the listing goes back on sale. Nobody is penalised.')) return;
+  await dealAct(id => dealsApi.cancelAnswer(id, agree),
+    agree ? 'Deal cancelled. Nobody is penalised.' : 'You disagreed. The deal carries on.');
+}
+
+async function dealForceCancel() {
+  if (!document.getElementById('dealForceCheck')?.checked) return;
+  const res = await dealAct(id => dealsApi.cancelForce(id), 'Deal force-cancelled.');
+  if (!res) return;
+  const banDays = (dealRulesCache || {}).ban_days || 7;
+  let notice = '';
+  if (res.deal_ban_until) {
+    const until = dlWhen(res.deal_ban_until);
+    notice = `You force-cancelled ${res.cancel_limit} deals in a row, so new listings and deals are paused until ${until}. Deals you already have carry on.`;
+    showToast(`Paused until ${until}.`, 'error');
+    if (currentUser) currentUser.dealBanUntil = res.deal_ban_until;
+  } else if (res.counted && res.consecutive_cancels >= 1) {
+    const left = res.cancel_limit - res.consecutive_cancels;
+    notice = `That is ${res.consecutive_cancels} force-cancelled deal${res.consecutive_cancels === 1 ? '' : 's'} in a row. `
+      + (left === 1 ? `One more and new listings and deals are paused for ${banDays} days.`
+                    : `After ${res.cancel_limit}, new listings and deals are paused for ${banDays} days.`)
+      + ' Finishing a deal resets the count.';
+  }
+  if (notice && dealModalState && dealModalState.deal.id === res.id) {
+    dealModalState.notice = notice;
+    renderDealModal();
+  }
+}
+
+function dealConfirmDispute() {
+  const reason = (document.getElementById('dealDisputeReason')?.value || '').trim();
+  if (!reason) { showToast('Please say what went wrong.', 'error'); return; }
+  dealAct(id => dealsApi.dispute(id, reason), 'Sent to DealBriz support.');
+}
+
+/* From the deal sheet back to the conversation it belongs to. If the chat
+   is already open underneath, just close the sheet. */
+async function dealOpenChat() {
+  const d = dealModalState && dealModalState.deal;
+  if (!d) return;
+  const otherId = d.my_role === 'seller' ? d.buyer_id : d.seller_id;
+  const chatOpen = currentChatConversation && currentChatConversation.listingId === d.product_id
+    && currentChatConversation.sellerId === otherId;
+  await dlCloseModalThen('deal');
+  if (!chatOpen) openConversation(d.product_id, otherId);
+}
+
+/* The listing page's "View deal" for its seller. */
+async function openDealForProduct(productId) {
+  try {
+    const deals = await dealsApi.mine('live');
+    const d = deals.find(x => x.product_id === productId);
+    if (d) { openDeal(d.id); return; }
+  } catch { /* fall through */ }
+  showToast('No active deal on this listing.', 'info');
+}
+
+/* =====================================================
+   LOAN FORM (buyer, locked deal)
+   ===================================================== */
+let loanFormExisting = [];
+
+async function openLoanForm() {
+  const d = dealModalState && dealModalState.deal;
+  if (!d) return;
+  document.getElementById('dealLoanPrice').textContent = dlRupees(d.agreed_price);
+  document.getElementById('dealLoanDown').value = '';
+  document.getElementById('dealLoanName').value = [currentUser?.name, currentUser?.lastName].filter(Boolean).join(' ');
+  document.getElementById('dealLoanPhone').value = currentUser?.phone || '';
+  document.getElementById('dealLoanIncome').value = '';
+  document.getElementById('dealLoanError').classList.add('hidden');
+  const typeEl = document.getElementById('dealLoanType');
+  if (typeEl) typeEl.innerHTML = loanTypeTag(d.loan_type);
+  calcDealLoan();
+
+  // An EMI application already sent for this listing can be linked instead
+  // of filling the form again.
+  const existingBox = document.getElementById('dealLoanExisting');
+  existingBox.innerHTML = '';
+  loanFormExisting = [];
+  try {
+    const apps = await db.getMyEmiApplications();
+    loanFormExisting = (apps || []).filter(a => a.product_id === d.product_id && !a.deal_id
+      && ['pending', 'review', 'approved'].includes(a.status) && Number(a.loan_amount) <= Number(d.agreed_price));
+  } catch { /* the form still works without it */ }
+  if (loanFormExisting.length) {
+    existingBox.innerHTML = `
+      <div class="deal-existing">
+        <p>You already applied for EMI on this listing.</p>
+        ${loanFormExisting.map(a => `
+          <button class="deal-btn deal-btn-wide" onclick="submitDealLoan('${dlEsc(a.id)}')">
+            Use that application: ${dlRupees(a.loan_amount)} over ${a.tenure_months} months
+          </button>`).join('')}
+        <div class="deal-or"><span>or apply again below</span></div>
+      </div>`;
+  }
+  dlOpenOverlay('dealLoanModal', 'dealLoan');
+}
+
+function closeLoanForm() { closeTopModal('dealLoan'); }
+
+function dealLoanNumbers() {
+  const d = dealModalState && dealModalState.deal;
+  const price = d ? Number(d.agreed_price) : 0;
+  const downRaw = document.getElementById('dealLoanDown').value.trim();
+  const down = downRaw ? dlParseRupees(downRaw) : 0;
+  const tenure = parseInt(document.getElementById('dealLoanTenure').value, 10);
+  const rate = parseFloat(document.getElementById('dealLoanRate').value);
+  const loan = Math.max(0, price - (isNaN(down) ? 0 : down));
+  const mr = rate / 12 / 100;
+  const emi = mr > 0 ? loan * mr * Math.pow(1 + mr, tenure) / (Math.pow(1 + mr, tenure) - 1) : loan / tenure;
+  return { price, down, tenure, rate, loan, emi };
+}
+
+function calcDealLoan() {
+  const n = dealLoanNumbers();
+  document.getElementById('dealLoanAmount').textContent = dlRupees(n.loan);
+  document.getElementById('dealLoanEmi').textContent = dlRupees(n.emi);
+  document.getElementById('dealLoanTotal').textContent = dlRupees(n.emi * n.tenure);
+}
+
+async function submitDealLoan(existingId = null) {
+  const d = dealModalState && dealModalState.deal;
+  const errEl = document.getElementById('dealLoanError');
+  if (!d) return;
+  let body;
+  if (existingId) {
+    body = { deal_id: d.id, emi_application_id: existingId };
+  } else {
+    const n = dealLoanNumbers();
+    const name = document.getElementById('dealLoanName').value.trim();
+    const phone = document.getElementById('dealLoanPhone').value.trim();
+    const income = dlParseRupees(document.getElementById('dealLoanIncome').value);
+    if (isNaN(n.down) || n.down < 0 || n.down >= n.price) {
+      errEl.textContent = 'The down payment must be less than the agreed price.';
+      errEl.classList.remove('hidden'); return;
+    }
+    if (!name || !phone || !income) {
+      errEl.textContent = 'Please fill in your name, phone and monthly income.';
+      errEl.classList.remove('hidden'); return;
+    }
+    body = {
+      deal_id: d.id, down_payment: n.down, tenure_months: n.tenure, interest_rate: n.rate,
+      loan_amount: Math.round(n.loan), monthly_emi: Math.round(n.emi),
+      total_payable: Math.round(n.emi * n.tenure),
+      applicant_name: name, applicant_phone: phone, applicant_income: income,
+    };
+  }
+  errEl.classList.add('hidden');
+  const btns = document.querySelectorAll('#dealLoanModal button');
+  btns.forEach(b => { b.disabled = true; });
+  try {
+    await dealsApi.applyLoan(body);
+    await dlCloseModalThen('dealLoan');
+    showToast('Loan application sent.', 'success');
+    await reloadDealModal(d.id);
+    if (currentChatConversation) loadChatMessages();
+  } catch (err) {
+    errEl.textContent = err.message || 'Could not send the application.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btns.forEach(b => { b.disabled = false; });
+  }
+}
+
+/* =====================================================
+   MY DEALS page
+   ===================================================== */
+let myDealsTab = 'live';
+
+function setMyDealsTab(tab) {
+  myDealsTab = tab;
+  renderMyDeals();
+}
+
+async function renderMyDeals() {
+  const el = document.getElementById('myDealsContent');
+  if (!el || !currentUser) return;
+  document.querySelectorAll('#mydealsPage .deal-tab').forEach(b => b.classList.toggle('is-active', b.dataset.tab === myDealsTab));
+  el.innerHTML = `<div class="deal-loading"><i class="fas fa-spinner fa-spin"></i> Loading deals...</div>`;
+  let deals = [];
+  try { deals = await dealsApi.mine(myDealsTab); }
+  catch (err) {
+    el.innerHTML = `<div class="deal-loading">${dlEsc(err.message || 'Could not load deals.')}</div>`;
+    return;
+  }
+  const banner = currentUser.dealBanUntil && new Date(currentUser.dealBanUntil) > new Date()
+    ? `<div class="deal-ban-banner"><i class="fas fa-ban"></i> New listings and deals are paused until ${dlEsc(dlWhen(currentUser.dealBanUntil))}, because ${((dealRulesCache || {}).cancel_limit) || 3} deals were force-cancelled in a row. Your current deals carry on as normal.</div>`
+    : '';
+  if (!deals.length) {
+    el.innerHTML = banner + (myDealsTab === 'live'
+      ? `<div class="empty-state"><i class="fas fa-handshake"></i><h3>No active deals</h3><p>When an offer is accepted in chat, the deal shows up here.</p><button class="btn-primary" onclick="showPage('mychats')">Go to My Chats</button></div>`
+      : `<div class="empty-state"><i class="fas fa-box-archive"></i><h3>No past deals</h3></div>`);
+    return;
+  }
+  el.innerHTML = banner + deals.map(d => {
+    const p = d.product || {};
+    const other = d.other_user || {};
+    let sub = `${d.my_role === 'seller' ? 'Buyer' : 'Seller'}: ${dlEsc(other.name || '—')}`;
+    if (d.status === 'awaiting_seller') {
+      if (d.can_confirm) sub += ` · <strong class="deal-attn">confirm by ${dlEsc(dlWhen(d.confirm_by))}</strong>`;
+      else if (d.can_acknowledge) sub += ` · <strong class="deal-attn">accept the deal warning by ${dlEsc(dlWhen(d.confirm_by))}</strong>`;
+      else if (d.waiting_for_buyer_ack) sub += ` · buyer accepts the warning by ${dlEsc(dlWhen(d.confirm_by))}`;
+      else sub += ` · seller confirms by ${dlEsc(dlWhen(d.confirm_by))}`;
+    } else if (d.status === 'docs_pending') sub += ` · documents due by ${dlEsc(dlDay(d.reserved_until))}`;
+    else if (['locked', 'loan_in_progress'].includes(d.status)) sub += ` · reserved till ${dlEsc(dlDay(d.reserved_until))}`;
+    if (d.cancel_request) sub += d.can_answer_cancel ? ` · <strong class="deal-attn">cancel requested: answer it</strong>` : ` · you asked to cancel`;
+    return `
+      <button class="deal-list-item" onclick="${d.can_confirm ? 'openDealAndConfirm' : 'openDeal'}('${dlEsc(d.id)}')">
+        <div class="deal-list-img"><i class="fas ${isVehicle(d) ? 'fa-car' : 'fa-box'}"></i>${p.image_url ? `<img src="${dlEsc(toAbsoluteUrl(p.image_url))}" alt="" onerror="this.remove()">` : ''}</div>
+        <div class="deal-list-info">
+          <div class="deal-list-title">${dlEsc(p.title || 'Listing')}</div>
+          <div class="deal-list-sub">${sub}</div>
+          <div class="deal-list-price">${dlRupees(d.agreed_price)} ${loanTypeTag(d.loan_type)}</div>
+        </div>
+        ${dealPill(d.status)}
+      </button>`;
+  }).join('');
+}
+
+/* =====================================================
+   DOCUMENT REVIEW (admin deal detail and the lender portal)
+   ===================================================== */
+function dlDocsReviewHtml(d, ctx) {
+  const all = d.documents || [];
+  if (!all.length) {
+    if (d.status === 'docs_pending') return `<p class="deal-small">Nothing uploaded yet.</p>`;
+    return '';
+  }
+  const canReview = !!d.can_review_docs;
+  const canView = !!d.can_view_doc_files;
+  const group = (party, docs) => !docs.length ? '' : `
+    <div class="deal-doc-group-head">${party === 'buyer' ? 'Buyer' : 'Seller'}’s documents
+      <small>${(d.docs_uploaded || {})[party] ? 'all uploaded' : 'not all uploaded yet'}</small></div>
+    <ul class="deal-doc-list deal-doc-review">
+      ${docs.map(item => {
+        const doc = item.document;
+        const st = item.status;
+        let actions = '';
+        if (doc && !doc.file_deleted && canView) {
+          actions += `<button class="btn-sm" onclick="dlViewDoc('${dlEsc(d.id)}','${dlEsc(doc.id)}')"><i class="fas fa-eye"></i> View</button>`;
+        }
+        if (canReview && doc && st === 'uploaded') {
+          actions += ` <button class="btn-sm btn-sm-blue" onclick="dlReviewDoc('${dlEsc(d.id)}','${dlEsc(doc.id)}','approve','${ctx}')">Approve</button>
+                       <button class="btn-sm btn-sm-red" onclick="dlReviewDoc('${dlEsc(d.id)}','${dlEsc(doc.id)}','reject','${ctx}')">Reject</button>`;
+        }
+        return `
+          <li class="deal-doc">
+            <div class="deal-doc-main">
+              <div class="deal-doc-name">${dlEsc(item.label)}${item.required ? '' : ' <small>(not needed now)</small>'}</div>
+              ${doc ? `<div class="deal-doc-hint">${dlEsc(doc.file_name || '')} · ${dlEsc(dlWhen(doc.uploaded_at))}${doc.file_deleted ? ' · file deleted after the deal closed' : ''}</div>` : ''}
+              ${st === 'rejected' && doc && doc.reject_reason ? `<div class="deal-doc-reason"><i class="fas fa-circle-exclamation"></i> ${dlEsc(doc.reject_reason)}</div>` : ''}
+            </div>
+            <div class="deal-doc-side"><span class="deal-doc-status deal-doc-${dlEsc(st)}">${dlEsc(DOC_STATUS_LABEL[st] || st)}</span>
+              <div class="deal-doc-actions">${actions}</div></div>
+          </li>`;
+      }).join('')}
+    </ul>`;
+  return `
+    ${d.docs_question_pending ? '<p class="deal-small">The seller hasn’t yet said whether the vehicle had a loan (if yes, a loan NOC is added).</p>' : ''}
+    ${d.vehicle_had_loan === true ? '<p class="deal-small">Seller says the vehicle had a loan: check the NOC and that the bank is removed from the RC.</p>' : ''}
+    ${group('seller', all.filter(x => x.party === 'seller'))}
+    ${group('buyer', all.filter(x => x.party === 'buyer'))}
+    ${canReview ? '<p class="deal-small">Check each file: names match the PAN, the RC is for this vehicle, insurance and PUC are valid, both Aadhaars are masked, and the buyer’s PAN is the buyer’s own. When every document of both sides is verified, the deal locks.</p>'
+      : (canView ? '' : '<p class="deal-small"><i class="fas fa-lock"></i> Only a superadmin or the deal’s lender can open and verify these files.</p>')}`;
+}
+
+async function dlReviewDoc(dealId, docId, decision, ctx) {
+  let reason = '';
+  if (decision === 'reject') {
+    reason = (prompt('What is wrong with it? The person who uploaded it sees this and uploads it again.') || '').trim();
+    if (!reason) return;
+  }
+  try {
+    const d = await dealsApi.reviewDoc(dealId, docId, decision, reason);
+    showToast(d.status === 'locked' ? 'All documents verified. The deal is locked.' : (decision === 'approve' ? 'Verified.' : 'Sent back to be uploaded again.'), 'success');
+  } catch (err) {
+    showToast(err.message || 'That didn’t work.', 'error');
+  }
+  if (ctx === 'lender') { lenderRefresh(); lenderViewDeal(dealId); }
+  else { renderAdminDeals(); adminViewDeal(dealId); }
+}
+
+/* =====================================================
+   ADMIN: Deals section and deal detail
+   ===================================================== */
+let adminDealsCache = [];
+let adminDealsFilter = '';
+
+async function renderAdminDeals() {
+  document.querySelectorAll('#adminSection-deals .admin-filter-btn').forEach(b =>
+    b.classList.toggle('active', (b.dataset.status || '') === adminDealsFilter));
+  try { adminDealsCache = await dealsApi.staffQueue(adminDealsFilter); }
+  catch (err) { adminDealsCache = []; showToast(err.message || 'Could not load deals.', 'error'); }
+  dlRules();
+  renderAdminDealsTable();
+}
+
+function adminDealsSetFilter(status) {
+  adminDealsFilter = status;
+  adminResetPage('deals');
+  renderAdminDeals();
+}
+
+ADMIN_TABLE_RERENDER.deals = renderAdminDealsTable;
+
+function adminDealsSearchChanged() { adminResetPage('deals'); renderAdminDealsTable(); }
+
+function renderAdminDealsTable() {
+  const tbody = document.getElementById('adminDealsBody');
+  const none = document.getElementById('adminNoDeals');
+  if (!tbody) return;
+  const q = document.getElementById('adminDealSearch')?.value || '';
+  const filtered = adminDealsCache.filter(d => adminMatches(q,
+    d.product && d.product.title, d.buyer && d.buyer.name, d.seller && d.seller.name,
+    d.buyer && d.buyer.email, d.seller && d.seller.email, d.utr, d.lender));
+  const rows = adminPaginate('deals', filtered);
+  document.getElementById('adminDealCount').textContent = `${filtered.length} of ${adminDealsCache.length}`;
+  if (!filtered.length) { tbody.innerHTML = ''; none.classList.remove('hidden'); return; }
+  none.classList.add('hidden');
+
+  tbody.innerHTML = rows.map(d => {
+    const loan = d.loan;
+    const attention = adminDealNeedsAction(d);
+    const until = d.status === 'awaiting_seller' ? d.confirm_by : d.reserved_until;
+    return `
+    <tr>
+      <td><div class="admin-product-cell"><img src="${dlEsc(toAbsoluteUrl(d.product?.image_url || ''))}" alt="" onerror="this.style.display='none'"><span>${dlEsc(d.product?.title || '—')}</span></div>${loanTypeTag(d.loan_type)}</td>
+      <td>${dlEsc(d.buyer?.name || '—')}<br><small>${dlEsc(d.buyer?.phone || '')}</small></td>
+      <td>${dlEsc(d.seller?.name || '—')}<br><small>${dlEsc(d.seller?.phone || '')}</small></td>
+      <td>${dlRupees(d.agreed_price)}</td>
+      <td>${loan ? `${dlEsc(LOAN_STATUS_LABEL[loan.status] || loan.status)}<br><small>${dlEsc(d.lender || 'No lender set')}</small>` : `<small>Not applied${d.lender ? `<br>${dlEsc(d.lender)}` : ''}</small>`}</td>
+      <td>${dealPill(d.status)}${attention ? `<br><small class="deal-attn">${dlEsc(attention)}</small>` : ''}</td>
+      <td><small>${dlEsc(dlWhen(until))}</small></td>
+      <td><button class="btn-sm btn-sm-blue" onclick="adminViewDeal('${dlEsc(d.id)}')">Details</button></td>
+    </tr>`;
+  }).join('');
+}
+
+/* The one thing staff are waiting on for this deal, if any. */
+function adminDealNeedsAction(d) {
+  if (d.status === 'docs_pending' && d.docs_summary) {
+    if (d.docs_summary.to_check > 0) return `Check ${d.docs_summary.to_check} document${d.docs_summary.to_check === 1 ? '' : 's'}`;
+    return 'Waiting for documents';
+  }
+  if (d.status === 'loan_in_progress' && d.loan) {
+    if (d.loan.status !== 'approved') return 'Review the loan';
+    if (!d.lender) return 'Set the lender';
+    return 'Mark Ready to pay';
+  }
+  if (d.status === 'ready_to_pay' && d.buyer_ready_at && d.seller_ready_at) return 'Payout needed';
+  if (d.status === 'disputed') return 'Resolve dispute';
+  return '';
+}
+
+function dlOpenAdminModal(html) {
+  const content = document.getElementById('productModalContent');
+  content.innerHTML = html;
+  if (!modalStack.includes('product')) {
+    document.getElementById('productModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    pushModal('product');
+  }
+  return content;
+}
+
+const DL_LOADING = `<div style="text-align:center;padding:60px 20px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
+
+async function adminViewDeal(dealId) {
+  const content = dlOpenAdminModal(DL_LOADING);
+  let d;
+  try {
+    d = await dealsApi.get(dealId);
+    await dlRules();
+  } catch (err) {
+    content.innerHTML = `<div style="text-align:center;padding:60px 20px">${dlEsc(err.message || 'Could not load this deal.')}</div>`;
+    return;
+  }
+  // The staff row carries buyer and seller contact details; the deal itself
+  // only names the people.
+  const row = adminDealsCache.find(x => x.id === dealId) ||
+    (await dealsApi.staffQueue(d.status).catch(() => [])).find(x => x.id === dealId) || {};
+  const can = userCan('deals.manage');
+  const r = (label, value) => `<div class="admin-detail-row"><span>${label}</span><strong>${value}</strong></div>`;
+  const loan = d.loan;
+
+  let action = '';
+  if (d.status === 'awaiting_seller') {
+    action = d.buyer_ack_at
+      ? `<p class="deal-small">Waiting for the seller to confirm with the SMS code, until ${dlEsc(fmtDateTime(d.confirm_by))}. If they don't, the deal is released automatically.</p>`
+      : `<p class="deal-small">Waiting for the buyer to accept the deal warning, until ${dlEsc(fmtDateTime(d.confirm_by))}. The seller confirms after that.</p>`;
+  } else if (d.status === 'docs_pending') {
+    action = d.can_review_docs
+      ? `<p class="deal-small">Check both sides' documents below. When every one is verified the deal locks, the listing is reserved and the buyer can apply for the loan.</p>`
+      : `<p class="deal-small">Waiting for both sides' documents to be checked by a superadmin or the lender.</p>`;
+  } else if (d.status === 'loan_in_progress') {
+    if (!loan) {
+      action = `<p class="deal-small">Waiting for the buyer to apply.</p>`;
+    } else if (loan.status !== 'approved' || !(row.lender || loan.lender)) {
+      action = `<p class="deal-small">Before Ready to pay: approve the loan and set the lender on the EMI application (or the lender does it in its portal).</p>
+        <button class="btn-sm btn-sm-blue" onclick="adminViewEmiApplication('${dlEsc(loan.application_id)}')">Open EMI application</button>`;
+    } else if (can) {
+      action = `<p class="deal-small">Confirm the lender has sanctioned the loan, the agreement and EMI auto-debit are signed${isVehicle(d) ? ", and the seller's documents and vehicle are checked" : ''}.</p>
+        <textarea id="adminDealNote" rows="2" style="width:100%" placeholder="Note (optional)"></textarea>
+        <button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="adminDealReady('${dlEsc(d.id)}')">Mark Ready to pay</button>`;
+    }
+  } else if (d.status === 'ready_to_pay') {
+    if (!(d.buyer_ready_at && d.seller_ready_at)) {
+      action = `<p class="deal-small">Waiting for both sides to tap Ready at the handover meeting.</p>`;
+    } else if (can) {
+      action = `<p class="deal-small">Ask the lender to pay the seller, then enter the UTR they give for the transfer. Both sides see it.</p>
+        <input id="adminDealUtr" type="text" style="width:100%" placeholder="UTR (e.g. SBIN0012345678)" autocomplete="off">
+        <button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="adminDealPaid('${dlEsc(d.id)}')">Mark paid</button>`;
+    }
+  } else if (d.status === 'disputed' && can) {
+    action = `<p class="deal-small">Record how it was resolved. Money back goes through the lender, outside DealBriz.</p>
+      <select id="adminDealOutcome" style="width:100%;margin-bottom:8px">
+        <option value="paid">Back to Paid: the two sides will finish the handover</option>
+        <option value="completed">Completed: the handover did happen</option>
+      </select>
+      <textarea id="adminDealResolveNote" rows="2" style="width:100%" placeholder="What was agreed"></textarea>
+      <button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="adminDealResolve('${dlEsc(d.id)}')">Resolve</button>`;
+  }
+
+  // Which lender handles the deal: lets that lender's own people check the
+  // documents and work the loan in their portal. Only before the loan.
+  let lenderPick = '';
+  if (can && ['awaiting_seller', 'docs_pending', 'locked'].includes(d.status)) {
+    lenderPick = `<div class="admin-detail-section"><h4>Lender for this deal</h4>
+      <p style="font-size:11.5px;color:var(--text-muted);margin:0 0 8px;line-height:1.5">That lender's portal users can then check both sides' documents and the loan. Only lenders that fund ${dlEsc(LOAN_TYPE_LABEL[d.loan_type] || d.loan_type).toLowerCase()}s are listed.</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><select id="adminDealFinancer" style="flex:1;min-width:160px"><option value="">Loading...</option></select>
+      <button class="btn-sm btn-sm-blue" onclick="adminDealSetFinancer('${dlEsc(d.id)}')">Save</button></div></div>`;
+  }
+
+  dlOpenAdminModal(`
+    <div class="pm-body" style="padding-top:20px">
+      <div class="staff-mod-bar">
+        <span><i class="fas fa-handshake"></i> DealLock deal</span>
+        ${dealPill(d.status)}
+      </div>
+      <h2 class="pm-title" style="margin-bottom:4px">${dlEsc(d.product?.title || 'Listing')}</h2>
+      <div class="pm-meta">Deal ID: ${dlEsc(d.id)} ${loanTypeTag(d.loan_type)}</div>
+
+      ${action ? `<div class="admin-detail-section"><h4>Next step</h4>${action}</div>` : ''}
+
+      ${(d.documents || []).length || d.status === 'docs_pending' ? `<div class="admin-detail-section"><h4>Documents</h4>${dlDocsReviewHtml(d, 'admin')}</div>` : ''}
+
+      ${lenderPick}
+
+      <div class="admin-detail-section"><h4>Deal</h4>
+        ${r('Agreed price', dlRupees(d.agreed_price))}
+        ${r('Offer accepted', dlEsc(fmtDateTime(d.locked_at)))}
+        ${d.seller_confirmed_at ? r('Seller confirmed', dlEsc(fmtDateTime(d.seller_confirmed_at))) : ''}
+        ${d.docs_approved_at ? r('Documents verified', dlEsc(fmtDateTime(d.docs_approved_at))) : ''}
+        ${d.status === 'awaiting_seller' ? r('Seller must confirm by', dlEsc(fmtDateTime(d.confirm_by))) : r('Reserved until', dlEsc(fmtDateTime(d.reserved_until)))}
+        ${r('Buyer accepted the warning', d.buyer_ack_at ? dlEsc(fmtDateTime(d.buyer_ack_at)) : 'Not yet')}
+        ${r('Seller accepted the warning', d.seller_ack_at ? dlEsc(fmtDateTime(d.seller_ack_at)) : 'Not yet')}
+        ${d.cancel_request ? r('Cancel requested', `by the ${dlEsc(d.cancel_request.by_role)}, answer due ${dlEsc(fmtDateTime(d.cancel_request.expires_at))}${d.cancel_request.reason ? `<br><small>${dlEsc(d.cancel_request.reason)}</small>` : ''}`) : ''}
+        ${d.lender ? r('Lender', dlEsc(d.lender)) : ''}
+        ${d.utr ? r('UTR', dlEsc(d.utr)) : ''}
+        ${d.release_reason ? r('Released because', dlEsc(RELEASE_REASON_LABEL[d.release_reason] || d.release_reason)) : ''}
+        ${d.release_note ? r('Release note', dlEsc(d.release_note)) : ''}
+      </div>
+
+      <div class="admin-detail-section"><h4>People</h4>
+        ${row.buyer ? r('Buyer', `${dlEsc(row.buyer.name)}<br><small>${dlEsc(row.buyer.email)} · ${dlEsc(row.buyer.phone || '')}</small>`) : (d.buyer ? r('Buyer', dlEsc(d.buyer.name)) : '')}
+        ${row.seller ? r('Seller', `${dlEsc(row.seller.name)}<br><small>${dlEsc(row.seller.email)} · ${dlEsc(row.seller.phone || '')}</small>`) : (d.seller ? r('Seller', dlEsc(d.seller.name)) : '')}
+      </div>
+
+      ${loan ? `<div class="admin-detail-section"><h4>Loan</h4>
+        ${r('Status', dlEsc(LOAN_STATUS_LABEL[loan.status] || loan.status))}
+        ${r('Lender', dlEsc(loan.lender || row.lender || 'Not set'))}
+        ${loan.loan_amount != null ? r('Loan amount', dlRupees(loan.loan_amount)) : ''}
+        ${loan.down_payment != null ? r('Down payment (planned)', dlRupees(loan.down_payment)) : ''}
+        ${loan.nbfc_application_reference ? r('Lender reference', dlEsc(loan.nbfc_application_reference)) : ''}
+        ${loan.kfs_url ? r('KFS', `<a href="${dlEsc(loan.kfs_url)}" target="_blank" rel="noopener noreferrer">Open</a>`) : ''}
+        <button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="adminViewEmiApplication('${dlEsc(loan.application_id)}')">Open EMI application</button>
+      </div>` : ''}
+
+      ${['ready_to_pay', 'paid', 'disputed', 'completed'].includes(d.status) ? `<div class="admin-detail-section"><h4>Handover</h4>
+        ${r('Down payment', d.down_payment_at ? dlRupees(d.down_payment) : 'Not recorded')}
+        ${r('Buyer ready', d.buyer_ready_at ? dlEsc(fmtDateTime(d.buyer_ready_at)) : 'No')}
+        ${r('Seller ready', d.seller_ready_at ? dlEsc(fmtDateTime(d.seller_ready_at)) : 'No')}
+        ${r('Money received', d.money_received_at ? dlEsc(fmtDateTime(d.money_received_at)) : 'No')}
+        ${r(isVehicle(d) ? 'Vehicle received' : 'Item received', d.vehicle_received_at ? dlEsc(fmtDateTime(d.vehicle_received_at)) : 'No')}
+      </div>` : ''}
+
+      <div class="admin-detail-section">${dealTimelineHtml(d, { staff: true }).replace('class="deal-section"', 'class="deal-section deal-section-flat"')}</div>
+    </div>`);
+
+  if (lenderPick) {
+    try {
+      const all = await db.adminGetFinancers();
+      const sel = document.getElementById('adminDealFinancer');
+      if (sel) {
+        const fits = (all || []).filter(f => (f.loan_types || ['vehicle', 'personal']).includes(d.loan_type));
+        sel.innerHTML = `<option value="">No lender yet</option>` + fits.map(f =>
+          `<option value="${f.financer_id}" ${d.financer_id === f.financer_id ? 'selected' : ''}>${dlEsc(f.name)}${f.status !== 'active' ? ' (inactive)' : ''}</option>`).join('');
+      }
+    } catch {
+      const sel = document.getElementById('adminDealFinancer');
+      if (sel) sel.innerHTML = '<option value="">Could not load lenders</option>';
+    }
+  }
+}
+
+async function adminDealRun(dealId, fn, ok) {
+  try {
+    await fn();
+    showToast(ok, 'success');
+  } catch (err) {
+    showToast(err.message || 'That didn’t work.', 'error');
+  }
+  await renderAdminDeals();
+  adminViewDeal(dealId);
+}
+
+function adminDealSetFinancer(dealId) {
+  const v = document.getElementById('adminDealFinancer')?.value || '';
+  adminDealRun(dealId, () => dealsApi.staffFinancer(dealId, v ? Number(v) : null), v ? 'Lender set.' : 'Lender cleared.');
+}
+
+function adminDealReady(dealId) {
+  const note = document.getElementById('adminDealNote')?.value.trim() || '';
+  if (!confirm('Mark this deal Ready to pay? Both sides are told to meet for the handover.')) return;
+  adminDealRun(dealId, () => dealsApi.staffReady(dealId, note), 'Marked Ready to pay.');
+}
+
+function adminDealPaid(dealId) {
+  const utr = (document.getElementById('adminDealUtr')?.value || '').replace(/\s+/g, '').toUpperCase();
+  if (!/^[A-Z0-9]{6,30}$/.test(utr)) { showToast('Enter the UTR from the lender (6 to 30 letters and digits).', 'error'); return; }
+  if (!confirm(`Mark paid with UTR ${utr}? Only do this once the lender has confirmed the transfer.`)) return;
+  adminDealRun(dealId, () => dealsApi.staffPaid(dealId, utr), 'Marked paid.');
+}
+
+function adminDealResolve(dealId) {
+  const outcome = document.getElementById('adminDealOutcome')?.value;
+  const note = document.getElementById('adminDealResolveNote')?.value.trim() || '';
+  if (!note) { showToast('Add a note saying how it was resolved.', 'error'); return; }
+  adminDealRun(dealId, () => dealsApi.staffResolve(dealId, outcome, note), 'Dispute resolved.');
+}
+
+/* Opened from a staff or lender bell notification ("Payout needed",
+   "Documents to check"...): straight to the section that person works in. */
+async function openAdminDeals() {
+  await openAdminPanel();
+  const s = userSections();
+  if (s.includes('deals')) adminSwitchSection('deals');
+  else if (s.includes('lender')) adminSwitchSection('lender');
+}
+
+/* ---------- Admin EMI detail: the DealLock part ---------- */
+function adminEmiDealSectionHtml(a) {
+  if (!a.deal_id) return '';
+  return `
+    <div class="admin-detail-section"><h4>DealLock deal</h4>
+      <p style="font-size:11.5px;color:var(--text-muted);margin:0 0 10px;line-height:1.5">
+        This loan pays for a locked deal. Approving or rejecting it here moves the deal too.
+        Ready to pay and Paid are done on the deal.
+      </p>
+      <div id="emiDealStatus" class="admin-detail-row"><span>Deal</span><strong>Loading...</strong></div>
+      <label style="font-size:12px;font-weight:600;display:block;margin:10px 0 4px">Lender's application reference</label>
+      <input id="emiNbfcRef" type="text" style="width:100%" maxlength="150" value="${dlEsc(a.nbfc_application_reference || '')}" autocomplete="off">
+      <label style="font-size:12px;font-weight:600;display:block;margin:10px 0 4px">Key Fact Statement link (https)</label>
+      <input id="emiKfsUrl" type="url" style="width:100%" maxlength="500" value="${dlEsc(a.kfs_url || '')}" placeholder="https://..." autocomplete="off">
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn-sm btn-sm-blue" onclick="adminSaveEmiDealFields('${dlEsc(a.id)}')">Save</button>
+        <button class="btn-sm" onclick="adminViewDeal('${dlEsc(a.deal_id)}')">Open deal</button>
+      </div>
+    </div>`;
+}
+
+async function adminFillEmiDealStatus(dealId) {
+  const el = document.getElementById('emiDealStatus');
+  if (!el || !dealId) return;
+  try {
+    const d = await dealsApi.get(dealId);
+    el.querySelector('strong').innerHTML = `${dealPill(d.status)} ${dlRupees(d.agreed_price)} ${loanTypeTag(d.loan_type)}`;
+  } catch {
+    el.querySelector('strong').textContent = 'Could not load';
+  }
+}
+
+async function adminSaveEmiDealFields(eid) {
+  const ref = document.getElementById('emiNbfcRef').value.trim();
+  const kfs = document.getElementById('emiKfsUrl').value.trim();
+  if (kfs && !kfs.startsWith('https://')) { showToast('The KFS link must start with https://', 'error'); return; }
+  try {
+    await db.adminUpdateEmi(eid, { nbfc_application_reference: ref, kfs_url: kfs });
+    showToast('Saved.', 'success');
+  } catch (err) { showToast(err.message || 'Could not save.', 'error'); }
+}
+
+/* ---------- Admin Users: the lender role needs a lender ---------- */
+async function adminAssignLenderRole(uid) {
+  const u = (typeof adminUsersCache !== 'undefined' ? adminUsersCache : []).find(x => x.id === uid) || {};
+  const content = dlOpenAdminModal(DL_LOADING);
+  let financers = [];
+  try { financers = await db.adminGetFinancers(); }
+  catch (err) { content.innerHTML = `<div style="text-align:center;padding:60px 20px">${dlEsc(err.message || 'Could not load lenders.')}</div>`; return; }
+  if (!financers.length) {
+    content.innerHTML = `<div class="pm-body" style="padding:30px 20px"><h3>No lenders yet</h3><p class="deal-small">Add the lender in Financers first, then give this user the lender role.</p></div>`;
+    return;
+  }
+  content.innerHTML = `
+    <div class="pm-body" style="padding-top:20px">
+      <h2 class="pm-title" style="margin-bottom:4px">Lender (NBFC) role</h2>
+      <p class="deal-small">${dlEsc(`${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email || 'This user')} will see only this lender's loans, deals and seller documents, in the Lender portal tab of the admin panel. What else the role can open is set in Roles &amp; Access.</p>
+      <label style="font-size:12px;font-weight:600;display:block;margin:10px 0 4px" for="lenderRoleFinancer">Works for</label>
+      <select id="lenderRoleFinancer" style="width:100%">
+        ${financers.map(f => `<option value="${f.financer_id}" ${u.lender && u.lender.financer_id === f.financer_id ? 'selected' : ''}>${dlEsc(f.name)}${f.status !== 'active' ? ' (inactive)' : ''}</option>`).join('')}
+      </select>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn-sm" onclick="closeTopModal('product')">Cancel</button>
+        <button class="btn-sm btn-sm-blue" onclick="adminSaveLenderRole('${dlEsc(uid)}')">Give lender role</button>
+      </div>
+    </div>`;
+}
+
+async function adminSaveLenderRole(uid) {
+  const fid = Number(document.getElementById('lenderRoleFinancer')?.value || 0);
+  if (!fid) return;
+  try {
+    await db.adminUpdateUser(uid, { role_name: 'lender', financer_id: fid });
+    showToast('Lender role given.', 'success');
+    await dlCloseModalThen('product');
+    renderAdminUsers();
+  } catch (err) {
+    showToast(err.message || 'Could not assign the role.', 'error');
+  }
+}
+
+async function adminLiftDealBan(uid) {
+  if (!confirm('Let this user post listings and make deals again now? Their cancel count goes back to 0.')) return;
+  try {
+    await apiFetch(`/admin/users/${encodeURIComponent(uid)}/deal-ban`, { method: 'DELETE' });
+    showToast('Pause lifted.', 'success');
+    renderAdminUsers();
+  } catch (err) { showToast(err.message || 'Could not lift it.', 'error'); }
+}
+
+/* =====================================================
+   LENDER PORTAL (admin panel tab "Lender portal")
+   ===================================================== */
+let lenderState = { me: null, fid: null, tab: 'docs', loans: [], deals: [], loanStatus: '' };
+
+async function renderLenderPortal() {
+  const head = document.getElementById('lenderHeader');
+  const body = document.getElementById('lenderBody');
+  if (!head || !body) return;
+  body.innerHTML = DL_LOADING;
+  try {
+    lenderState.me = await lenderApi.me();
+  } catch (err) {
+    head.innerHTML = '';
+    body.innerHTML = `<div class="empty-state"><i class="fas fa-building-columns"></i><h3>Lender portal</h3><p>${dlEsc(err.message || 'Not available.')}</p></div>`;
+    return;
+  }
+  await dlRules();
+  const me = lenderState.me;
+  if (me.financer) {
+    lenderState.fid = null;   // a lender user: the server knows their lender
+    head.innerHTML = `
+      <div class="lender-head-name"><i class="fas fa-building-columns"></i> ${dlEsc(me.financer.name)}</div>
+      <div class="lender-head-sub">Funds: ${(me.financer.loan_types || []).map(t => loanTypeTag(t)).join(' ') || 'no loan types set'}</div>`;
+  } else {
+    const list = me.financers || [];
+    if (!lenderState.fid || !list.some(f => String(f.financer_id) === String(lenderState.fid))) {
+      lenderState.fid = list.length ? list[0].financer_id : null;
+    }
+    head.innerHTML = `
+      <div class="lender-head-sub">DealBriz staff view. See and act as:</div>
+      <select id="lenderPick" onchange="lenderPickFinancer(this.value)" style="min-width:220px">
+        ${list.map(f => `<option value="${f.financer_id}" ${String(f.financer_id) === String(lenderState.fid) ? 'selected' : ''}>${dlEsc(f.name)}${f.status !== 'active' ? ' (inactive)' : ''}</option>`).join('')}
+      </select>`;
+    if (!lenderState.fid) {
+      body.innerHTML = `<div class="empty-state"><i class="fas fa-building-columns"></i><h3>No lenders yet</h3><p>Add one in Financers.</p></div>`;
+      return;
+    }
+  }
+  await lenderRefresh();
+}
+
+function lenderPickFinancer(fid) {
+  lenderState.fid = fid;
+  lenderRefresh();
+}
+
+function lenderSetTab(tab) {
+  lenderState.tab = tab;
+  lenderRefresh();
+}
+
+async function lenderRefresh() {
+  const body = document.getElementById('lenderBody');
+  if (!body) return;
+  document.querySelectorAll('#adminSection-lender .admin-filter-btn[data-ltab]').forEach(b =>
+    b.classList.toggle('active', b.dataset.ltab === lenderState.tab));
+  body.innerHTML = DL_LOADING;
+  const fid = lenderState.fid;
+  try {
+    if (lenderState.tab === 'loans') {
+      lenderState.loans = await lenderApi.loans(fid, lenderState.loanStatus);
+    } else {
+      lenderState.deals = await lenderApi.deals(fid, lenderState.tab === 'docs' ? 'docs_pending' : '');
+    }
+  } catch (err) {
+    body.innerHTML = `<div class="empty-state"><p>${dlEsc(err.message || 'Could not load.')}</p></div>`;
+    return;
+  }
+  if (lenderState.tab === 'loans') body.innerHTML = lenderLoansHtml();
+  else body.innerHTML = lenderDealsHtml();
+}
+
+function lenderLoansHtml() {
+  const rows = lenderState.loans;
+  const filter = `
+    <div class="lender-toolbar">
+      <label for="lenderLoanStatus">Status</label>
+      <select id="lenderLoanStatus" onchange="lenderState.loanStatus=this.value;lenderRefresh()">
+        <option value="">All</option>
+        ${Object.entries(LOAN_STATUS_LABEL).map(([v, l]) => `<option value="${v}" ${lenderState.loanStatus === v ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+    </div>`;
+  if (!rows.length) return filter + `<div class="empty-state"><i class="fas fa-file-invoice-dollar"></i><h3>No loan applications</h3><p>Applications assigned to this lender show up here.</p></div>`;
+  return filter + `
+    <div class="admin-table-wrap"><table class="admin-table">
+      <thead><tr><th>Applicant</th><th>Listing</th><th>Loan</th><th>Status</th><th>Deal</th><th>Applied</th><th></th></tr></thead>
+      <tbody>${rows.map(a => `
+        <tr>
+          <td>${dlEsc(a.applicant_name)}<br><small>${dlEsc(a.applicant_phone)}</small></td>
+          <td>${dlEsc(a.product?.title || a.product_title_snapshot || '—')}${a.deal ? `<br>${loanTypeTag(a.deal.loan_type)}` : ''}</td>
+          <td>${dlRupees(a.loan_amount)}<br><small>${dlRupees(a.monthly_emi)} × ${a.tenure_months}</small></td>
+          <td><span class="status-pill status-${dlEsc(a.status)}">${dlEsc(LOAN_STATUS_LABEL[a.status] || a.status)}</span></td>
+          <td>${a.deal ? dealPill(a.deal.status) : '<small>EMI enquiry</small>'}</td>
+          <td><small>${dlEsc(dlDay(a.applied_at))}</small></td>
+          <td><button class="btn-sm btn-sm-blue" onclick="lenderViewLoan('${dlEsc(a.id)}')">Open</button></td>
+        </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+function lenderDealNext(d) {
+  if (d.status === 'docs_pending') return d.docs_to_check ? `Check ${d.docs_to_check} document${d.docs_to_check === 1 ? '' : 's'}` : 'Waiting for documents';
+  if (d.status === 'loan_in_progress') return 'Work the loan, then Ready to pay';
+  if (d.status === 'ready_to_pay' && d.buyer_ready_at && d.seller_ready_at) return 'Pay the seller, then mark Paid';
+  if (d.status === 'ready_to_pay') return 'Handover meeting';
+  return '';
+}
+
+function lenderDealsHtml() {
+  const rows = lenderState.deals;
+  if (!rows.length) {
+    return lenderState.tab === 'docs'
+      ? `<div class="empty-state"><i class="fas fa-file-shield"></i><h3>No documents to check</h3><p>Deals assigned to this lender that are waiting for documents show up here.</p></div>`
+      : `<div class="empty-state"><i class="fas fa-handshake"></i><h3>No live deals</h3></div>`;
+  }
+  return `
+    <div class="admin-table-wrap"><table class="admin-table">
+      <thead><tr><th>Listing</th><th>Buyer</th><th>Seller</th><th>Price</th><th>Status</th><th>Next</th><th></th></tr></thead>
+      <tbody>${rows.map(d => `
+        <tr>
+          <td>${dlEsc(d.product?.title || '—')}<br>${loanTypeTag(d.loan_type)}</td>
+          <td>${dlEsc(d.buyer?.name || '—')}<br><small>${dlEsc(d.buyer?.phone || '')}</small></td>
+          <td>${dlEsc(d.seller?.name || '—')}<br><small>${dlEsc(d.seller?.phone || '')}</small></td>
+          <td>${dlRupees(d.agreed_price)}</td>
+          <td>${dealPill(d.status)}${d.status === 'docs_pending' ? `<br><small>${d.docs_needed} needed</small>` : ''}</td>
+          <td><small class="deal-attn">${dlEsc(lenderDealNext(d))}</small></td>
+          <td><button class="btn-sm btn-sm-blue" onclick="lenderViewDeal('${dlEsc(d.id)}')">Open</button></td>
+        </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+function lenderDealActionsHtml(d, app) {
+  if (d.status === 'loan_in_progress') {
+    if (!app || app.status !== 'approved') return `<p class="deal-small">Approve the loan first, then mark the deal Ready to pay once the agreement and auto-debit are signed${isVehicle(d) ? ' and the vehicle is checked' : ''}.</p>`;
+    return `<p class="deal-small">Ready to pay means: loan sanctioned, agreement and EMI auto-debit signed${isVehicle(d) ? ', vehicle and documents checked' : ''}. Both sides are then told to meet for the handover.</p>
+      <textarea id="lenderReadyNote" rows="2" style="width:100%" placeholder="Note (optional)"></textarea>
+      <button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="lenderReady('${dlEsc(d.id)}')">Mark Ready to pay</button>`;
+  }
+  if (d.status === 'ready_to_pay') {
+    if (!(d.buyer_ready_at && d.seller_ready_at)) return `<p class="deal-small">Waiting for both sides to tap Ready at the handover meeting.</p>`;
+    return `<p class="deal-small">Both sides are ready. Pay the seller, then enter the UTR of the transfer. Both sides see it.</p>
+      <input id="lenderUtr" type="text" style="width:100%" placeholder="UTR" autocomplete="off">
+      <button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="lenderPaid('${dlEsc(d.id)}')">Mark paid</button>`;
+  }
+  return '';
+}
+
+async function lenderViewDeal(dealId) {
+  const content = dlOpenAdminModal(DL_LOADING);
+  let d;
+  try { d = await dealsApi.get(dealId); }
+  catch (err) { content.innerHTML = `<div style="text-align:center;padding:60px 20px">${dlEsc(err.message || 'Could not load this deal.')}</div>`; return; }
+  const r = (label, value) => `<div class="admin-detail-row"><span>${label}</span><strong>${value}</strong></div>`;
+  const loan = d.loan;
+  const actions = lenderDealActionsHtml(d, loan);
+  dlOpenAdminModal(`
+    <div class="pm-body" style="padding-top:20px">
+      <div class="staff-mod-bar"><span><i class="fas fa-handshake"></i> Deal</span>${dealPill(d.status)}</div>
+      <h2 class="pm-title" style="margin-bottom:4px">${dlEsc(d.product?.title || 'Listing')}</h2>
+      <div class="pm-meta">${loanTypeTag(d.loan_type)} · Agreed ${dlRupees(d.agreed_price)}</div>
+      ${actions ? `<div class="admin-detail-section"><h4>Next step</h4>${actions}</div>` : ''}
+      ${(d.documents || []).length || d.status === 'docs_pending' ? `<div class="admin-detail-section"><h4>Documents</h4>${dlDocsReviewHtml(d, 'lender')}</div>` : ''}
+      <div class="admin-detail-section"><h4>Deal</h4>
+        ${d.buyer ? r('Buyer', dlEsc(d.buyer.name)) : ''}
+        ${d.seller ? r('Seller', dlEsc(d.seller.name)) : ''}
+        ${r('Reserved until', dlEsc(fmtDateTime(d.reserved_until)))}
+        ${d.utr ? r('UTR', dlEsc(d.utr)) : ''}
+      </div>
+      ${loan ? `<div class="admin-detail-section"><h4>Loan</h4>
+        ${r('Status', dlEsc(LOAN_STATUS_LABEL[loan.status] || loan.status))}
+        ${loan.loan_amount != null ? r('Loan amount', dlRupees(loan.loan_amount)) : ''}
+        ${loan.application_id ? `<button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="lenderViewLoan('${dlEsc(loan.application_id)}')">Open loan application</button>` : ''}
+      </div>` : ''}
+      <div class="admin-detail-section">${dealTimelineHtml(d, { staff: true }).replace('class="deal-section"', 'class="deal-section deal-section-flat"')}</div>
+    </div>`);
+}
+
+async function lenderViewLoan(appId) {
+  const content = dlOpenAdminModal(DL_LOADING);
+  let a;
+  try { a = await lenderApi.loan(lenderState.fid, appId); await dlRules(); }
+  catch (err) { content.innerHTML = `<div style="text-align:center;padding:60px 20px">${dlEsc(err.message || 'Could not load this loan.')}</div>`; return; }
+  const r = (label, value) => `<div class="admin-detail-row"><span>${label}</span><strong>${value}</strong></div>`;
+  const d = a.deal && a.deal.events ? a.deal : null;   // full deal only when it is this lender's
+  const closed = ['disbursed', 'completed', 'cancelled'].includes(a.status);
+  const statusBtns = closed ? `<p class="deal-small">This loan is ${dlEsc(LOAN_STATUS_LABEL[a.status] || a.status).toLowerCase()}.</p>` : `
+    <textarea id="lenderDecisionNotes" rows="2" style="width:100%" placeholder="Notes (needed to reject; the buyer is told the status)">${dlEsc(a.decision_notes || '')}</textarea>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+      <button class="btn-sm" onclick="lenderSetStatus('${dlEsc(a.id)}','review')">Under review</button>
+      <button class="btn-sm btn-sm-blue" onclick="lenderSetStatus('${dlEsc(a.id)}','approved')">Approve</button>
+      <button class="btn-sm btn-sm-red" onclick="lenderSetStatus('${dlEsc(a.id)}','rejected')">Reject</button>
+    </div>
+    ${a.deal_id ? '<p class="deal-small" style="margin-top:8px">Rejecting releases the deal and puts the listing back on sale.</p>' : ''}`;
+  dlOpenAdminModal(`
+    <div class="pm-body" style="padding-top:20px">
+      <div class="staff-mod-bar"><span><i class="fas fa-file-invoice-dollar"></i> Loan application</span>
+        <span class="status-pill status-${dlEsc(a.status)}">${dlEsc(LOAN_STATUS_LABEL[a.status] || a.status)}</span></div>
+      <h2 class="pm-title" style="margin-bottom:4px">${dlEsc(a.applicant_name)}</h2>
+      <div class="pm-meta">${dlEsc(a.product?.title || a.product_title_snapshot || '')} ${a.deal ? loanTypeTag(a.deal.loan_type) : ''}</div>
+
+      <div class="admin-detail-section"><h4>Decision</h4>${statusBtns}</div>
+
+      ${d ? (() => { const x = lenderDealActionsHtml(d, a); return x ? `<div class="admin-detail-section"><h4>Deal: next step</h4>${x}</div>` : ''; })() : ''}
+
+      <div class="admin-detail-section"><h4>Applicant</h4>
+        ${r('Name', dlEsc(a.applicant_name))}
+        ${r('Phone', dlEsc(a.applicant_phone))}
+        ${a.applicant ? r('Email', dlEsc(a.applicant.email || '')) : ''}
+        ${a.applicant_income != null ? r('Monthly income', dlRupees(a.applicant_income)) : ''}
+      </div>
+      <div class="admin-detail-section"><h4>Loan asked for</h4>
+        ${r('Price', dlRupees(a.product_price_snapshot))}
+        ${r('Down payment', dlRupees(a.down_payment))}
+        ${r('Loan amount', dlRupees(a.loan_amount))}
+        ${r('EMI (estimate)', `${dlRupees(a.monthly_emi)} × ${a.tenure_months} months`)}
+        ${r('Interest (estimate)', `${a.interest_rate}% p.a.`)}
+      </div>
+      <div class="admin-detail-section"><h4>Your reference and KFS</h4>
+        <input id="lenderRef" type="text" style="width:100%" maxlength="150" placeholder="Your application reference" value="${dlEsc(a.nbfc_application_reference || '')}" autocomplete="off">
+        <input id="lenderKfs" type="url" style="width:100%;margin-top:6px" maxlength="500" placeholder="Key Fact Statement link (https://...)" value="${dlEsc(a.kfs_url || '')}" autocomplete="off">
+        <button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="lenderSaveDetails('${dlEsc(a.id)}')">Save</button>
+        <p class="deal-small" style="margin-top:6px">The buyer sees both in their deal.</p>
+      </div>
+      ${d && ((d.documents || []).length || d.status === 'docs_pending') ? `<div class="admin-detail-section"><h4>Documents</h4>${dlDocsReviewHtml(d, 'lender')}</div>` : ''}
+      ${a.deal ? `<div class="admin-detail-section"><h4>Deal</h4>
+        ${r('Status', dealPill(a.deal.status))}
+        ${r('Agreed price', dlRupees(a.deal.agreed_price))}
+        ${a.deal.id ? `<button class="btn-sm" style="margin-top:8px" onclick="lenderViewDeal('${dlEsc(a.deal.id)}')">Open deal</button>` : ''}
+      </div>` : ''}
+      ${(a.events || []).length ? `<div class="admin-detail-section"><h4>Loan timeline</h4>
+        <ol class="deal-timeline">${a.events.map(e => `<li><span>${dlEsc(LOAN_STATUS_LABEL[e.status] || e.status.replace(/_/g, ' '))}${e.source ? ` <small>(${dlEsc(e.source)})</small>` : ''}${e.note ? `: ${dlEsc(e.note)}` : ''}</span><time>${dlEsc(dlWhen(e.created_at))}</time></li>`).join('')}</ol>
+      </div>` : ''}
+    </div>`);
+}
+
+async function lenderSetStatus(appId, status) {
+  const notes = (document.getElementById('lenderDecisionNotes')?.value || '').trim();
+  if (status === 'rejected' && !notes) { showToast('Add a note saying why the loan isn’t approved.', 'error'); return; }
+  const label = { review: 'Mark this loan Under review?', approved: 'Approve this loan?', rejected: 'Reject this loan? A deal on it is released.' }[status];
+  if (!confirm(label)) return;
+  try {
+    await lenderApi.setStatus(lenderState.fid, appId, status, notes);
+    showToast('Saved.', 'success');
+  } catch (err) { showToast(err.message || 'Could not save.', 'error'); }
+  lenderRefresh();
+  lenderViewLoan(appId);
+}
+
+async function lenderSaveDetails(appId) {
+  const ref = document.getElementById('lenderRef').value.trim();
+  const kfs = document.getElementById('lenderKfs').value.trim();
+  if (kfs && !kfs.startsWith('https://')) { showToast('The KFS link must start with https://', 'error'); return; }
+  try { await lenderApi.setDetails(lenderState.fid, appId, ref, kfs); showToast('Saved.', 'success'); }
+  catch (err) { showToast(err.message || 'Could not save.', 'error'); }
+}
+
+async function lenderReady(dealId) {
+  const note = (document.getElementById('lenderReadyNote')?.value || '').trim();
+  if (!confirm('Mark this deal Ready to pay? Both sides are told to meet for the handover.')) return;
+  try { await lenderApi.ready(lenderState.fid, dealId, note); showToast('Marked Ready to pay.', 'success'); }
+  catch (err) { showToast(err.message || 'That didn’t work.', 'error'); }
+  lenderRefresh();
+  lenderViewDeal(dealId);
+}
+
+async function lenderPaid(dealId) {
+  const utr = (document.getElementById('lenderUtr')?.value || '').replace(/\s+/g, '').toUpperCase();
+  if (!/^[A-Z0-9]{6,30}$/.test(utr)) { showToast('Enter the UTR (6 to 30 letters and digits).', 'error'); return; }
+  if (!confirm(`Mark paid with UTR ${utr}? Only once the money has gone to the seller.`)) return;
+  try { await lenderApi.paid(lenderState.fid, dealId, utr); showToast('Marked paid.', 'success'); }
+  catch (err) { showToast(err.message || 'That didn’t work.', 'error'); }
+  lenderRefresh();
+  lenderViewDeal(dealId);
+}
