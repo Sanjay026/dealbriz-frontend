@@ -22,6 +22,7 @@
      on any release that changes CSS or JS. -->
 <link rel="stylesheet" href="/style.css?v=20261021a">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="/home.css?v=20261019a">
 <link rel="stylesheet" href="/deals.css?v=20261021a">
 </head>
@@ -300,7 +301,7 @@
   <!-- HERO -->
   <section class="hb-hero">
     <div class="hb-wrap hb-hero-grid">
-      <div>
+      <div class="hb-hero-copy">
         <div class="hb-badge"><i class="fas fa-star"></i> India's Trusted Marketplace</div>
         <h1>Buy &amp; Sell<br><span class="hb-accent">Near You.</span></h1>
         <p class="hb-lede">Discover great second-hand products from people around you. Safe, simple, and with flexible EMI options.</p>
@@ -329,25 +330,43 @@
           <div class="hb-stat"><strong>100%</strong><span>Secure Chat</span></div>
         </div>
       </div>
+    </div>
 
-      <!-- MAP (placeholder for now — wired up in a later step) -->
-      <div class="hb-map-card hb-reveal">
-        <div class="hb-map-head">
-          <div class="hb-map-title"><i class="fas fa-map-location-dot"></i> Listings near you</div>
-          <span class="hb-live">LIVE</span>
-        </div>
-        <div class="hb-map-frame">
-          <div id="homeMap" class="hb-map-canvas"></div>
-          <div class="hb-map-fallback" id="homeMapFallback">
-            <i class="fas fa-map"></i>
-            <span>Loading map…</span>
-          </div>
-          <div class="hb-map-chip" id="homeMapChip"><span class="hb-map-dot"></span> <span id="homeMapChipText">Loading listings…</span></div>
-        </div>
-        <div class="hb-map-foot">
-          <small id="homeMapFoot">Showing listings around Chandigarh</small>
-          <button onclick="showPage('buy')">Browse all listings <i class="fas fa-arrow-right"></i></button>
-        </div>
+    <!-- The map is the hero's right-hand backdrop on desktop and a card
+         below the copy on narrow screens. Everything on it floats, so the
+         old card head/foot bars are gone. -->
+    <div class="hb-hero-map" id="hbHeroMap">
+      <div id="homeMap" class="hb-map-canvas">
+        <!-- Sits in the pane stack between tiles and markers (see home.css),
+             so the wash never dims a pin or its popup. -->
+        <div class="hb-map-fade" aria-hidden="true"></div>
+      </div>
+
+      <div class="hb-map-topbar">
+        <i class="fas fa-map-location-dot"></i>
+        <span>Listings near you</span>
+        <span class="hb-live">LIVE</span>
+      </div>
+
+      <div class="hb-map-zoom">
+        <button type="button" onclick="homeMapZoom(1)" aria-label="Zoom in"><i class="fas fa-plus"></i></button>
+        <button type="button" onclick="homeMapZoom(-1)" aria-label="Zoom out"><i class="fas fa-minus"></i></button>
+        <span class="hb-map-zoom-sep"></span>
+        <button type="button" onclick="recenterHomeMap()" aria-label="Recenter on my area"><i class="fas fa-location-crosshairs"></i></button>
+      </div>
+
+      <div class="hb-map-status">
+        <span class="hb-map-dot"></span>
+        <span id="homeMapChipText">Loading listings…</span>
+        <button type="button" class="hb-map-browse" onclick="showPage('buy')">Browse all <i class="fas fa-arrow-right"></i></button>
+      </div>
+
+      <a class="hb-map-credit" href="https://www.openstreetmap.org/copyright"
+         target="_blank" rel="noopener noreferrer">&copy; OpenStreetMap contributors &middot; tiles: OSM France</a>
+
+      <div class="hb-map-fallback" id="homeMapFallback">
+        <i class="fas fa-map"></i>
+        <span>Loading map…</span>
       </div>
     </div>
   </section>
@@ -1936,6 +1955,7 @@
 <div id="globalToast" class="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <!-- Runtime config: point the frontend at a different backend without
      editing api-client.js. Leave empty to use the same origin the page
      was served from (correct for the Docker/nginx setup). -->
