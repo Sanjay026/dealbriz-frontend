@@ -402,14 +402,14 @@ function dbHash01(str, salt = 0) {
 
 /* Approximate position for a listing: its district centre, plus a small
    deterministic offset so listings in the same pincode don't stack on one
-   pixel. Spread is roughly ±4 km — enough to read as "around here", not
+   pixel. Spread is roughly ±2.5 km — enough to read as "around here", not
    precise enough to identify an address. */
 function dbCoordsForListing(listing) {
   const area = dbAreaForPincode(listing.pincode);
   if (!area) return null;
   const id = String(listing.id || listing.title || '');
-  const dLat = (dbHash01(id, 1) - 0.5) * 0.07;   // ~ ±3.9 km
-  const dLng = (dbHash01(id, 2) - 0.5) * 0.07;
+  const dLat = (dbHash01(id, 1) - 0.5) * 0.045;   // ~ ±2.5 km
+  const dLng = (dbHash01(id, 2) - 0.5) * 0.045;
   return { lat: area.lat + dLat, lng: area.lng + dLng, area };
 }
 

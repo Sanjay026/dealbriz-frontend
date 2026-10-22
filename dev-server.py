@@ -23,6 +23,7 @@ import json
 import mimetypes
 import os
 import socketserver
+import ssl
 import sys
 import urllib.error
 import urllib.request
@@ -36,10 +37,34 @@ DEFAULT_UPSTREAM = "https://dealbriz.com"
 DEFAULT_PORT = 5500
 
 
+def build_ssl_context():
+    """SSL context that actually verifies certificates.
+
+    The default context points at an openssl cert path that does not exist
+    on macOS, so https calls fail with CERTIFICATE_VERIFY_FAILED. certifi
+    is used when present, otherwise the system bundle.
+    """
+    candidates = []
+    try:
+        import certifi
+        candidates.append(certifi.where())
+    except Exception:
+        pass
+    candidates.append("/etc/ssl/cert.pem")
+
+    for cafile in candidates:
+        try:
+            return ssl.create_default_context(cafile=cafile)
+        except Exception:
+            continue
+    return ssl.create_default_context()
+
+
 class DevHandler(http.server.SimpleHTTPRequestHandler):
     upstream = DEFAULT_UPSTREAM
     allow_write = False
     proxy_enabled = True
+    ssl_context = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=ROOT, **kwargs)
@@ -95,7 +120,10 @@ class DevHandler(http.server.SimpleHTTPRequestHandler):
                 req.add_header(header, value)
 
         try:
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            kwargs = {"timeout": 60}
+            if url.startswith("https://"):
+                kwargs["context"] = self.ssl_context
+            with urllib.request.urlopen(req, **kwargs) as resp:
                 payload = resp.read()
                 self._relay(resp.status, resp.headers, payload)
         except urllib.error.HTTPError as exc:
@@ -110,6 +138,12 @@ class DevHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Type", ctype or "application/octet-stream")
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Cache-Control", "no-store")
+        # Session cookies live in Set-Cookie (httpOnly access/refresh tokens
+        # plus the readable CSRF tokens). Without relaying every one of them
+        # the browser never receives a session and every login appears to
+        # succeed but leaves the user logged out.
+        for cookie in headers.get_all("Set-Cookie") or []:
+            self.send_header("Set-Cookie", cookie)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Credentials", "true")
         self.send_header("Access-Control-Allow-Headers",
@@ -185,6 +219,7 @@ def main():
     DevHandler.upstream = args.upstream.rstrip("/")
     DevHandler.allow_write = args.allow_write
     DevHandler.proxy_enabled = not args.no_proxy
+    DevHandler.ssl_context = build_ssl_context()
 
     with Server(("127.0.0.1", args.port), DevHandler) as httpd:
         mode = "static only" if args.no_proxy else f"proxy -> {DevHandler.upstream}"

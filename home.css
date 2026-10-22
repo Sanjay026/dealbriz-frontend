@@ -95,6 +95,8 @@
   background: linear-gradient(180deg, #FFFFFF 0%, #F7F9FE 45%, #EEF3FD 100%);
   padding: 56px 0 68px;
   overflow: hidden;
+  position: relative;
+  isolation: isolate;
 }
 #homePage .hb-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 44px; align-items: center; }
 
@@ -182,16 +184,86 @@
 /* ------------------------------------------------------- HERO MAP */
 #homePage .hb-hero-grid > *, #homePage .hb-emi-grid > *, #homePage .hb-sell-grid > * { min-width: 0; }
 
-#homePage .hb-map-card {
-  background: #fff; border: 1px solid var(--hb-line); border-radius: 22px;
-  box-shadow: 0 26px 60px rgba(15,23,42,0.12); overflow: hidden;
+/* The copy floats above the map, which bleeds off the right edge of the
+   hero. The grid spans the full container width, so it must not swallow
+   pointer events meant for the map — only the copy itself is clickable. */
+#homePage .hb-hero-grid { position: relative; z-index: 2; pointer-events: none; }
+#homePage .hb-hero-copy { max-width: min(600px, 46vw); pointer-events: auto; }
+
+#homePage .hb-hero-map {
+  position: absolute; inset: 0 0 0 42%; z-index: 1;
+  overflow: hidden;
 }
-#homePage .hb-map-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 20px; border-bottom: 1px solid var(--hb-line);
+/* No z-index here: Leaflet's panes (200-700) must share a stacking context
+   with .hb-map-fade, which slots in at 250 — above the tiles, below the
+   markers/popups. Giving this element a z-index put the fade above them. */
+#homePage .hb-map-canvas { position: absolute; inset: 0; background: #EEF1F6; }
+/* Washes the map out under the copy and into the section below, so the
+   backdrop never fights the headline or ends in a hard seam. The flat
+   white tint keeps the busy basemap calm without a CSS filter, which is
+   expensive to composite on a map this large. */
+#homePage .hb-map-fade {
+  position: absolute; inset: 0; z-index: 250; pointer-events: none;
+  /* A light wash over the whole basemap keeps OSM's detail from feeling
+     busy, while sitting under the markers and popups. */
+  background-color: rgba(255, 255, 255, 0.12);
+  background-image: linear-gradient(0deg, #FFFFFF 0%, rgba(255,255,255,0) 11%);
 }
-#homePage .hb-map-title { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; }
-#homePage .hb-map-title i { color: var(--hb-blue); }
+
+/* Floating chrome: exactly the same pieces the old card had in its header
+   and footer, but sitting on the map instead of in bars. */
+#homePage .hb-map-topbar {
+  position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+  z-index: 800; display: inline-flex; align-items: center; gap: 10px;
+  background: #fff; border: 1px solid var(--hb-line); border-radius: 14px;
+  padding: 11px 16px; box-shadow: 0 10px 30px rgba(15,23,42,0.13);
+  font-size: 14px; font-weight: 700; color: var(--hb-text); white-space: nowrap;
+}
+#homePage .hb-map-topbar > i { color: var(--hb-blue); }
+
+#homePage .hb-map-zoom {
+  position: absolute; top: 20px; right: 20px; z-index: 800;
+  display: flex; flex-direction: column;
+  background: #fff; border: 1px solid var(--hb-line); border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(15,23,42,0.13); overflow: hidden;
+}
+#homePage .hb-map-zoom button {
+  width: 44px; height: 44px; border: 0; background: none; cursor: pointer;
+  color: var(--hb-text); font-size: 14px; display: grid; place-items: center;
+  font-family: var(--hb-font); transition: background .15s ease, color .15s ease;
+}
+#homePage .hb-map-zoom button:hover { background: var(--hb-panel); color: var(--hb-blue); }
+#homePage .hb-map-zoom-sep { height: 1px; margin: 0 10px; background: var(--hb-line); }
+
+#homePage .hb-map-status {
+  position: absolute; right: 88px; bottom: 26px; z-index: 800;
+  display: inline-flex; align-items: center; gap: 10px;
+  background: #fff; border: 1px solid var(--hb-line); border-radius: 999px;
+  padding: 9px 9px 9px 16px; box-shadow: 0 10px 30px rgba(15,23,42,0.15);
+  font-size: 13px; font-weight: 700; color: var(--hb-text);
+  max-width: calc(100% - 120px);
+}
+#homePage .hb-map-status > span:nth-child(2) {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#homePage .hb-map-browse {
+  flex-shrink: 0; border: 0; background: var(--hb-blue-tint); color: var(--hb-blue);
+  border-radius: 999px; padding: 8px 14px; cursor: pointer;
+  font-family: var(--hb-font); font-size: 12.5px; font-weight: 800;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+#homePage .hb-map-browse:hover { background: #DBEAFE; }
+
+/* Leaflet's own chrome is replaced by the pills above. */
+/* Static map credit, kept above the fade and clear of the support bubble. */
+#homePage .hb-map-credit {
+  position: absolute; right: 96px; bottom: 6px; z-index: 800;
+  font-size: 10px; color: #7C8798; text-decoration: none;
+  background: rgba(255,255,255,0.85); border-radius: 5px;
+  padding: 2px 6px; white-space: nowrap;
+}
+#homePage .hb-map-credit:hover { color: var(--hb-blue); }
+
 #homePage .hb-live {
   display: inline-flex; align-items: center; gap: 7px;
   background: #ECFDF5; color: #047857; border-radius: 999px;
@@ -203,25 +275,12 @@
 }
 @keyframes hb-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
 
-#homePage .hb-map-frame { position: relative; height: 340px; background: var(--hb-panel); }
-#homePage .hb-map-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
-/* Shown underneath the iframe; visible if the embed can't load. */
+/* Shown underneath the tiles; visible only if the map can't load. */
 #homePage .hb-map-fallback {
   position: absolute; inset: 0; display: grid; place-items: center; gap: 8px;
-  text-align: center; color: var(--hb-muted); font-size: 13.5px; padding: 20px; z-index: 0;
+  text-align: center; color: var(--hb-muted); font-size: 13.5px; padding: 20px; z-index: 300;
 }
 #homePage .hb-map-fallback i { font-size: 26px; color: #CBD5E1; }
-#homePage .hb-map-frame iframe { position: relative; z-index: 1; }
-#homePage .hb-map-foot {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 14px 20px; border-top: 1px solid var(--hb-line); flex-wrap: wrap;
-}
-#homePage .hb-map-foot small { color: var(--hb-muted); font-size: 12.5px; }
-#homePage .hb-map-foot button {
-  background: none; border: none; cursor: pointer; color: var(--hb-blue);
-  font-weight: 700; font-size: 13.5px; font-family: var(--hb-font);
-  display: inline-flex; align-items: center; gap: 7px;
-}
 
 /* --------------------------------------------------------- SECTIONS */
 #homePage .hb-section { padding: 76px 0; }
@@ -498,6 +557,8 @@ body.show-footer .site-footer { display: block; }
 @media (prefers-reduced-motion: reduce) {
   #homePage .hb-reveal { opacity: 1; transform: none; transition: none; }
   #homePage .hb-live::before { animation: none; }
+  .db-me-wrap::before { animation: none; }
+  .db-pin, .db-cluster { transition: none; }
   #homePage .hb-btn:hover, #homePage .hb-cat:hover,
   #homePage .hb-cta-white:hover, #homePage .hb-cta-outline:hover,
   #homePage .hb-trust-card:hover, #homePage .hb-step:hover,
@@ -514,8 +575,24 @@ body.show-footer .site-footer { display: block; }
 }
 
 @media (min-width: 1080px) {
-  #homePage .hb-hero { padding: 76px 0 92px; }
-  #homePage .hb-hero-grid { grid-template-columns: minmax(0,1.02fr) minmax(0,0.98fr); gap: 56px; }
+  #homePage .hb-hero {
+    padding: 76px 0 92px; min-height: 700px;
+    display: flex; align-items: center;
+    /* The gradient moves to ::before so it can fade out over the map
+       instead of meeting it at a hard edge. */
+    background: transparent;
+  }
+  #homePage .hb-hero::before {
+    content: ''; position: absolute; inset: 0; z-index: 1;
+    background: linear-gradient(180deg, #FFFFFF 0%, #F7F9FE 45%, #EEF3FD 100%);
+    -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 46%, rgba(0,0,0,0) 68%);
+    mask-image: linear-gradient(90deg, #000 0%, #000 46%, rgba(0,0,0,0) 68%);
+    pointer-events: none;
+  }
+  #homePage .hb-hero-grid { width: 100%; grid-template-columns: minmax(0, 1fr); gap: 0; }
+  /* Below ::before: the hero wash covers the map's left edge and melts into
+     it, so there is no seam between the copy side and the map. */
+  #homePage .hb-hero-map { inset: 0 0 0 42%; z-index: 0; }
   #homePage .hb-cats { grid-template-columns: repeat(9, 1fr); gap: 12px; }
   #homePage .hb-cat { padding: 24px 8px; }
   #homePage .hb-trust-grid, #homePage .hb-steps { grid-template-columns: repeat(4, 1fr); }
@@ -524,7 +601,67 @@ body.show-footer .site-footer { display: block; }
   #homePage .hb-sell-grid { grid-template-columns: minmax(0,1.1fr) minmax(0,0.9fr); }
   #homePage .hb-sell-card { margin-left: auto; }
   #homePage .hb-calc { padding: 32px 30px; }
-  #homePage .hb-map-frame { height: 400px; }
+}
+
+/* Below the split layout the map drops under the copy and gets its card
+   borders back, so the hero still reads top-to-bottom on phones/tablets. */
+@media (max-width: 1079px) {
+  #homePage .hb-hero { padding: 36px 0 52px; }
+  /* The desktop rule caps the copy at 46vw to leave room for the map; on
+     a phone that is ~180px, which forced every line into a narrow column. */
+  #homePage .hb-hero-copy { max-width: 100%; }
+  #homePage .hb-hero h1 { margin-top: 20px; }
+  #homePage .hb-lede { margin-top: 16px; font-size: 16.5px; line-height: 1.55; max-width: 46ch; }
+  #homePage .hb-hero-btns { margin-top: 22px; gap: 10px; flex-wrap: nowrap; }
+  #homePage .hb-btn { flex: 1 1 0; padding: 14px 12px; font-size: 14.5px; white-space: nowrap; }
+  #homePage .hb-hero-search { margin-top: 20px; }
+  #homePage .hb-hero-loc { height: 54px; padding: 0 14px; font-size: 14px; }
+  #homePage .hb-hero-search input { height: 54px; padding: 0 14px; font-size: 14px; }
+  #homePage .hb-hero-search button.hb-go { width: 46px; height: 40px; margin-right: 6px; }
+  /* Three compact stats on one row instead of wrapping with empty gaps. */
+  #homePage .hb-stats { margin-top: 22px; gap: 8px; flex-wrap: nowrap; justify-content: space-between; }
+  #homePage .hb-stat strong { font-size: 21px; }
+  #homePage .hb-stat span { font-size: 11.5px; }
+  #homePage .hb-stat-div { display: none; }
+
+  #homePage .hb-hero-map {
+    position: relative; inset: auto;
+    height: 400px; margin: 26px 24px 0;
+    border: 1px solid var(--hb-line); border-radius: 22px;
+    box-shadow: 0 20px 50px rgba(15,23,42,0.12);
+  }
+  #homePage .hb-map-fade { display: none; }
+  #homePage .hb-map-topbar {
+    top: 14px; left: 14px; transform: none;
+    padding: 9px 13px; font-size: 13px;
+  }
+  #homePage .hb-map-zoom { display: none; }
+  #homePage .hb-map-status {
+    left: 12px; right: 12px; bottom: 30px; max-width: none;
+    padding: 8px 8px 8px 13px; font-size: 12px;
+  }
+  #homePage .hb-map-credit { right: 12px; bottom: 9px; }
+  /* The dot sits at the area centre, right where the pins cluster; on a
+     phone-sized map it just gets buried, so the pill alone tells the story. */
+  #homePage .db-me-wrap { display: none; }
+  /* Text-only, narrow card: the media block ate most of a 358px-wide map. */
+  .leaflet-popup-content { width: 208px !important; }
+  .db-pop-media { display: none; }
+  .db-pop-body { padding: 12px 13px 13px; }
+  .db-pop-title { font-size: 13px; }
+  .db-pop-price { font-size: 16px; }
+  .db-pop-btn { margin-top: 10px; padding: 8px 10px; font-size: 12.5px; }
+  #homePage .hb-map-browse { padding: 7px 12px; font-size: 12px; }
+}
+
+@media (max-width: 560px) {
+  #homePage .hb-hero { padding: 28px 0 44px; }
+  #homePage .hb-badge { padding: 8px 14px; font-size: 10.5px; letter-spacing: 0.04em; }
+  #homePage .hb-hero h1 { font-size: clamp(38px, 12vw, 54px); }
+  #homePage .hb-lede { font-size: 15.5px; }
+  #homePage .hb-btn { padding: 13px 10px; font-size: 13.5px; }
+  #homePage .hb-hero-map { height: 340px; margin: 24px 16px 0; border-radius: 18px; }
+  #homePage .hb-map-status { gap: 8px; }
 }
 
 
@@ -552,42 +689,71 @@ body.on-home .nav-sell-btn { background: #0B1220; color: #fff; border-color: #0B
 body.on-home .nav-sell-btn:hover { background: #1E293B; }
 
 /* ------------------------------------------------- MAP: pins & popups */
-#homePage .hb-map-canvas { position: absolute; inset: 0; z-index: 1; }
-#homePage .hb-map-frame { position: relative; }
-
-/* "N listings around X" chip, like the sample's live indicator */
-#homePage .hb-map-chip {
-  position: absolute; left: 14px; bottom: 14px; z-index: 500;
-  display: inline-flex; align-items: center; gap: 9px;
-  background: rgba(255,255,255,0.96); border: 1px solid var(--hb-line);
-  border-radius: 999px; padding: 8px 15px;
-  font-size: 12.5px; font-weight: 700; color: var(--hb-text);
-  box-shadow: 0 4px 16px rgba(15,23,42,0.14);
-}
 #homePage .hb-map-dot {
   width: 8px; height: 8px; border-radius: 50%; background: var(--hb-green);
   animation: hb-pulse 1.8s ease-in-out infinite;
 }
 
-/* Category-emoji pin */
+/* Teardrop pin with the category glyph. The square is rotated so its
+   un-rounded corner becomes the tip; the glyph is rotated back upright. */
 .db-pin-wrap { background: none; border: none; }
 .db-pin {
-  width: 42px; height: 42px; border-radius: 50%;
-  background: #fff; border: 2px solid #fff;
-  box-shadow: 0 4px 14px rgba(15,23,42,0.28);
-  display: grid; place-items: center; font-size: 19px;
+  position: absolute; top: 8px; left: 8px;
+  width: 38px; height: 38px; border-radius: 50% 50% 50% 0;
+  background: var(--hb-blue); border: 2.5px solid #fff;
+  transform: rotate(-45deg);
+  box-shadow: 0 8px 20px rgba(37,99,235,0.34), 0 2px 6px rgba(15,23,42,0.18);
+  display: grid; place-items: center;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.db-pin i { transform: rotate(45deg); color: #fff; font-size: 15px; line-height: 1; }
+.db-pin-wrap:hover .db-pin,
+.db-pin-wrap:focus .db-pin {
+  transform: rotate(-45deg) scale(1.08);
+  box-shadow: 0 12px 26px rgba(37,99,235,0.44), 0 3px 8px rgba(15,23,42,0.2);
+}
+
+/* "You are here" marker at the selected area's centre. */
+.db-me-wrap { background: none; border: none; }
+.db-me {
+  width: 20px; height: 20px; border-radius: 50%; background: #fff;
+  border: 2px solid var(--hb-blue); box-shadow: 0 2px 8px rgba(15,23,42,0.25);
+  display: grid; place-items: center;
+}
+.db-me::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--hb-blue); }
+.db-me-wrap::before {
+  content: ''; position: absolute; inset: -9px; border-radius: 50%;
+  background: rgba(37,99,235,0.16); animation: hb-ping 2.6s ease-out infinite;
+}
+@keyframes hb-ping {
+  0%   { transform: scale(0.55); opacity: 0.9; }
+  70%  { transform: scale(1.5);  opacity: 0; }
+  100% { transform: scale(1.5);  opacity: 0; }
+}
+
+/* Cluster bubble, shown when pins would overlap. */
+.db-cluster {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--hb-blue); color: #fff; border: 3px solid #fff;
+  display: grid; place-items: center;
+  font-family: var(--hb-font); font-size: 14px; font-weight: 800;
+  box-shadow: 0 8px 20px rgba(37,99,235,0.36);
   transition: transform .15s ease;
 }
-.db-pin::after {
-  content: ''; position: absolute; inset: -7px; border-radius: 50%;
-  border: 2px solid rgba(37,99,235,0.28);
-}
-.db-pin-wrap:hover .db-pin { transform: scale(1.1); }
+.db-cluster-wrap:hover .db-cluster { transform: scale(1.07); }
 
-/* Listing popup */
-.leaflet-popup-content-wrapper { border-radius: 14px; padding: 0; overflow: hidden; }
-.leaflet-popup-content { margin: 0; width: auto !important; }
-.db-pop { padding: 14px 15px; font-family: var(--hb-font); min-width: 190px; }
+/* Listing popup: a small product card rather than a text bubble. */
+.leaflet-popup-content-wrapper {
+  border-radius: 16px; padding: 0; overflow: hidden;
+  box-shadow: 0 18px 45px rgba(15,23,42,0.22);
+}
+.leaflet-popup-content { margin: 0; width: 268px !important; }
+.leaflet-popup-tip { display: none; }
+.db-pop { font-family: var(--hb-font); background: #fff; }
+.db-pop-media { height: 118px; background: var(--hb-panel); overflow: hidden; }
+.db-pop-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.db-pop-media .pcard-ph { height: 100%; display: grid; place-items: center; font-size: 42px; }
+.db-pop-body { padding: 13px 15px 15px; }
 .db-pop-title { font-size: 14px; font-weight: 700; line-height: 1.35; color: var(--hb-text); }
 .db-pop-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 8px; }
 .db-pop-price { font-size: 17px; font-weight: 800; color: var(--hb-text); }

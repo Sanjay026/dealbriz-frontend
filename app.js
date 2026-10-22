@@ -811,6 +811,12 @@ function showPage(page, fromPopstate = false, fromHistory = false) {
   window.scrollTo(0, 0);
 
   if (page === 'buy') initBuyPage();
+  // The hero map may have been skipped at load (home hidden because the
+  // URL pointed elsewhere), in which case this is its first real chance.
+  if (page === 'home') {
+    initHomeMap();
+    if (homeMap) requestAnimationFrame(() => homeMap.invalidateSize());
+  }
   if (page === 'profile') renderProfilePage();
   if (page === 'mylistings') renderMyListings();
   if (page === 'myads') renderSavedPage();
@@ -4897,9 +4903,11 @@ function initSelectedArea() {
 }
 
 function updateAreaLabels() {
-  document.querySelectorAll('[data-area-label]').forEach(el => { el.textContent = selectedArea.name; });
-  const foot = document.getElementById('homeMapFoot');
-  if (foot) foot.textContent = `Showing listings around ${escapeHtml(selectedArea.name)}`;
+  document.querySelectorAll('[data-area-label]').forEach(el => el.textContent = selectedArea.name);
+  // refreshHomeMap() rewrites this with the live count once it has fetched;
+  // until then the pill still names the area that was just chosen.
+  const chip = document.getElementById('homeMapChipText');
+  if (chip) chip.textContent = `Listings around ${selectedArea.name}`;
 }
 
 function openLocationPicker() {
@@ -5010,7 +5018,7 @@ function selectAreaFromResult(encoded) {
   // Moving to a different area can change whether EMI is offered here.
   emiAvailabilityCache = {};
   refreshEmiCoverage();
-  refreshHomeMap();
+  refreshHomeMap(true);
   loadHomeCategoryCounts();
   loadHomeStats();
   if (currentPage === 'buy') applyBuyFilters();
@@ -5052,7 +5060,7 @@ function selectArea(name) {
   showToast(`Showing listings around ${escapeHtml(a.name)}.`, 'success');
   emiAvailabilityCache = {};
   refreshEmiCoverage();
-  refreshHomeMap();
+  refreshHomeMap(true);
   loadHomeCategoryCounts();
   loadHomeStats();
   // If the buyer is already browsing, re-filter to the new area straight away.
@@ -5086,7 +5094,27 @@ function detectMyLocation() {
 
 /* ===== HOME MAP ===== */
 
-let homeMap = null, homeMapLayer = null;
+/* OSM France's raster style: cream blocks, orange roads and green parks —
+   the closest keyless match to the hero's pastel map. CARTO's keyless
+   tiles now watermark "API KEY REQUIRED", so they can't be used. If this
+   ever needs a paid/guaranteed provider, only this constant changes. */
+const HOME_MAP_TILES = 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png';
+const HOME_MAP_ATTRIB = '&copy; OpenStreetMap contributors &middot; tiles: OSM France';
+const HOME_MAP_REFRESH_MS = 60000;
+
+const CAT_ICON = {
+  cars: 'fa-car-side', phones: 'fa-mobile-screen-button', bikes: 'fa-motorcycle',
+  electronics: 'fa-laptop', furniture: 'fa-couch', appliances: 'fa-plug',
+  fashion: 'fa-shirt', property: 'fa-building', others: 'fa-box'
+};
+
+function getCatIcon(cat) {
+  return CAT_ICON[cat] || 'fa-box';
+}
+
+let homeMap = null, homeMapLayer = null, homeUserMarker = null;
+let homeMapRequestId = 0;
+let homeMapTimer = null;
 
 function initHomeMap() {
   const el = document.getElementById('homeMap');
@@ -5098,55 +5126,101 @@ function initHomeMap() {
     if (fb) fb.querySelector('span').textContent = 'Map could not be loaded';
     return;
   }
-  homeMap = L.map(el, { scrollWheelZoom: false, zoomControl: true, attributionControl: true })
-             .setView([selectedArea.lat, selectedArea.lng], 12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 18,
-    attribution: '&copy; OpenStreetMap contributors'
+  if (homeMap) return;
+  // The home page starts hidden when a visitor lands on #buy and navigates
+  // back; building a map in a 0x0 container gives broken tiles forever.
+  if (!el.offsetParent) return;
+
+  homeMap = L.map(el, {
+    zoomControl: false,
+    scrollWheelZoom: false,
+    worldCopyJump: true,
+    // Leaflet's own credit is replaced by the static .hb-map-credit link,
+    // which can sit above the hero's white fade and stays readable.
+    attributionControl: false
+  }).setView([selectedArea.lat, selectedArea.lng], 12);
+
+  let tileErrors = 0;
+  L.tileLayer(HOME_MAP_TILES, {
+    maxZoom: 19,
+    subdomains: 'abc',
+    // Retina tiles double the pixels the browser must decode and paint on a
+    // map this large. 256px tiles look fine and pan noticeably smoother.
+    detectRetina: false,
+    crossOrigin: true,
+    keepBuffer: 1,
+    attribution: HOME_MAP_ATTRIB
+  }).on('tileerror', () => {
+    // The odd bad tile is normal; a run of them means the provider is
+    // unreachable, and the fallback explains the grey map instead of
+    // leaving a blank canvas.
+    if (++tileErrors === 8) {
+      const fb = document.getElementById('homeMapFallback');
+      if (fb) {
+        fb.style.display = 'grid';
+        fb.querySelector('span').textContent = 'Map tiles could not be loaded';
+      }
+    }
   }).addTo(homeMap);
-  homeMapLayer = L.layerGroup().addTo(homeMap);
+
+  homeMapLayer = (typeof L.markerClusterGroup === 'function')
+    ? L.markerClusterGroup({
+        showCoverageOnHover: false,
+        maxClusterRadius: 46,
+        disableClusteringAtZoom: 16,
+        spiderfyOnMaxZoom: true,
+        iconCreateFunction: cluster => L.divIcon({
+          className: 'db-cluster-wrap',
+          html: `<div class="db-cluster">${cluster.getChildCount()}</div>`,
+          iconSize: [44, 44],
+          iconAnchor: [22, 22]
+        })
+      })
+    : L.layerGroup();
+  homeMap.addLayer(homeMapLayer);
+
   const fb = document.getElementById('homeMapFallback');
   if (fb) fb.style.display = 'none';
-  refreshHomeMap();
+
+  updateHomeUserMarker();
+  refreshHomeMap(true);
+  startHomeMapUpdates();
 }
 
-async function refreshHomeMap() {
+/* The white ring + blue dot at the centre of the selected area. */
+function updateHomeUserMarker() {
   if (!homeMap) return;
-  homeMap.setView([selectedArea.lat, selectedArea.lng], 12);
-  homeMapLayer.clearLayers();
-
-  const chip = document.getElementById('homeMapChipText');
-  if (chip) chip.textContent = 'Loading listings…';
-
-  let listings = [];
-  try {
-    const { items, total } = await db.getProducts({ pincode: selectedArea.prefix, page: 1, perPage: 30 });
-    listings = items.map(normalizeListing);
-    if (chip) {
-      chip.textContent = total === 0
-        ? `No listings in ${escapeHtml(selectedArea.name)} yet`
-        : `${total} listing${total === 1 ? '' : 's'} around ${escapeHtml(selectedArea.name)}`;
-    }
-  } catch {
-    if (chip) chip.textContent = 'Could not load listings';
-    return;
+  if (!homeMap.getPane('dbMePane')) {
+    const pane = homeMap.createPane('dbMePane');
+    pane.style.zIndex = 450;
+    pane.style.pointerEvents = 'none';
   }
-
-  const centre = { lat: selectedArea.lat, lng: selectedArea.lng };
-  listings.forEach(p => {
-    const c = dbCoordsForListing(p);
-    if (!c) return;   // pincode outside the districts we can place
-    const marker = L.marker([c.lat, c.lng], {
+  if (!homeUserMarker) {
+    homeUserMarker = L.marker([selectedArea.lat, selectedArea.lng], {
       icon: L.divIcon({
-        className: 'db-pin-wrap',
-        html: `<div class="db-pin"><span>${getCatEmoji(p.category)}</span></div>`,
-        iconSize: [42, 42],
-        iconAnchor: [21, 21]
-      })
-    });
-    const dist = dbFormatDistance(dbHaversineKm(centre, c));
-    marker.bindPopup(`
-      <div class="db-pop">
+        className: 'db-me-wrap',
+        html: '<div class="db-me"></div>',
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      }),
+      pane: 'dbMePane',
+      interactive: false,
+      keyboard: false
+    }).addTo(homeMap);
+  } else {
+    homeUserMarker.setLatLng([selectedArea.lat, selectedArea.lng]);
+  }
+}
+
+function homePopupHtml(p, dist) {
+  const media = p.images && p.images[0]
+    ? `<div class="db-pop-media"><img src="${p.images[0]}" alt="" loading="lazy"
+         onerror="this.parentElement.innerHTML='<div class=pcard-ph>${getCatEmoji(p.category)}</div>'"></div>`
+    : `<div class="db-pop-media"><div class="pcard-ph">${getCatEmoji(p.category)}</div></div>`;
+  return `
+    <div class="db-pop">
+      ${media}
+      <div class="db-pop-body">
         <div class="db-pop-title">${escapeHtml(p.title)}</div>
         <div class="db-pop-row">
           <span class="db-pop-price">₹${formatMoney(p.price)}</span>
@@ -5154,8 +5228,111 @@ async function refreshHomeMap() {
         </div>
         ${p.emiEligible ? `<div class="db-pop-emi"><i class="fas fa-bolt"></i> From ₹${formatMoney(emiPerMonth(p.price))}/mo</div>` : ''}
         <button class="db-pop-btn" onclick="openListing('${p.id}')">View listing</button>
-      </div>`, { closeButton: true, maxWidth: 240 });
-    marker.addTo(homeMapLayer);
+      </div>
+    </div>`;
+}
+
+/* `recenter` frames the pins; polling calls it with false so a refresh
+   never yanks the view while someone is panning around. */
+async function refreshHomeMap(recenter = false) {
+  if (!homeMap) return;
+  const requestId = ++homeMapRequestId;
+  const chip = document.getElementById('homeMapChipText');
+  if (chip) chip.textContent = 'Updating listings…';
+
+  let items = [], total = 0;
+  try {
+    const res = await db.getProducts({ pincode: selectedArea.prefix, page: 1, perPage: 60 });
+    items = res.items || [];
+    total = res.total || 0;
+  } catch {
+    if (requestId === homeMapRequestId && chip) chip.textContent = 'Could not load listings';
+    return;
+  }
+  // A slower request from a previous area must not overwrite the new one.
+  if (requestId !== homeMapRequestId || !homeMap) return;
+
+  homeMapLayer.clearLayers();
+  const centre = { lat: selectedArea.lat, lng: selectedArea.lng };
+  const points = [];
+
+  items.map(normalizeListing).forEach(p => {
+    const c = dbCoordsForListing(p);
+    if (!c) return;   // pincode outside the districts we can place
+    points.push([c.lat, c.lng]);
+    const dist = dbFormatDistance(dbHaversineKm(centre, c));
+    const marker = L.marker([c.lat, c.lng], {
+      icon: L.divIcon({
+        className: 'db-pin-wrap',
+        html: `<div class="db-pin"><i class="fas ${getCatIcon(p.category)}"></i></div>`,
+        iconSize: [54, 56],
+        iconAnchor: [27, 54],
+        popupAnchor: [0, -50]
+      }),
+      riseOnHover: true,
+      title: p.title
+    });
+    marker.bindPopup(homePopupHtml(p, dist), {
+      closeButton: true, maxWidth: 290, minWidth: 268,
+      // Keep the bubble clear of the floating "Listings near you" pill and
+      // the status chip, which would otherwise sit on top of it.
+      autoPanPadding: L.point(18, 84)
+    });
+    homeMapLayer.addLayer(marker);
+  });
+
+  if (chip) {
+    chip.textContent = total === 0
+      ? `No listings in ${selectedArea.name} yet`
+      : points.length < total
+        ? `Showing ${points.length} of ${total} listings around ${selectedArea.name}`
+        : `${total} listing${total === 1 ? '' : 's'} around ${selectedArea.name}`;
+  }
+
+  updateHomeUserMarker();
+
+  if (recenter) {
+    if (points.length) {
+      // Frame everything on screen, but stay at city/sector level: zooming
+      // further makes the basemap dense and the pins huge.
+      homeMap.fitBounds(L.latLngBounds(points), { padding: [60, 60], maxZoom: 13 });
+    } else {
+      homeMap.setView([selectedArea.lat, selectedArea.lng], 12);
+    }
+  }
+}
+
+function homeMapZoom(dir) {
+  if (!homeMap) return;
+  if (dir > 0) homeMap.zoomIn(1); else homeMap.zoomOut(1);
+}
+
+function recenterHomeMap() {
+  if (!homeMap) return;
+  homeMap.flyTo([selectedArea.lat, selectedArea.lng], Math.max(homeMap.getZoom(), 12), { duration: 0.6 });
+  updateHomeUserMarker();
+}
+
+/* Listings posted or archived elsewhere should turn up here without a
+   reload. Polling only; the API has no push channel. */
+function startHomeMapUpdates() {
+  if (homeMapTimer) return;
+  homeMapTimer = setInterval(() => {
+    if (document.hidden) return;
+    if (!homeMap || !document.body.classList.contains('on-home')) return;
+    // Leave the map alone while a listing card is open or the pointer is
+    // on it — a refresh would close the popup under the click.
+    if (homeMap._popup) return;
+    const wrap = document.getElementById('hbHeroMap');
+    if (wrap && wrap.matches(':hover')) return;
+    refreshHomeMap(false);
+  }, HOME_MAP_REFRESH_MS);
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    if (!homeMap || !document.body.classList.contains('on-home')) return;
+    if (homeMap._popup) return;
+    refreshHomeMap(false);
   });
 }
 
