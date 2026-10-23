@@ -88,8 +88,6 @@
 
 /* section rhythm: matches the other home sections, tighter on phones */
 #homePage .hb-section--how { padding: 76px 0; }
-#homePage .hb-section--notes { padding: 56px 0 76px; }
 @media (max-width: 760px) {
   #homePage .hb-section--how { padding: 48px 0 40px; }
-  #homePage .hb-section--notes { padding: 40px 0 48px; }
 }

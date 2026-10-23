@@ -521,30 +521,10 @@
 }
 #homePage .hb-trust-card h3 { font-size: 18px; font-weight: 800; margin: 0 0 10px; letter-spacing: -0.01em; }
 
-/* ===== Selling notes: the fine print under the How It Works steps =====
-   Two columns on desktop, one on mobile. Deliberately a different shape from
-   the step cards so the section reads as "steps, then the fine print". */
-#homePage .hb-sell-notes {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-#homePage .hb-note {
-  display: flex; gap: 14px; align-items: flex-start;
-  padding: 18px 20px; background: #F8FAFC;
-  border: 1px solid #E2E8F0; border-radius: 14px;
-  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
-}
-#homePage .hb-note:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(15,23,42,0.10); border-color: #BFDBFE; }
-#homePage .hb-note > i {
-  flex-shrink: 0; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
-  background: #EFF6FF; color: var(--hb-blue); border-radius: 10px; font-size: 15px;
-}
-#homePage .hb-note strong { display: block; font-size: 15px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.01em; }
-#homePage .hb-note span { display: block; font-size: 14px; line-height: 1.55; color: #64748B; }
-
-@media (max-width: 760px) {
-  #homePage .hb-sell-notes { grid-template-columns: 1fr; }
-}
+/* ===== Selling poster: designed banner, full-bleed like the old
+   How It Works image. The artwork carries its own heading and steps. ===== */
+#homePage .hb-selling { background: #fff; padding: 0; }
+#homePage .hb-selling-img { display: block; width: 100%; height: auto; }
 #homePage .hb-trust-card p { color: var(--hb-muted); font-size: 14.5px; line-height: 1.6; margin: 0; }
 
 /* ------------------------------------------------------ HOW IT WORKS */
@@ -676,7 +656,7 @@ body.show-footer .site-footer { display: block; }
   .db-pin, .db-cluster { transition: none; }
   #homePage .hb-btn:hover,
   #homePage .hb-cta-white:hover, #homePage .hb-cta-outline:hover,
-  #homePage .hb-trust-card:hover, #homePage .hb-note:hover { transform: none; }
+  #homePage .hb-trust-card:hover { transform: none; }
   #homePage .hb-cat-scroll { scroll-behavior: auto; }
   #homePage .hb-cat, #homePage .hb-cat-media img, #homePage .hb-cat-shade { transition: none; }
   #homePage .hb-cat:hover .hb-cat-media img { transform: scale(1.1); }
