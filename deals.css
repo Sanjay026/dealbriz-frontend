@@ -504,3 +504,39 @@ label.deal-btn { position: relative; overflow: hidden; }
   .deal-ask-box { padding: 20px 16px 16px; }
   .deal-ask-actions .deal-btn { flex: 1; }
 }
+
+/* 21 Oct: lender "Documents to check" groups, and the checker's loan answer */
+.lender-group-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 14px; font-weight: 800; margin: 6px 16px 8px; }
+.lender-group-head small { font-weight: 500; font-size: 12px; color: var(--text-muted); }
+.lender-group-head + .admin-table-wrap { margin-bottom: 18px; }
+.ld-loan-answer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: #F8FAFC; font-size: 13px; }
+.ld-loan-answer.is-open { background: #FEF3C7; }
+.ld-loan-answer span { flex: 1 1 100%; font-weight: 700; }
+.ld-loan-answer .btn-sm { margin-top: 0; }
+
+/* Loan application sent: the confirmation in the loan form */
+.deal-loan-done { text-align: left; }
+.deal-loan-done-icon { width: 60px; height: 60px; border-radius: 50%; margin: 6px auto 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 30px; background: #D1FAE5; color: #059669; }
+.deal-loan-done h3 { text-align: center; font-size: 21px; font-weight: 800; margin: 0 0 8px; }
+.deal-loan-done-lead { text-align: center; font-size: 14.5px; line-height: 1.55; margin: 0 0 16px; }
+.deal-loan-done-card { background: var(--bg, #F8FAFC); border: 1px solid var(--border); border-radius: 12px; padding: 4px 14px; margin-bottom: 16px; }
+.deal-loan-done-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; font-size: 14px; }
+.deal-loan-done-row + .deal-loan-done-row { border-top: 1px solid var(--border); }
+.deal-loan-done-row span { color: var(--text-muted); }
+.deal-loan-done .deal-ask-steps { font-size: 14px; line-height: 1.5; }
+.deal-loan-done .deal-ask-note { margin-bottom: 16px; }
+
+/* Lender portal: where loan applications are emailed */
+.lender-docs-email { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 8px; font-size: 13px; }
+.lender-docs-email > span { display: inline-flex; align-items: center; gap: 6px; }
+.lender-docs-email .btn-sm { margin-top: 0; }
+.lender-docs-email label { flex-basis: 100%; font-weight: 700; font-size: 12.5px; }
+.lender-docs-email small { flex-basis: 100%; color: var(--text-muted); }
+.lender-docs-email-row { display: flex; gap: 8px; flex: 1 1 100%; flex-wrap: wrap; }
+.lender-docs-email-row input { flex: 1 1 240px; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+.lender-docs-email-missing { color: #B45309; }
+
+/* Lender portal: Deals / Loan applications tabs above the admin-style deals */
+.lender-tabs { border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 6px; }
+.lender-tabs .admin-filter-btn { font-weight: 700; }

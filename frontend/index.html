@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0A1628">
+<link rel="preconnect" href="https://www.googletagmanager.com">
 <!-- No icon was declared at all before this, so browsers fell back to their
      default globe. Versioned because nginx caches svg/png for 30 days. -->
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261003b">
@@ -23,8 +24,19 @@
 <link rel="stylesheet" href="/style.css?v=20261022a">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-<link rel="stylesheet" href="/home.css?v=20261022c">
+<link rel="stylesheet" href="/home.css?v=20261023b">
 <link rel="stylesheet" href="/deals.css?v=20261022b">
+
+<!-- Google tag (gtag.js). send_page_view is off because the app swaps pages
+     with history.pushState and never reloads — GA's one automatic view would
+     only ever see the first screen. analytics.js sends every view instead. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-M2WVWHBX5H"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-M2WVWHBX5H', { send_page_view: false });
+</script>
 </head>
 <body>
 
@@ -372,21 +384,99 @@
   </section>
 
   <!-- BROWSE CATEGORIES -->
-  <section class="hb-section">
+  <section class="hb-section hb-section--cats">
     <div class="hb-wrap">
       <div class="hb-head hb-reveal">
         <div><h2>Browse Categories</h2></div>
+        <div class="hb-cat-nav">
+          <button type="button" class="hb-cat-nav-btn" id="homeCatPrev" aria-label="Scroll categories left" aria-controls="homeCatScroll"><i class="fas fa-arrow-left"></i></button>
+          <button type="button" class="hb-cat-nav-btn" id="homeCatNext" aria-label="Scroll categories right" aria-controls="homeCatScroll"><i class="fas fa-arrow-right"></i></button>
+        </div>
       </div>
-      <div class="hb-cats hb-reveal" id="homeCatGrid">
-        <button class="hb-cat" onclick="browseCategory('cars')"><div class="hb-cat-emoji">🚗</div><div class="hb-cat-name">Cars</div><div class="hb-cat-count" data-cat-count="cars">—</div></button>
-        <button class="hb-cat" onclick="browseCategory('phones')"><div class="hb-cat-emoji">📱</div><div class="hb-cat-name">Phones</div><div class="hb-cat-count" data-cat-count="phones">—</div></button>
-        <button class="hb-cat" onclick="browseCategory('bikes')"><div class="hb-cat-emoji">🏍️</div><div class="hb-cat-name">Bikes</div><div class="hb-cat-count" data-cat-count="bikes">—</div></button>
-        <button class="hb-cat" onclick="browseCategory('electronics')"><div class="hb-cat-emoji">💻</div><div class="hb-cat-name">Electronics</div><div class="hb-cat-count" data-cat-count="electronics">—</div></button>
-        <button class="hb-cat" onclick="browseCategory('furniture')"><div class="hb-cat-emoji">🛋️</div><div class="hb-cat-name">Furniture</div><div class="hb-cat-count" data-cat-count="furniture">—</div></button>
-        <button class="hb-cat" onclick="browseCategory('appliances')"><div class="hb-cat-emoji">🧊</div><div class="hb-cat-name">Appliances</div><div class="hb-cat-count" data-cat-count="appliances">—</div></button>
-        <button class="hb-cat" onclick="browseCategory('fashion')"><div class="hb-cat-emoji">👗</div><div class="hb-cat-name">Fashion</div><div class="hb-cat-count" data-cat-count="fashion">—</div></button>
-        <button class="hb-cat" onclick="browseCategory('property')"><div class="hb-cat-emoji">🏢</div><div class="hb-cat-name">Property</div><div class="hb-cat-count" data-cat-count="property">—</div></button>
-        <button class="hb-cat hb-cat-others" onclick="browseCategory('others')"><div class="hb-cat-emoji">📦</div><div class="hb-cat-name">Others</div><div class="hb-cat-count" data-cat-count="others">—</div></button>
+      <div class="hb-cat-scroll hb-reveal" id="homeCatScroll" role="region" aria-label="Browse categories" tabindex="0">
+        <div class="hb-cats" id="homeCatGrid">
+          <button type="button" class="hb-cat" onclick="browseCategory('cars')" aria-label="Browse Cars">
+            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
+            <i class="fas fa-car-side hb-cat-ico" aria-hidden="true"></i>
+            <span class="hb-cat-shade" aria-hidden="true"></span>
+            <span class="hb-cat-body"><span class="hb-cat-text">
+              <span class="hb-cat-name">Cars</span>
+              <span class="hb-cat-count" data-cat-count="cars">—</span>
+            </span></span>
+          </button>
+          <button type="button" class="hb-cat" onclick="browseCategory('phones')" aria-label="Browse Phones">
+            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
+            <i class="fas fa-mobile-screen-button hb-cat-ico" aria-hidden="true"></i>
+            <span class="hb-cat-shade" aria-hidden="true"></span>
+            <span class="hb-cat-body"><span class="hb-cat-text">
+              <span class="hb-cat-name">Phones</span>
+              <span class="hb-cat-count" data-cat-count="phones">—</span>
+            </span></span>
+          </button>
+          <button type="button" class="hb-cat" onclick="browseCategory('bikes')" aria-label="Browse Bikes">
+            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
+            <i class="fas fa-motorcycle hb-cat-ico" aria-hidden="true"></i>
+            <span class="hb-cat-shade" aria-hidden="true"></span>
+            <span class="hb-cat-body"><span class="hb-cat-text">
+              <span class="hb-cat-name">Bikes</span>
+              <span class="hb-cat-count" data-cat-count="bikes">—</span>
+            </span></span>
+          </button>
+          <button type="button" class="hb-cat" onclick="browseCategory('electronics')" aria-label="Browse Electronics">
+            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
+            <i class="fas fa-laptop hb-cat-ico" aria-hidden="true"></i>
+            <span class="hb-cat-shade" aria-hidden="true"></span>
+            <span class="hb-cat-body"><span class="hb-cat-text">
+              <span class="hb-cat-name">Electronics</span>
+              <span class="hb-cat-count" data-cat-count="electronics">—</span>
+            </span></span>
+          </button>
+          <button type="button" class="hb-cat" onclick="browseCategory('furniture')" aria-label="Browse Furniture">
+            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
+            <i class="fas fa-couch hb-cat-ico" aria-hidden="true"></i>
+            <span class="hb-cat-shade" aria-hidden="true"></span>
+            <span class="hb-cat-body"><span class="hb-cat-text">
+              <span class="hb-cat-name">Furniture</span>
+              <span class="hb-cat-count" data-cat-count="furniture">—</span>
+            </span></span>
+          </button>
+          <button type="button" class="hb-cat" onclick="browseCategory('appliances')" aria-label="Browse Appliances">
+            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
+            <i class="fas fa-plug hb-cat-ico" aria-hidden="true"></i>
+            <span class="hb-cat-shade" aria-hidden="true"></span>
+            <span class="hb-cat-body"><span class="hb-cat-text">
+              <span class="hb-cat-name">Appliances</span>
+              <span class="hb-cat-count" data-cat-count="appliances">—</span>
+            </span></span>
+          </button>
+          <button type="button" class="hb-cat" onclick="browseCategory('fashion')" aria-label="Browse Fashion">
+            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
+            <i class="fas fa-shirt hb-cat-ico" aria-hidden="true"></i>
+            <span class="hb-cat-shade" aria-hidden="true"></span>
+            <span class="hb-cat-body"><span class="hb-cat-text">
+              <span class="hb-cat-name">Fashion</span>
+              <span class="hb-cat-count" data-cat-count="fashion">—</span>
+            </span></span>
+          </button>
+          <button type="button" class="hb-cat" onclick="browseCategory('property')" aria-label="Browse Property">
+            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
+            <i class="fas fa-building hb-cat-ico" aria-hidden="true"></i>
+            <span class="hb-cat-shade" aria-hidden="true"></span>
+            <span class="hb-cat-body"><span class="hb-cat-text">
+              <span class="hb-cat-name">Property</span>
+              <span class="hb-cat-count" data-cat-count="property">—</span>
+            </span></span>
+          </button>
+          <button type="button" class="hb-cat" onclick="browseCategory('others')" aria-label="Browse Others">
+            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1587560699334-cc4ff634909a?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
+            <i class="fas fa-box hb-cat-ico" aria-hidden="true"></i>
+            <span class="hb-cat-shade" aria-hidden="true"></span>
+            <span class="hb-cat-body"><span class="hb-cat-text">
+              <span class="hb-cat-name">Others</span>
+              <span class="hb-cat-count" data-cat-count="others">—</span>
+            </span></span>
+          </button>
+        </div>
       </div>
     </div>
   </section>
@@ -488,35 +578,11 @@
   </section>
 
   <!-- HOW IT WORKS -->
-  <section class="hb-section tint" id="howItWorks">
-    <div class="hb-wrap">
-      <div class="hb-head-center hb-reveal">
-        <h2>How DealBriz Works</h2>
-        <p>Buying or selling locally has never been simpler.</p>
-      </div>
-      <div class="hb-steps hb-reveal">
-        <div class="hb-step">
-          <div class="hb-step-n">01</div>
-          <h3>Browse</h3>
-          <p>Find second-hand products near your location with smart search and filters.</p>
-        </div>
-        <div class="hb-step">
-          <div class="hb-step-n">02</div>
-          <h3>Connect</h3>
-          <p>Chat directly with the seller through our secure in-app messaging.</p>
-        </div>
-        <div class="hb-step">
-          <div class="hb-step-n">03</div>
-          <h3>Choose</h3>
-          <p>Buy directly or choose EMI financing if eligible for that product.</p>
-        </div>
-        <div class="hb-step">
-          <div class="hb-step-n">04</div>
-          <h3>Complete</h3>
-          <p>Arrange pickup or delivery and finish your transaction safely.</p>
-        </div>
-      </div>
-    </div>
+  <section class="hiw" id="howItWorks">
+    <h2 class="sr-only">How DealBriz Works</h2>
+    <img class="hiw-img" src="how-it-works.webp" width="2560" height="846"
+         alt="How DealBriz Works: 01 Browse — find second-hand listings near you with smart search; 02 Connect — chat directly with the seller in secure in-app messaging; 03 Choose — buy directly or choose EMI financing; 04 Complete — finish your transaction safely."
+         loading="lazy" decoding="async">
   </section>
 
   <!-- SELL BAND -->
@@ -745,10 +811,6 @@
         <div class="sell-cat-item" data-cat="property" onclick="selectSellCat(this,'property')"><i class="fas fa-home"></i><span>Property</span></div>
         <div class="sell-cat-item" data-cat="others" onclick="selectSellCat(this,'others')"><i class="fas fa-box-open"></i><span>Others</span></div>
       </div>
-      <!-- Ticked by default. For a car or bike, ticking it asks for the RC
-           and insurance just below (deals.js sellDocsRender). -->
-      <label class="toggle-label emi-feature sell-emi-toggle"><input type="checkbox" id="sellEmiEligible" checked onchange="if (typeof sellDocsRender === 'function') sellDocsRender()">
-        <span><strong>Offer EMI option</strong><small>Buyers can pay in monthly instalments through DealBriz’s lending partners.</small></span></label>
     </div>
 
     <!-- DealLock: the vehicle's documents, for cars and bikes (deals.js
@@ -811,6 +873,7 @@
         </div>
       </div>
       <label class="toggle-label"><input type="checkbox" id="sellNegotiable"> Price is negotiable</label>
+      <label class="toggle-label emi-feature" style="margin-top:10px"><input type="checkbox" id="sellEmiEligible"> Offer EMI option</label>
       <label class="toggle-label" style="margin-top:10px"><input type="checkbox" id="sellFeature"> <i class="fas fa-bolt" style="color:var(--gold)"></i> Show at top for 7 days <small style="color:var(--text-light)">(free while in beta)</small></label>
     </div>
 
@@ -1500,9 +1563,11 @@
          their own lender's work. DealBriz staff can pick a lender. -->
     <div id="adminSection-lender" class="admin-section hidden">
       <div id="lenderHeader" class="lender-head"></div>
-      <div class="admin-filters lender-tabs">
-        <button class="admin-filter-btn active" data-ltab="deals" onclick="lenderSetTab('deals')"><i class="fas fa-handshake"></i> Deals</button>
-        <button class="admin-filter-btn" data-ltab="loans" onclick="lenderSetTab('loans')"><i class="fas fa-file-invoice-dollar"></i> Loan applications</button>
+      <div class="admin-filters">
+        <button class="admin-filter-btn active" data-ltab="docs" onclick="lenderSetTab('docs')">Documents to check</button>
+        <button class="admin-filter-btn" data-ltab="listings" onclick="lenderSetTab('listings')">Vehicle listings</button>
+        <button class="admin-filter-btn" data-ltab="loans" onclick="lenderSetTab('loans')">Loan applications</button>
+        <button class="admin-filter-btn" data-ltab="deals" onclick="lenderSetTab('deals')">Deals</button>
       </div>
       <div id="lenderBody" class="lender-body"></div>
     </div>
@@ -1763,10 +1828,6 @@
           <div class="form-group"><label>Contact Email</label><input type="email" id="financerEmail" autocomplete="off"></div>
           <div class="form-group"><label>Contact Phone</label><input type="text" id="financerPhone" autocomplete="off"></div>
         </div>
-        <div class="form-group"><label>Email for loan applications and documents</label>
-          <input type="text" id="financerDocsEmail" inputmode="email" autocomplete="off" maxlength="255" placeholder="e.g. loans@lender.in">
-          <small style="color:var(--text-muted)">Each new loan application on a DealBriz deal is emailed here with the buyer’s and the seller’s verified documents. Up to 3 addresses, separated by commas. The lender can also set it in its portal.</small>
-        </div>
         <div class="form-group" style="margin-bottom:4px">
           <label style="font-weight:700;color:var(--navy)">Address</label>
         </div>
@@ -1859,9 +1920,6 @@
 <div id="dealLoanModal" class="modal-overlay hidden">
   <div class="modal-box deal-modal-box">
     <button class="modal-close" onclick="closeLoanForm()" aria-label="Close"><i class="fas fa-xmark"></i></button>
-    <!-- After sending: the confirmation (deals.js dlLoanDoneHtml) -->
-    <div id="dealLoanDone" class="hidden"></div>
-    <div id="dealLoanFormArea">
     <h3 class="deal-modal-title">Apply for the loan</h3>
     <p class="deal-modal-sub">Agreed price <strong id="dealLoanPrice"></strong> <span id="dealLoanType"></span></p>
     <div id="dealLoanExisting"></div>
@@ -1897,7 +1955,6 @@
     </div>
     <p id="dealLoanError" class="auth-error hidden"></p>
     <button class="btn-primary full-width" onclick="submitDealLoan()">Send application</button>
-    </div>
   </div>
 </div>
 
@@ -1973,10 +2030,11 @@
 </script>
 <!-- Error logger loads FIRST so failures in the scripts below are caught. -->
 <script src="/error-logger.js?v=20261003b"></script>
+<script src="/analytics.js?v=20261023a"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="/geo.js?v=20261022c"></script>
 <script src="/api-client.js?v=20261020c"></script>
-<script src="/app.js?v=20261022c"></script>
+<script src="/app.js?v=20261023c"></script>
 <!-- DealLock: offers, deals, loan, handover, admin Deals. After app.js (uses its helpers). -->
 <script src="/deals.js?v=20261022b"></script>
 <div id="reportModal" class="modal-overlay hidden">

@@ -141,6 +141,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // a bookmarked or shared /#privacy lands on Privacy rather than the home
   // page. Captured before the replaceState below overwrites it.
   const deepLink = pageFromLocation();
+  // DealLock: the deal that was open before a refresh (?deal=<id>). Read
+  // now: restoring the page below rewrites the address.
+  let deepDeal = null;
+  try { deepDeal = new URLSearchParams(location.search).get('deal'); } catch { /* ignore */ }
   // Do NOT force the URL back to #home here. Doing that threw away the hash
   // on every load, so refreshing on /#buy or /#profile dumped you on the
   // home page.
@@ -209,6 +213,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   restoreFromHash(deepLink);
+  // DealLock: a deal that was open before a browser refresh opens again,
+  // and the other side's actions pop up within seconds (deals.js).
+  if (typeof dlRestoreFromUrl === 'function') dlRestoreFromUrl(deepDeal);
+  if (typeof dlNoticeLoopStart === 'function') dlNoticeLoopStart();
   // Note: JWT auth checks the stored token directly on load (see refreshCurrentUser),
   // no live auth-state listener needed like Supabase's onAuthStateChange.
 });
@@ -2285,7 +2293,8 @@ function resetSellForm() {
   });
   document.getElementById('sellCondition').value = '';
   document.getElementById('sellNegotiable').checked = false;
-  document.getElementById('sellEmiEligible').checked = false;
+  // Offered by default: a seller unticks it if they don't want EMI.
+  document.getElementById('sellEmiEligible').checked = true;
   const featureCb = document.getElementById('sellFeature');
   if (featureCb) featureCb.checked = false;
   document.getElementById('sellShowPhone').value = 'chat_only';
@@ -2502,7 +2511,10 @@ async function handleSellSubmit() {
       ai_description: desc,
       ai_image_url: imageUrl,
       extra_images: extraImages,
-      emi_eligible: document.getElementById('sellEmiEligible').checked,
+      // A new ad only offers EMI if the seller could see (and kept) the
+      // option: where EMI isn't available the box is hidden.
+      emi_eligible: document.getElementById('sellEmiEligible').checked
+        && (isEdit || typeof emiVisibleHere !== 'function' || emiVisibleHere()),
       negotiable: document.getElementById('sellNegotiable').checked,
       brand: document.getElementById('sellBrand').value.trim(),
       model: document.getElementById('sellModel').value.trim(),
@@ -2612,14 +2624,14 @@ async function renderMyListings() {
       <div class="my-listing-info">
         <div class="listing-status-pill status-${p.status}">${p.status.charAt(0).toUpperCase()+p.status.slice(1)}</div>
         ${p.dealStage === 'pending' ? `<div class="featured-note"><i class="fas fa-handshake"></i> Deal in progress: waiting for confirmation or documents</div>` : ''}
-        ${typeof ldBadgeHtml === 'function' ? ldBadgeHtml(p.docsState) : ''}
+        ${typeof ldBadgeHtml === 'function' && (p.emiEligible || ['checking', 'verified'].includes(p.docsState)) ? ldBadgeHtml(p.docsState) : ''}
         <div class="my-listing-title">${escapeHtml(p.title)}</div>
         <div class="my-listing-price">₹${formatNum(p.price)}</div>
         <div class="my-listing-meta">${p.pincode} · ${p.views} views</div>
         ${p.isFeatured ? `<div class="featured-note"><i class="fas fa-bolt"></i> Showing at top until ${new Date(p.featuredUntil).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div>` : ''}
         <div class="my-listing-actions">
           <button class="btn-sm btn-sm-blue" onclick="openListing('${p.id}')">View</button>
-          ${p.docsState === 'needed' && p.status !== 'sold' ? `<button class="btn-sm btn-sm-feature" onclick="dlGoToListingDocsFromMyListings('${p.id}')"><i class="fas fa-file-shield"></i> Add documents</button>` : ''}
+          ${p.docsState === 'needed' && p.emiEligible && p.status !== 'sold' ? `<button class="btn-sm btn-sm-feature" onclick="dlGoToListingDocsFromMyListings('${p.id}')"><i class="fas fa-file-shield"></i> Add documents</button>` : ''}
           ${p.status === 'active' ? `<button class="btn-sm" onclick="editListing('${p.id}')">Edit</button>` : ''}
           ${p.status === 'active' && !p.dealStage ? (p.isFeatured
             ? `<button class="btn-sm btn-sm-feature is-on" onclick="openFeatureModal('${p.id}')"><i class="fas fa-bolt"></i> Extend</button>`
@@ -4267,7 +4279,7 @@ function openFinancerForm() {
   document.getElementById('financerFormBox').classList.remove('hidden');
   document.getElementById('financerEditId').value = '';
   ['financerName','financerEmail','financerPhone','financerMinRate','financerMaxRate','financerMinLoan','financerMaxLoan',
-   'financerAddress','financerCity','financerState','financerPincode'].forEach(id => document.getElementById(id).value = '');
+   'financerAddress','financerCity','financerState','financerPincode','financerDocsEmail'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('financerStatus').value = 'active';
   document.getElementById('financerServesAll').value = 'true';
   document.getElementById('financerLoanVehicle').checked = true;
@@ -4286,6 +4298,8 @@ function editFinancer(fid) {
   document.getElementById('financerName').value = f.name;
   document.getElementById('financerEmail').value = f.contact_email || '';
   document.getElementById('financerPhone').value = f.contact_phone || '';
+  const docsEmailEl = document.getElementById('financerDocsEmail');
+  if (docsEmailEl) docsEmailEl.value = f.docs_email || '';
   document.getElementById('financerMinRate').value = f.min_interest_rate;
   document.getElementById('financerMaxRate').value = f.max_interest_rate;
   document.getElementById('financerMinLoan').value = f.min_loan_amount;
@@ -4307,6 +4321,7 @@ async function saveFinancer() {
     name: document.getElementById('financerName').value.trim(),
     contact_email: document.getElementById('financerEmail').value.trim(),
     contact_phone: document.getElementById('financerPhone').value.trim(),
+    docs_email: (document.getElementById('financerDocsEmail')?.value || '').trim(),
     min_interest_rate: parseFloat(document.getElementById('financerMinRate').value),
     max_interest_rate: parseFloat(document.getElementById('financerMaxRate').value),
     min_loan_amount: parseFloat(document.getElementById('financerMinLoan').value) || 5000,
