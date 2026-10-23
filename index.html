@@ -24,8 +24,9 @@
 <link rel="stylesheet" href="/style.css?v=20261022a">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-<link rel="stylesheet" href="/home.css?v=20261023j">
+<link rel="stylesheet" href="/home.css?v=20261023k">
 <link rel="stylesheet" href="/how-it-works.css?v=20261023e">
+<link rel="stylesheet" href="/browse-categories.css?v=20261023a">
 <link rel="stylesheet" href="/deals.css?v=20261022b">
 
 <!-- Google tag (gtag.js). send_page_view is off because the app swaps pages
@@ -385,98 +386,46 @@
   </section>
 
   <!-- BROWSE CATEGORIES -->
-  <section class="hb-section hb-section--cats">
+  <section class="hb-section hb-section--cats" id="browseCategories">
     <div class="hb-wrap">
-      <div class="hb-head hb-reveal">
-        <div><h2>Browse Categories</h2></div>
-        <div class="hb-cat-nav">
-          <button type="button" class="hb-cat-nav-btn" id="homeCatPrev" aria-label="Scroll categories left" aria-controls="homeCatScroll"><i class="fas fa-arrow-left"></i></button>
-          <button type="button" class="hb-cat-nav-btn" id="homeCatNext" aria-label="Scroll categories right" aria-controls="homeCatScroll"><i class="fas fa-arrow-right"></i></button>
+      <div class="dbz-cats" data-dbz-cats aria-labelledby="dbz-cats-title">
+        <div class="dbz-cats__head hb-reveal">
+          <div>
+            <h2 class="dbz-cats__title" id="dbz-cats-title">Browse categories</h2>
+            <p class="dbz-cats__sub"><span class="t-hover">Hover a category to take a peek</span><span class="t-touch">Tap a category to take a peek</span></p>
+          </div>
+          <button class="dbz-cats__all" type="button" onclick="browseAllCategories()">View all</button>
         </div>
-      </div>
-      <div class="hb-cat-scroll hb-reveal" id="homeCatScroll" role="region" aria-label="Browse categories" tabindex="0">
-        <div class="hb-cats" id="homeCatGrid">
-          <button type="button" class="hb-cat" onclick="browseCategory('cars')" aria-label="Browse Cars">
-            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
-            <i class="fas fa-car-side hb-cat-ico" aria-hidden="true"></i>
-            <span class="hb-cat-shade" aria-hidden="true"></span>
-            <span class="hb-cat-body"><span class="hb-cat-text">
-              <span class="hb-cat-name">Cars</span>
-              <span class="hb-cat-count" data-cat-count="cars">—</span>
-            </span></span>
-          </button>
-          <button type="button" class="hb-cat" onclick="browseCategory('phones')" aria-label="Browse Phones">
-            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
-            <i class="fas fa-mobile-screen-button hb-cat-ico" aria-hidden="true"></i>
-            <span class="hb-cat-shade" aria-hidden="true"></span>
-            <span class="hb-cat-body"><span class="hb-cat-text">
-              <span class="hb-cat-name">Phones</span>
-              <span class="hb-cat-count" data-cat-count="phones">—</span>
-            </span></span>
-          </button>
-          <button type="button" class="hb-cat" onclick="browseCategory('bikes')" aria-label="Browse Bikes">
-            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
-            <i class="fas fa-motorcycle hb-cat-ico" aria-hidden="true"></i>
-            <span class="hb-cat-shade" aria-hidden="true"></span>
-            <span class="hb-cat-body"><span class="hb-cat-text">
-              <span class="hb-cat-name">Bikes</span>
-              <span class="hb-cat-count" data-cat-count="bikes">—</span>
-            </span></span>
-          </button>
-          <button type="button" class="hb-cat" onclick="browseCategory('electronics')" aria-label="Browse Electronics">
-            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1498049794561-7780e7231661?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
-            <i class="fas fa-laptop hb-cat-ico" aria-hidden="true"></i>
-            <span class="hb-cat-shade" aria-hidden="true"></span>
-            <span class="hb-cat-body"><span class="hb-cat-text">
-              <span class="hb-cat-name">Electronics</span>
-              <span class="hb-cat-count" data-cat-count="electronics">—</span>
-            </span></span>
-          </button>
-          <button type="button" class="hb-cat" onclick="browseCategory('furniture')" aria-label="Browse Furniture">
-            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
-            <i class="fas fa-couch hb-cat-ico" aria-hidden="true"></i>
-            <span class="hb-cat-shade" aria-hidden="true"></span>
-            <span class="hb-cat-body"><span class="hb-cat-text">
-              <span class="hb-cat-name">Furniture</span>
-              <span class="hb-cat-count" data-cat-count="furniture">—</span>
-            </span></span>
-          </button>
-          <button type="button" class="hb-cat" onclick="browseCategory('appliances')" aria-label="Browse Appliances">
-            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
-            <i class="fas fa-plug hb-cat-ico" aria-hidden="true"></i>
-            <span class="hb-cat-shade" aria-hidden="true"></span>
-            <span class="hb-cat-body"><span class="hb-cat-text">
-              <span class="hb-cat-name">Appliances</span>
-              <span class="hb-cat-count" data-cat-count="appliances">—</span>
-            </span></span>
-          </button>
-          <button type="button" class="hb-cat" onclick="browseCategory('fashion')" aria-label="Browse Fashion">
-            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
-            <i class="fas fa-shirt hb-cat-ico" aria-hidden="true"></i>
-            <span class="hb-cat-shade" aria-hidden="true"></span>
-            <span class="hb-cat-body"><span class="hb-cat-text">
-              <span class="hb-cat-name">Fashion</span>
-              <span class="hb-cat-count" data-cat-count="fashion">—</span>
-            </span></span>
-          </button>
-          <button type="button" class="hb-cat" onclick="browseCategory('property')" aria-label="Browse Property">
-            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
-            <i class="fas fa-building hb-cat-ico" aria-hidden="true"></i>
-            <span class="hb-cat-shade" aria-hidden="true"></span>
-            <span class="hb-cat-body"><span class="hb-cat-text">
-              <span class="hb-cat-name">Property</span>
-              <span class="hb-cat-count" data-cat-count="property">—</span>
-            </span></span>
-          </button>
-          <button type="button" class="hb-cat" onclick="browseCategory('others')" aria-label="Browse Others">
-            <span class="hb-cat-media"><img src="https://images.unsplash.com/photo-1587560699334-cc4ff634909a?auto=format&amp;fit=crop&amp;q=75&amp;w=900" alt="" width="210" height="336" loading="lazy" decoding="async" draggable="false" onerror="this.remove()"></span>
-            <i class="fas fa-box hb-cat-ico" aria-hidden="true"></i>
-            <span class="hb-cat-shade" aria-hidden="true"></span>
-            <span class="hb-cat-body"><span class="hb-cat-text">
-              <span class="hb-cat-name">Others</span>
-              <span class="hb-cat-count" data-cat-count="others">—</span>
-            </span></span>
-          </button>
+
+        <div class="dbz-cats__stage hb-reveal">
+          <ul class="dbz-cats__grid" id="homeCatGrid">
+        <li><button class="dbz-tile" type="button" data-slug="cars" data-name="Cars" data-count="" aria-label="Browse Cars" aria-haspopup="dialog" style="--i:0;--tile-bg:linear-gradient(135deg,#ff6a3d,#e5462b)"><span class="dbz-tile__name">Cars</span><span class="dbz-tile__go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span></button></li>
+        <li><button class="dbz-tile" type="button" data-slug="phones" data-name="Phones" data-count="" aria-label="Browse Phones" aria-haspopup="dialog" style="--i:1;--tile-bg:linear-gradient(135deg,#8b5cf6,#6d3fe0)"><span class="dbz-tile__name">Phones</span><span class="dbz-tile__go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span></button></li>
+        <li><button class="dbz-tile" type="button" data-slug="bikes" data-name="Bikes" data-count="" aria-label="Browse Bikes" aria-haspopup="dialog" style="--i:2;--tile-bg:linear-gradient(135deg,#3a7bfd,#2457d6)"><span class="dbz-tile__name">Bikes</span><span class="dbz-tile__go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span></button></li>
+        <li><button class="dbz-tile" type="button" data-slug="electronics" data-name="Electronics" data-count="" aria-label="Browse Electronics" aria-haspopup="dialog" style="--i:3;--tile-bg:linear-gradient(135deg,#55657d,#2f3b4f)"><span class="dbz-tile__name">Electronics</span><span class="dbz-tile__go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span></button></li>
+        <li><button class="dbz-tile" type="button" data-slug="furniture" data-name="Furniture" data-count="" aria-label="Browse Furniture" aria-haspopup="dialog" style="--i:4;--tile-bg:linear-gradient(135deg,#b7804a,#8f5c2e)"><span class="dbz-tile__name">Furniture</span><span class="dbz-tile__go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span></button></li>
+        <li><button class="dbz-tile" type="button" data-slug="appliances" data-name="Appliances" data-count="" aria-label="Browse Appliances" aria-haspopup="dialog" style="--i:5;--tile-bg:linear-gradient(135deg,#38bdf8,#0e93d3)"><span class="dbz-tile__name">Appliances</span><span class="dbz-tile__go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span></button></li>
+        <li><button class="dbz-tile" type="button" data-slug="fashion" data-name="Fashion" data-count="" aria-label="Browse Fashion" aria-haspopup="dialog" style="--i:6;--tile-bg:linear-gradient(135deg,#f43f75,#c92458)"><span class="dbz-tile__name">Fashion</span><span class="dbz-tile__go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span></button></li>
+        <li><button class="dbz-tile" type="button" data-slug="property" data-name="Property" data-count="" aria-label="Browse Property" aria-haspopup="dialog" style="--i:7;--tile-bg:linear-gradient(135deg,#ec930f,#c96d06)"><span class="dbz-tile__name">Property</span><span class="dbz-tile__go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span></button></li>
+        <li><button class="dbz-tile" type="button" data-slug="others" data-name="Others" data-count="" aria-label="Browse Others" aria-haspopup="dialog" style="--i:8;--tile-bg:linear-gradient(135deg,#22a861,#16834a)"><span class="dbz-tile__name">Others</span><span class="dbz-tile__go" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M9 7h8v8"/></svg></span></button></li>
+          </ul>
+
+          <div class="dbz-panel" role="dialog" aria-label="Category preview" aria-hidden="true" inert>
+            <div class="dbz-panel__content">
+              <span class="dbz-panel__eyebrow">Category</span>
+              <h3 class="dbz-panel__name" data-panel-name></h3>
+              <p class="dbz-panel__count" data-panel-countrow hidden><strong data-panel-count>0</strong> <span data-panel-countword>listings</span></p>
+              <button class="dbz-panel__cta" type="button" data-panel-cta>
+                <span data-panel-cta-label>Browse</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </button>
+              <span class="dbz-panel__hint">Move away to see all categories</span>
+            </div>
+            <div class="dbz-panel__art" data-panel-art></div>
+            <button class="dbz-panel__close" type="button" aria-label="Close and show all categories">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1899,11 +1848,12 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="/geo.js?v=20261022c"></script>
 <script src="/api-client.js?v=20261020c"></script>
-<script src="/app.js?v=20261023d"></script>
+<script src="/app.js?v=20261023e"></script>
 <!-- DealLock: offers, deals, loan, handover, admin Deals. After app.js (uses its helpers). -->
 <script src="/deals.js?v=20261022b"></script>
 <!-- Homepage How It Works scroll road (needs the #howItWorks markup above). -->
 <script src="/how-it-works.js?v=20261023d"></script>
+<script src="/browse-categories.js?v=20261023a"></script>
 <div id="reportModal" class="modal-overlay hidden">
   <div class="modal-box" data-enter-flow>
     <button class="modal-close" onclick="closeReportModal()"><i class="fa fa-times"></i></button>

@@ -307,129 +307,6 @@
 #homePage .hb-head-center h2 { font-size: clamp(28px, 4.6vw, 42px); font-weight: 800; letter-spacing: -0.03em; margin: 0; }
 #homePage .hb-head-center p { color: var(--hb-muted); font-size: 16.5px; margin: 14px 0 0; line-height: 1.6; }
 
-/* ------------------------------------------------------- CATEGORIES */
-/* Skewed card carousel. The card is skewed -12deg, the photo inside is
-   skewed back and widened so it still fills the parallelogram's corners,
-   and the label is skewed back once more so it reads upright. */
-#homePage .hb-cat-nav { display: none; align-items: center; gap: 10px; }
-#homePage .hb-cat-nav-btn {
-  width: 44px; height: 44px; border-radius: 50%; flex: none;
-  border: 1px solid rgba(37,99,235,0.18);
-  background: rgba(255,255,255,0.65);
-  color: var(--hb-blue);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 14px rgba(11,26,51,0.08);
-  display: grid; place-items: center; cursor: pointer;
-  font-family: var(--hb-font); font-size: 14px; line-height: 1;
-  transition: background .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease;
-}
-#homePage .hb-cat-nav-btn:hover { background: rgba(255,255,255,0.92); border-color: rgba(37,99,235,0.34); color: var(--hb-blue-dk); }
-#homePage .hb-cat-nav-btn[aria-disabled="true"] { opacity: .35; pointer-events: none; }
-
-#homePage .hb-cat-scroll {
-  position: relative;
-  margin: -14px -24px 0;
-  padding: 14px 0 48px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  scroll-behavior: smooth;
-  cursor: grab;
-}
-#homePage .hb-cat-scroll::-webkit-scrollbar { display: none; }
-#homePage .hb-cat-scroll:focus-visible { outline: 2px solid var(--hb-blue); outline-offset: -2px; border-radius: 18px; }
-#homePage .hb-cat-scroll.is-dragging { cursor: grabbing; scroll-behavior: auto; }
-#homePage .hb-cat-scroll.is-dragging .hb-cat { cursor: grabbing; }
-#homePage .hb-cat-scroll.is-dragging,
-#homePage .hb-cat-scroll.is-dragging * { user-select: none; }
-
-#homePage .hb-cats {
-  display: flex; align-items: center;
-  min-width: max-content;
-  padding: 0 84px 0 24px;
-}
-
-#homePage .hb-cat {
-  position: relative;
-  flex: 0 0 180px; height: 288px;
-  margin: 0 8px; padding: 0;
-  border: 0; border-radius: 16px;
-  background: #0B1120;
-  overflow: hidden;
-  transform: skewX(-12deg);
-  box-shadow: 0 16px 36px rgba(11,26,51,0.22);
-  cursor: pointer;
-  transition: box-shadow .3s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-#homePage .hb-cat:hover { z-index: 2; box-shadow: 0 26px 56px rgba(37,99,235,0.28); }
-#homePage .hb-cat:focus-visible { outline: 3px solid var(--hb-blue); outline-offset: 3px; z-index: 3; }
-/* Glass rim + top-left gloss, painted above the photo. */
-#homePage .hb-cat::after {
-  content: ''; position: absolute; inset: 0; z-index: 2;
-  background: linear-gradient(135deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.06) 38%, rgba(255,255,255,0) 60%);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.20);
-  pointer-events: none;
-}
-
-#homePage .hb-cat-media {
-  position: absolute; top: 0; left: -20%; z-index: 1;
-  width: 140%; height: 100%;
-  display: block; overflow: hidden;
-  transform: skewX(12deg);
-  pointer-events: none;
-}
-#homePage .hb-cat-media img {
-  display: block; width: 100%; height: 100%;
-  object-fit: cover;
-  filter: saturate(.92) contrast(1.02) brightness(1.02);
-  transform: scale(1.1);
-  transition: transform .7s ease-out, filter .7s ease-out;
-  -webkit-user-drag: none;
-  user-select: none;
-}
-#homePage .hb-cat:hover .hb-cat-media img { transform: scale(1.25); }
-
-#homePage .hb-cat-ico {
-  position: absolute; inset: 0; z-index: 0;
-  display: grid; place-items: center;
-  font-size: 54px; color: rgba(255,255,255,0.30);
-  pointer-events: none;
-}
-#homePage .hb-cat-shade {
-  position: absolute; inset: 0; z-index: 2;
-  background:
-    linear-gradient(to top, rgba(5,8,15,0.78) 0%, rgba(5,8,15,0.30) 26%, rgba(5,8,15,0) 55%),
-    linear-gradient(160deg, rgba(37,99,235,0.30) 0%, rgba(30,64,175,0.26) 38%, rgba(18,37,63,0.42) 72%, rgba(11,26,51,0.60) 100%);
-  opacity: 1;
-  transition: opacity .3s ease;
-  pointer-events: none;
-}
-/* Hover polishes the glass a touch instead of darkening it. */
-#homePage .hb-cat:hover .hb-cat-shade { opacity: .92; }
-
-#homePage .hb-cat-body {
-  position: absolute; inset: 0; z-index: 3;
-  display: flex; flex-direction: column; justify-content: flex-end;
-  padding: 22px 22px 30px;
-  pointer-events: none;
-}
-#homePage .hb-cat-text { display: block; transform: skewX(12deg) translateX(-4px); }
-#homePage .hb-cat-name {
-  display: block;
-  font-size: 20px; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
-  color: #fff;
-  text-shadow: 0 2px 10px rgba(3,8,20,0.45);
-}
-#homePage .hb-cat-count {
-  display: block; margin-top: 8px;
-  font-size: 14px; font-weight: 600; color: #DBEAFE;
-  text-shadow: 0 1px 6px rgba(3,8,20,0.4);
-}
-
 /* --------------------------------------------------------- EMI BAND */
 #homePage .hb-emi {
   background:
@@ -620,19 +497,10 @@ body.show-footer .site-footer { display: block; }
   .db-me-wrap::before { animation: none; }
   .db-pin, .db-cluster { transition: none; }
   #homePage .hb-btn:hover,
-  #homePage .hb-cat-scroll { scroll-behavior: auto; }
-  #homePage .hb-cat, #homePage .hb-cat-media img, #homePage .hb-cat-shade { transition: none; }
-  #homePage .hb-cat:hover .hb-cat-media img { transform: scale(1.1); }
 }
 
 /* ------------------------------------------------------ BREAKPOINTS */
 @media (min-width: 700px) {
-  #homePage .hb-cat-nav { display: flex; }
-  #homePage .hb-cat { flex-basis: 210px; height: 336px; margin: 0 12px; border-radius: 22px; }
-  #homePage .hb-cat-body { padding: 26px 26px 32px; }
-  #homePage .hb-cat-name { font-size: 24px; }
-  #homePage .hb-cat-count { font-size: 15px; }
-  #homePage .hb-cats { padding: 0 88px 0 44px; }
   .site-footer .sf-grid { grid-template-columns: 1.4fr 1fr 1fr 1fr; }
 }
 
