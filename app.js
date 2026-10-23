@@ -833,6 +833,9 @@ function showPage(page, fromPopstate = false, fromHistory = false) {
   if (!fromPopstate) {
     history.pushState({ view: 'page', page }, '', pagePath(page));
   }
+  // Legal documents share this page but each has its own URL, so they are
+  // reported by openLegalPage() after it rewrites the path.
+  if (page !== 'legal') window.dbTrackPageView?.();
 }
 
 /* ===== BUY PAGE ===== */
@@ -866,16 +869,22 @@ function setCat(el, cat) {
   document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
   selectedCategory = cat;
+  window.dbTrackEvent?.('select_category', { category: cat });
   applyBuyFilters();
 }
 
 function setCatDirect(cat) {
   selectedCategory = cat;
   document.querySelectorAll('.cat-pill').forEach(p => p.classList.toggle('active', p.dataset.cat === cat));
+  window.dbTrackEvent?.('select_category', { category: cat });
   applyBuyFilters();
 }
 
-function triggerBuySearch() { applyBuyFilters(); }
+function triggerBuySearch() {
+  const q = (document.getElementById('buySearchInput')?.value || '').trim();
+  if (q) window.dbTrackEvent?.('search', { search_term: q });
+  applyBuyFilters();
+}
 
 function toggleFilters() {
   document.getElementById('filterPanel').classList.toggle('hidden');
@@ -1234,6 +1243,18 @@ async function openListing(id) {
   currentProduct = p;
   currentGalleryIndex = 0;
   db.incrementProductViews(id).catch(() => {});
+  // No seller name or contact details: GA stays free of personal data.
+  window.dbTrackEvent?.('view_item', {
+    currency: 'INR',
+    value: Number(p.price) || 0,
+    items: [{
+      item_id: String(p.id),
+      item_name: p.title,
+      item_category: p.category,
+      price: Number(p.price) || 0,
+      item_variant: p.condition,
+    }],
+  });
 
   const condLabel = CONDITION_LABEL[p.condition] || p.condition;
   const deal = dealInfo(p);
@@ -1583,6 +1604,11 @@ async function startChat(listingId) {
     showToast("This is your own listing.", 'info');
     return;
   }
+  window.dbTrackEvent?.('contact_seller', {
+    item_id: String(p.id),
+    item_name: p.title,
+    item_category: p.category,
+  });
   await openChatWindow({
     listingId,
     otherPartyId: p.sellerId,
@@ -2175,6 +2201,7 @@ async function markAllNotificationsRead() {
 
 /* ===== SELL ===== */
 function startSell() {
+  window.dbTrackEvent?.('begin_sell');
   if (!currentUser) {
     pendingAction = () => showPage('sell');
     showToast('Please login to post an ad', 'info');
@@ -3077,6 +3104,7 @@ async function handleLogin() {
     await refreshCurrentUser();
     closeModal();
     showToast(`Welcome back, ${currentUser.name}!`, 'success');
+    window.dbTrackEvent?.('login', { method: 'email' });
     document.getElementById('loginEmail').value = '';
     document.getElementById('loginPassword').value = '';
     if (pendingAction) { const action = pendingAction; pendingAction = null; setTimeout(action, 100); }
@@ -3112,6 +3140,7 @@ async function handleSignup() {
   try {
     await db.signUp({ firstName, lastName, email, phone, city: pincode, password });
     showToast('Account created! Please log in.', 'success');
+    window.dbTrackEvent?.('sign_up', { method: 'email' });
     ['signupFirstName','signupLastName','signupEmail','signupPhone','signupPincode','signupPassword','signupConfirmPassword'].forEach(id => document.getElementById(id).value = '');
     const terms = document.getElementById('signupTerms');
     if (terms) terms.checked = false;
@@ -4796,6 +4825,7 @@ async function loadHomeCategoryCounts() {
 
 function homeSearch() {
   const q = (document.getElementById('homeSearchInput')?.value || '').trim();
+  if (q) window.dbTrackEvent?.('search', { search_term: q });
   showPage('buy');
   setTimeout(() => {
     const input = document.getElementById('buySearchInput');
@@ -4805,6 +4835,7 @@ function homeSearch() {
 
 function navSearch() {
   const q = (document.getElementById('navSearchInput')?.value || '').trim();
+  if (q) window.dbTrackEvent?.('search', { search_term: q });
   showPage('buy');
   setTimeout(() => {
     const input = document.getElementById('buySearchInput');
@@ -6048,6 +6079,7 @@ async function openLegalPage(key, replaceEntry = false) {
   currentLegalKey = key;
   history.replaceState({ view: 'page', page: 'legal', doc: key }, '', pagePath(key));
   markFooterActive();
+  window.dbTrackPageView?.();
 
   const heading = DOC_PAGE_TITLES[key] || 'DealBriz';
   document.getElementById('legalPageHeading').textContent = heading;
@@ -7527,6 +7559,7 @@ async function runSmartSearch(query) {
     const el = document.getElementById(id);
     if (el) el.value = query;
   });
+  if (query && query.trim()) window.dbTrackEvent?.('search', { search_term: query.trim() });
   showPage('buy');
 
   const grid = document.getElementById('buyListingsGrid');

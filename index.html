@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0A1628">
+<link rel="preconnect" href="https://www.googletagmanager.com">
 <!-- No icon was declared at all before this, so browsers fell back to their
      default globe. Versioned because nginx caches svg/png for 30 days. -->
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261003b">
@@ -23,8 +24,19 @@
 <link rel="stylesheet" href="/style.css?v=20261021a">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-<link rel="stylesheet" href="/home.css?v=20261019a">
+<link rel="stylesheet" href="/home.css?v=20261023b">
 <link rel="stylesheet" href="/deals.css?v=20261021a">
+
+<!-- Google tag (gtag.js). send_page_view is off because the app swaps pages
+     with history.pushState and never reloads — GA's one automatic view would
+     only ever see the first screen. analytics.js sends every view instead. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-M2WVWHBX5H"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-M2WVWHBX5H', { send_page_view: false });
+</script>
 </head>
 <body>
 
@@ -2018,10 +2030,11 @@
 </script>
 <!-- Error logger loads FIRST so failures in the scripts below are caught. -->
 <script src="/error-logger.js?v=20261003b"></script>
+<script src="/analytics.js?v=20261023a"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="/geo.js?v=20261003b"></script>
 <script src="/api-client.js?v=20261020c"></script>
-<script src="/app.js?v=20261021a"></script>
+<script src="/app.js?v=20261023a"></script>
 <!-- DealLock: offers, deals, loan, handover, admin Deals. After app.js (uses its helpers). -->
 <script src="/deals.js?v=20261021a"></script>
 <div id="reportModal" class="modal-overlay hidden">
