@@ -501,27 +501,11 @@
 #homePage .hb-disclaimer { color: #7C8BA4; font-size: 12px; line-height: 1.55; margin: 16px 0 0; }
 #homePage .hb-calc .hb-btn { width: 100%; margin-top: 18px; }
 
-/* ----------------------------------------------------------- TRUST */
-#homePage .hb-trust-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-#homePage .hb-trust-card {
-  background: var(--hb-panel); border-radius: 18px; padding: 32px 24px; text-align: center;
-}
-#homePage .hb-trust-ico {
-  width: 58px; height: 58px; margin: 0 auto 20px; border-radius: 15px;
-  display: grid; place-items: center; font-size: 22px;
-}
-/* Cards lift like the buttons do. They are not clickable, so the movement is
-   smaller and the shadow softer — enough to feel responsive without implying
-   an action that isn't there. */
-#homePage .hb-trust-card {
-  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
-}
-#homePage .hb-trust-card:hover {
-  transform: translateY(-3px); box-shadow: 0 12px 28px rgba(15,23,42,0.10); border-color: #BFDBFE;
-}
-#homePage .hb-trust-card h3 { font-size: 18px; font-weight: 800; margin: 0 0 10px; letter-spacing: -0.01em; }
-
-#homePage .hb-trust-card p { color: var(--hb-muted); font-size: 14.5px; line-height: 1.6; margin: 0; }
+/* --------------------------------------------- BUY & SELL POSTER */
+/* Designed banner, full-bleed like the other explainer artwork; its navy
+   bottom runs straight into the sell band below. */
+#homePage .hb-buy-sell { background: #fff; padding: 0; }
+#homePage .hb-buy-sell-img { display: block; width: 100%; height: auto; }
 
 /* ------------------------------------------------------ HOW IT WORKS */
 /* The buyer/seller explainer is the scroll-road section, styled in
@@ -652,7 +636,6 @@ body.show-footer .site-footer { display: block; }
   .db-pin, .db-cluster { transition: none; }
   #homePage .hb-btn:hover,
   #homePage .hb-cta-white:hover, #homePage .hb-cta-outline:hover,
-  #homePage .hb-trust-card:hover { transform: none; }
   #homePage .hb-cat-scroll { scroll-behavior: auto; }
   #homePage .hb-cat, #homePage .hb-cat-media img, #homePage .hb-cat-shade { transition: none; }
   #homePage .hb-cat:hover .hb-cat-media img { transform: scale(1.1); }
@@ -666,7 +649,6 @@ body.show-footer .site-footer { display: block; }
   #homePage .hb-cat-name { font-size: 24px; }
   #homePage .hb-cat-count { font-size: 15px; }
   #homePage .hb-cats { padding: 0 88px 0 44px; }
-  #homePage .hb-trust-grid { grid-template-columns: repeat(2, 1fr); }
   .site-footer .sf-grid { grid-template-columns: 1.4fr 1fr 1fr 1fr; }
 }
 
@@ -689,7 +671,6 @@ body.show-footer .site-footer { display: block; }
   /* Below ::before: the hero wash covers the map's left edge and melts into
      it, so there is no seam between the copy side and the map. */
   #homePage .hb-hero-map { inset: 0 0 0 42%; z-index: 0; }
-  #homePage .hb-trust-grid { grid-template-columns: repeat(4, 1fr); }
   #homePage .hb-emi-grid { grid-template-columns: minmax(0,1fr); max-width: 780px; margin: 0 auto; gap: 60px; }
   #homePage .hb-emi-list { grid-template-columns: 1fr; }
   #homePage .hb-sell-grid { grid-template-columns: minmax(0,1.1fr) minmax(0,0.9fr); }
