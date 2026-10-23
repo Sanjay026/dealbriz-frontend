@@ -833,6 +833,9 @@ function showPage(page, fromPopstate = false, fromHistory = false) {
   if (!fromPopstate) {
     history.pushState({ view: 'page', page }, '', pagePath(page));
   }
+  // Legal documents share this page but each has its own URL, so they are
+  // reported by openLegalPage() after it rewrites the path.
+  if (page !== 'legal') window.dbTrackPageView?.();
 }
 
 /* ===== BUY PAGE ===== */
@@ -866,16 +869,22 @@ function setCat(el, cat) {
   document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
   el.classList.add('active');
   selectedCategory = cat;
+  window.dbTrackEvent?.('select_category', { category: cat });
   applyBuyFilters();
 }
 
 function setCatDirect(cat) {
   selectedCategory = cat;
   document.querySelectorAll('.cat-pill').forEach(p => p.classList.toggle('active', p.dataset.cat === cat));
+  window.dbTrackEvent?.('select_category', { category: cat });
   applyBuyFilters();
 }
 
-function triggerBuySearch() { applyBuyFilters(); }
+function triggerBuySearch() {
+  const q = (document.getElementById('buySearchInput')?.value || '').trim();
+  if (q) window.dbTrackEvent?.('search', { search_term: q });
+  applyBuyFilters();
+}
 
 function toggleFilters() {
   document.getElementById('filterPanel').classList.toggle('hidden');
@@ -1234,6 +1243,18 @@ async function openListing(id) {
   currentProduct = p;
   currentGalleryIndex = 0;
   db.incrementProductViews(id).catch(() => {});
+  // No seller name or contact details: GA stays free of personal data.
+  window.dbTrackEvent?.('view_item', {
+    currency: 'INR',
+    value: Number(p.price) || 0,
+    items: [{
+      item_id: String(p.id),
+      item_name: p.title,
+      item_category: p.category,
+      price: Number(p.price) || 0,
+      item_variant: p.condition,
+    }],
+  });
 
   const condLabel = CONDITION_LABEL[p.condition] || p.condition;
   const deal = dealInfo(p);
@@ -1583,6 +1604,11 @@ async function startChat(listingId) {
     showToast("This is your own listing.", 'info');
     return;
   }
+  window.dbTrackEvent?.('contact_seller', {
+    item_id: String(p.id),
+    item_name: p.title,
+    item_category: p.category,
+  });
   await openChatWindow({
     listingId,
     otherPartyId: p.sellerId,
@@ -2175,6 +2201,7 @@ async function markAllNotificationsRead() {
 
 /* ===== SELL ===== */
 function startSell() {
+  window.dbTrackEvent?.('begin_sell');
   if (!currentUser) {
     pendingAction = () => showPage('sell');
     showToast('Please login to post an ad', 'info');
@@ -3077,6 +3104,7 @@ async function handleLogin() {
     await refreshCurrentUser();
     closeModal();
     showToast(`Welcome back, ${currentUser.name}!`, 'success');
+    window.dbTrackEvent?.('login', { method: 'email' });
     document.getElementById('loginEmail').value = '';
     document.getElementById('loginPassword').value = '';
     if (pendingAction) { const action = pendingAction; pendingAction = null; setTimeout(action, 100); }
@@ -3112,6 +3140,7 @@ async function handleSignup() {
   try {
     await db.signUp({ firstName, lastName, email, phone, city: pincode, password });
     showToast('Account created! Please log in.', 'success');
+    window.dbTrackEvent?.('sign_up', { method: 'email' });
     ['signupFirstName','signupLastName','signupEmail','signupPhone','signupPincode','signupPassword','signupConfirmPassword'].forEach(id => document.getElementById(id).value = '');
     const terms = document.getElementById('signupTerms');
     if (terms) terms.checked = false;
@@ -4796,6 +4825,7 @@ async function loadHomeCategoryCounts() {
 
 function homeSearch() {
   const q = (document.getElementById('homeSearchInput')?.value || '').trim();
+  if (q) window.dbTrackEvent?.('search', { search_term: q });
   showPage('buy');
   setTimeout(() => {
     const input = document.getElementById('buySearchInput');
@@ -4805,6 +4835,7 @@ function homeSearch() {
 
 function navSearch() {
   const q = (document.getElementById('navSearchInput')?.value || '').trim();
+  if (q) window.dbTrackEvent?.('search', { search_term: q });
   showPage('buy');
   setTimeout(() => {
     const input = document.getElementById('buySearchInput');
@@ -4860,6 +4891,94 @@ function initHomeReveal() {
   items.forEach(el => io.observe(el));
 }
 
+/* Horizontal category carousel: mouse drag scrolls it, the arrows and the
+   arrow keys nudge it. Touch and trackpads keep their native scrolling. */
+function initHomeCatScroll() {
+  const scroller = document.getElementById('homeCatScroll');
+  const strip = document.getElementById('homeCatGrid');
+  if (!scroller || !strip || scroller.dataset.scrollReady === '1') return;
+  scroller.dataset.scrollReady = '1';
+
+  const prevBtn = document.getElementById('homeCatPrev');
+  const nextBtn = document.getElementById('homeCatNext');
+  const cards = strip.querySelectorAll('.hb-cat');
+  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Layout offsets (not bounding boxes) so the card's skew doesn't inflate it.
+  const cardStep = () => (cards.length > 1 ? cards[1].offsetLeft - cards[0].offsetLeft : 240);
+
+  const syncNav = () => {
+    const max = scroller.scrollWidth - scroller.clientWidth;
+    if (prevBtn) prevBtn.setAttribute('aria-disabled', String(scroller.scrollLeft <= 2));
+    if (nextBtn) nextBtn.setAttribute('aria-disabled', String(scroller.scrollLeft >= max - 2));
+  };
+  const move = dir => scroller.scrollBy({
+    left: dir * cardStep() * 2,
+    behavior: reduceMotion() ? 'auto' : 'smooth',
+  });
+
+  if (prevBtn) prevBtn.addEventListener('click', () => move(-1));
+  if (nextBtn) nextBtn.addEventListener('click', () => move(1));
+  scroller.addEventListener('scroll', syncNav, { passive: true });
+  window.addEventListener('resize', syncNav);
+
+  let dragging = false, startX = 0, startLeft = 0, moved = 0, pointerId = null, captured = false;
+  scroller.addEventListener('pointerdown', e => {
+    moved = 0;
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    dragging = true;
+    pointerId = e.pointerId;
+    captured = false;
+    startX = e.clientX;
+    startLeft = scroller.scrollLeft;
+    scroller.classList.add('is-dragging');
+  });
+  scroller.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    moved = Math.max(moved, Math.abs(dx));
+    if (moved > 4) {
+      // Capture only once it is a real drag: capturing on pointerdown would
+      // retarget the click that follows a plain tap away from the card.
+      if (!captured && pointerId != null) {
+        try { scroller.setPointerCapture(pointerId); captured = true; } catch { /* not supported */ }
+      }
+      scroller.scrollLeft = startLeft - dx;
+      e.preventDefault();
+    }
+  });
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    scroller.classList.remove('is-dragging');
+    if (captured && pointerId != null) {
+      try { scroller.releasePointerCapture(pointerId); } catch { /* already gone */ }
+    }
+    captured = false;
+    pointerId = null;
+    syncNav();
+  };
+  scroller.addEventListener('pointerup', endDrag);
+  scroller.addEventListener('pointercancel', endDrag);
+  scroller.addEventListener('lostpointercapture', endDrag);
+
+  // A drag that happens to end on a card must not open that category.
+  // Keyboard/programmatic activations report detail 0 and must always pass:
+  // after a drag, `moved` is still large, so filtering on detail avoids
+  // swallowing Enter on a focused card.
+  scroller.addEventListener('click', e => {
+    if (moved > 6 && e.detail > 0) { e.preventDefault(); e.stopPropagation(); }
+  }, true);
+
+  scroller.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Home') { e.preventDefault(); scroller.scrollLeft = 0; }
+    else if (e.key === 'End') { e.preventDefault(); scroller.scrollLeft = scroller.scrollWidth; }
+  });
+
+  syncNav();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // showPage() isn't called on first load — the home page is visible by
   // default — so set the light-navbar class here too.
@@ -4867,6 +4986,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (home && !home.classList.contains('hidden')) document.body.classList.add('on-home');
   initSelectedArea();
   initHomeReveal();
+  initHomeCatScroll();
   recalcHomeEmi();
   loadHomeCategoryCounts();
   initHomeMap();
@@ -5959,6 +6079,7 @@ async function openLegalPage(key, replaceEntry = false) {
   currentLegalKey = key;
   history.replaceState({ view: 'page', page: 'legal', doc: key }, '', pagePath(key));
   markFooterActive();
+  window.dbTrackPageView?.();
 
   const heading = DOC_PAGE_TITLES[key] || 'DealBriz';
   document.getElementById('legalPageHeading').textContent = heading;
@@ -7438,6 +7559,7 @@ async function runSmartSearch(query) {
     const el = document.getElementById(id);
     if (el) el.value = query;
   });
+  if (query && query.trim()) window.dbTrackEvent?.('search', { search_term: query.trim() });
   showPage('buy');
 
   const grid = document.getElementById('buyListingsGrid');
