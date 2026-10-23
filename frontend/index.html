@@ -24,7 +24,7 @@
 <link rel="stylesheet" href="/style.css?v=20261022a">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-<link rel="stylesheet" href="/home.css?v=20261023e">
+<link rel="stylesheet" href="/home.css?v=20261023f">
 <link rel="stylesheet" href="/how-it-works.css?v=20261023d">
 <link rel="stylesheet" href="/deals.css?v=20261022b">
 
@@ -477,70 +477,6 @@
               <span class="hb-cat-count" data-cat-count="others">—</span>
             </span></span>
           </button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- EMI -->
-  <section class="hb-emi emi-feature">
-    <div class="hb-wrap hb-emi-grid">
-      <div class="hb-reveal">
-        <div class="hb-emi-badge"><i class="fas fa-bolt"></i> Flexible EMI</div>
-        <h2>Buy Now.<span>Pay Monthly.</span></h2>
-        <p class="hb-emi-lede">Get eligible pre-owned products with flexible EMI options tailored to your budget.</p>
-        <ul class="hb-emi-list">
-          <li><i class="fas fa-circle-check"></i> No full upfront payment required</li>
-          <li><i class="fas fa-circle-check"></i> Flexible 3–36 month plans</li>
-          <li><i class="fas fa-circle-check"></i> Transparent repayment schedule</li>
-          <li><i class="fas fa-circle-check"></i> Simple eligibility process</li>
-          <li><i class="fas fa-circle-check"></i> Secure, trusted financing</li>
-        </ul>
-        <button class="hb-btn hb-btn-amber" onclick="browseEmiListings()">Explore EMI Products <i class="fas fa-arrow-right"></i></button>
-      </div>
-
-      <div class="hb-calc hb-reveal">
-        <h3>EMI Calculator</h3>
-        <p>Estimate your monthly payment</p>
-
-        <div class="hb-field">
-          <label for="calcPrice">Product Price</label>
-          <div class="hb-input"><span>₹</span>
-            <input type="number" id="calcPrice" value="45000" min="1000" step="500" oninput="recalcHomeEmi()" autocomplete="off">
-          </div>
-        </div>
-        <div class="hb-field">
-          <label for="calcDown">Down Payment</label>
-          <div class="hb-input"><span>₹</span>
-            <input type="number" id="calcDown" value="5000" min="0" step="500" oninput="recalcHomeEmi()" autocomplete="off">
-          </div>
-        </div>
-        <div class="hb-field">
-          <label for="calcTenure">Tenure (Months)</label>
-          <div class="hb-input">
-            <select id="calcTenure" onchange="recalcHomeEmi()">
-              <option value="3">3 months</option>
-              <option value="6">6 months</option>
-              <option value="12" selected>12 months</option>
-              <option value="18">18 months</option>
-              <option value="24">24 months</option>
-              <option value="36">36 months</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="hb-result">
-          <div class="hb-result-label">Estimated Monthly EMI</div>
-          <div class="hb-result-value" id="calcEmi">₹3,554</div>
-          <div class="hb-result-sub" id="calcSub">per month for 12 months</div>
-          <div class="hb-breakdown">
-            <div class="hb-row"><span>Down Payment</span><span id="calcDownOut">₹5,000</span></div>
-            <div class="hb-row"><span>Loan Amount</span><span id="calcLoan">₹40,000</span></div>
-            <div class="hb-row"><span>Total Interest</span><span id="calcInterest">₹2,648</span></div>
-            <div class="hb-row total"><span>Total Payment</span><span id="calcTotal">₹47,648</span></div>
-          </div>
-          <p class="hb-disclaimer">* Indicative only. Actual EMI depends on eligibility and lender terms. Interest rate used: 12% p.a.</p>
-          <button class="hb-btn hb-btn-amber" onclick="browseEmiListings()">Check Eligibility →</button>
         </div>
       </div>
     </div>
