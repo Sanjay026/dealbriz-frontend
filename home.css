@@ -454,7 +454,9 @@
 #homePage .hb-emi-list li { display: flex; align-items: center; gap: 12px; font-size: 15.5px; color: #E2E8F0; }
 #homePage .hb-emi-list i { color: var(--hb-green); font-size: 16px; }
 
-/* Calculator */
+/* Calculator: hidden on the home page. EMI stays available from listings,
+   the EMI modal and the EMI Partners page. */
+#homePage .hb-calc { display: none; }
 #homePage .hb-calc {
   background: var(--hb-navy-2); border: 1px solid rgba(255,255,255,0.09);
   border-radius: 20px; padding: 28px 24px;
@@ -712,7 +714,7 @@ body.show-footer .site-footer { display: block; }
      it, so there is no seam between the copy side and the map. */
   #homePage .hb-hero-map { inset: 0 0 0 42%; z-index: 0; }
   #homePage .hb-trust-grid { grid-template-columns: repeat(4, 1fr); }
-  #homePage .hb-emi-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 60px; }
+  #homePage .hb-emi-grid { grid-template-columns: minmax(0,1fr); max-width: 780px; margin: 0 auto; gap: 60px; }
   #homePage .hb-emi-list { grid-template-columns: 1fr; }
   #homePage .hb-sell-grid { grid-template-columns: minmax(0,1.1fr) minmax(0,0.9fr); }
   #homePage .hb-sell-card { margin-left: auto; }
