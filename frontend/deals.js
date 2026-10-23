@@ -55,8 +55,8 @@ const dealsApi = {
   handover: (id, step, body = {}) => apiFetch(`/deals/${id}/handover/${step}`, { method: 'POST', body }),
   dispute: (id, reason) => apiFetch(`/deals/${id}/dispute`, { method: 'POST', body: { reason } }),
   applyLoan: (body) => apiFetch('/loans/apply', { method: 'POST', body }),
+  loanLenders: (dealId) => apiFetch(`/loans/lenders?deal_id=${encodeURIComponent(dealId)}`),
   staffQueue: (status = '') => apiFetch(`/deals/staff/queue${status ? `?status=${encodeURIComponent(status)}` : ''}`),
-  staffFinancer: (id, financerId) => apiFetch(`/deals/staff/${id}/financer`, { method: 'POST', body: { financer_id: financerId } }),
   staffReady: (id, note) => apiFetch(`/deals/staff/${id}/ready-to-pay`, { method: 'POST', body: { note } }),
   staffPaid: (id, utr) => apiFetch(`/deals/staff/${id}/paid`, { method: 'POST', body: { utr } }),
   staffResolve: (id, outcome, note) => apiFetch(`/deals/staff/${id}/resolve`, { method: 'POST', body: { outcome, note } }),
@@ -81,6 +81,9 @@ const lenderApi = {
     apiFetch(`/lender/loans/${id}/details${lenderApi.q(fid)}`, { method: 'POST', body: { nbfc_application_reference: ref, kfs_url: kfs } }),
   deals: (fid, status = '') => apiFetch(`/lender/deals${lenderApi.q(fid, status ? `status=${encodeURIComponent(status)}` : '')}`),
   saveSettings: (fid, docsEmail) => apiFetch(`/lender/settings${lenderApi.q(fid)}`, { method: 'PUT', body: { docs_email: docsEmail } }),
+  // A lender user (not staff): choose their company once, or ask a superadmin to change it.
+  chooseFirm: (financerId) => apiFetch('/lender/firm', { method: 'POST', body: { financer_id: financerId } }),
+  firmRequest: (message) => apiFetch('/lender/firm/change-request', { method: 'POST', body: { message } }),
   ready: (fid, id, note) => apiFetch(`/lender/deals/${id}/ready-to-pay${lenderApi.q(fid)}`, { method: 'POST', body: { note } }),
   paid: (fid, id, utr) => apiFetch(`/lender/deals/${id}/paid${lenderApi.q(fid)}`, { method: 'POST', body: { utr } }),
 };
@@ -1450,7 +1453,7 @@ const DEAL_EVENT_TEXT = {
   document_rejected: (e) => `${dlEsc(DOC_LABEL(e.data.doc_type))} sent back${e.data.reason ? `: ${dlEsc(e.data.reason)}` : ''}`,
   locked: (e) => (e.data && e.data.price ? `Deal locked at ${dlRupees(e.data.price)}` : 'Deal locked'),
   lender_set: (e) => (e.data && e.data.lender ? `Lender set: ${dlEsc(e.data.lender)}` : 'Lender cleared'),
-  loan_applied: () => 'Buyer applied for the loan',
+  loan_applied: (e) => (e.data && e.data.lender ? `Buyer applied for the loan with ${dlEsc(e.data.lender)}` : 'Buyer applied for the loan'),
   loan_approved: () => 'Loan approved',
   ready_to_pay: () => 'Lender ready to pay',
   down_payment_recorded: (e) => `Down payment of ${dlRupees(e.data.amount)} recorded`,
@@ -1719,12 +1722,27 @@ async function openDealForProduct(productId) {
    LOAN FORM (buyer, locked deal)
    ===================================================== */
 let loanFormExisting = [];
+let loanFormLenders = [];
 
 async function openLoanForm() {
   const d = dealModalState && dealModalState.deal;
   if (!d) return;
   document.getElementById('dealLoanDone').classList.add('hidden');
   document.getElementById('dealLoanFormArea').classList.remove('hidden');
+  // The lenders the buyer may choose (active, funding this loan type,
+  // serving the area). Loaded fresh each time the form opens.
+  const lenderSel = document.getElementById('dealLoanLender');
+  loanFormLenders = [];
+  lenderSel.innerHTML = '<option value="">Loading lenders...</option>';
+  lenderSel.disabled = true;
+  dlLoanLenderHint('');
+  const lendersLoad = dealsApi.loanLenders(d.id).then(res => {
+    loanFormLenders = (res && res.lenders) || [];
+    dlLoanLendersRender();
+  }).catch(err => {
+    lenderSel.innerHTML = '<option value="">Could not load lenders</option>';
+    dlLoanLenderHint(err.message || 'Could not load the lenders. Close this and try again.', true);
+  });
   document.getElementById('dealLoanPrice').textContent = dlRupees(d.agreed_price);
   document.getElementById('dealLoanDown').value = '';
   document.getElementById('dealLoanName').value = [currentUser?.name, currentUser?.lastName].filter(Boolean).join(' ');
@@ -1756,7 +1774,55 @@ async function openLoanForm() {
         <div class="deal-or"><span>or apply again below</span></div>
       </div>`;
   }
+  await lendersLoad;
   dlOpenOverlay('dealLoanModal', 'dealLoan');
+}
+
+function dlLoanLenderHint(text, isError = false) {
+  const el = document.getElementById('dealLoanLenderHint');
+  if (!el) return;
+  el.textContent = text || 'Your application and verified documents are sent only to the lender you choose.';
+  el.classList.toggle('is-error', !!isError);
+}
+
+function dlLoanLendersRender() {
+  const sel = document.getElementById('dealLoanLender');
+  if (!sel) return;
+  if (!loanFormLenders.length) {
+    sel.innerHTML = '<option value="">No lender available yet</option>';
+    sel.disabled = true;
+    dlLoanLenderHint('No lending partner is available for this loan yet. Please contact DealBriz support.', true);
+    return;
+  }
+  sel.innerHTML = '<option value="">Select a lender</option>' + loanFormLenders.map(f =>
+    `<option value="${dlEsc(f.financer_id)}">${dlEsc(f.name)}</option>`).join('');
+  // With only one lender there is nothing to choose between.
+  if (loanFormLenders.length === 1) sel.value = String(loanFormLenders[0].financer_id);
+  sel.disabled = false;
+  dlLoanLenderHint('');
+}
+
+function dlLoanLenderChanged() {
+  const sel = document.getElementById('dealLoanLender');
+  if (sel && sel.value) {
+    sel.classList.remove('is-invalid');
+    document.getElementById('dealLoanError')?.classList.add('hidden');
+  }
+}
+
+/* The chosen lender's id, or null (with the form showing why). */
+function dlLoanChosenLender() {
+  const sel = document.getElementById('dealLoanLender');
+  const errEl = document.getElementById('dealLoanError');
+  const v = sel ? sel.value : '';
+  const chosen = loanFormLenders.find(f => String(f.financer_id) === String(v));
+  if (chosen) return chosen.financer_id;
+  errEl.textContent = loanFormLenders.length
+    ? 'Choose your lender first.'
+    : 'No lending partner is available for this loan yet. Please contact DealBriz support.';
+  errEl.classList.remove('hidden');
+  if (sel && loanFormLenders.length) { sel.classList.add('is-invalid'); sel.focus(); }
+  return null;
 }
 
 function closeLoanForm() { closeTopModal('dealLoan'); }
@@ -1817,9 +1883,11 @@ async function submitDealLoan(existingId = null) {
   const d = dealModalState && dealModalState.deal;
   const errEl = document.getElementById('dealLoanError');
   if (!d) return;
+  const financerId = dlLoanChosenLender();
+  if (!financerId) return;
   let body;
   if (existingId) {
-    body = { deal_id: d.id, emi_application_id: existingId };
+    body = { deal_id: d.id, financer_id: financerId, emi_application_id: existingId };
   } else {
     const n = dealLoanNumbers();
     const name = document.getElementById('dealLoanName').value.trim();
@@ -1834,7 +1902,7 @@ async function submitDealLoan(existingId = null) {
       errEl.classList.remove('hidden'); return;
     }
     body = {
-      deal_id: d.id, down_payment: n.down, tenure_months: n.tenure, interest_rate: n.rate,
+      deal_id: d.id, financer_id: financerId, down_payment: n.down, tenure_months: n.tenure, interest_rate: n.rate,
       loan_amount: Math.round(n.loan), monthly_emi: Math.round(n.emi),
       total_payable: Math.round(n.emi * n.tenure),
       applicant_name: name, applicant_phone: phone, applicant_income: income,
@@ -2055,7 +2123,7 @@ function renderAdminDealsTable() {
       <td>${dlEsc(d.buyer?.name || '—')}<br><small>${dlEsc(d.buyer?.phone || '')}</small></td>
       <td>${dlEsc(d.seller?.name || '—')}<br><small>${dlEsc(d.seller?.phone || '')}</small></td>
       <td>${dlRupees(d.agreed_price)}</td>
-      <td>${loan ? `${dlEsc(LOAN_STATUS_LABEL[loan.status] || loan.status)}<br><small>${dlEsc(d.lender || 'No lender set')}</small>` : `<small>Not applied${d.lender ? `<br>${dlEsc(d.lender)}` : ''}</small>`}</td>
+      <td>${loan ? `${dlEsc(LOAN_STATUS_LABEL[loan.status] || loan.status)}<br><small>${dlEsc(d.lender || 'No lender chosen')}</small>` : `<small>Not applied${d.lender ? `<br>${dlEsc(d.lender)}` : ''}</small>`}</td>
       <td>${dealPill(d.status)}${attention ? `<br><small class="deal-attn">${dlEsc(attention)}</small>` : ''}</td>
       <td><small>${dlEsc(dlWhen(until))}</small></td>
       <td><button class="btn-sm btn-sm-blue" onclick="adminViewDeal('${dlEsc(d.id)}')">Details</button></td>
@@ -2123,7 +2191,7 @@ async function adminViewDeal(dealId) {
     if (!loan) {
       action = `<p class="deal-small">Waiting for the buyer to apply.</p>`;
     } else if (loan.status !== 'approved' || !(row.lender || loan.lender)) {
-      action = `<p class="deal-small">Before Ready to pay: approve the loan and set the lender on the EMI application (or the lender does it in its portal).</p>
+      action = `<p class="deal-small">Before Ready to pay: the loan must be approved. The buyer’s chosen lender does this in its portal, or approve it on the EMI application.</p>
         <button class="btn-sm btn-sm-blue" onclick="adminViewEmiApplication('${dlEsc(loan.application_id)}')">Open EMI application</button>`;
     } else if (can) {
       action = `<p class="deal-small">Confirm the lender has sanctioned the loan, the agreement and EMI auto-debit are signed${isVehicle(d) ? ", and the seller's documents and vehicle are checked" : ''}.</p>
@@ -2148,15 +2216,7 @@ async function adminViewDeal(dealId) {
       <button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="adminDealResolve('${dlEsc(d.id)}')">Resolve</button>`;
   }
 
-  // Which lender handles the deal: lets that lender's own people check the
-  // documents and work the loan in their portal. Only before the loan.
-  let lenderPick = '';
-  if (can && ['awaiting_seller', 'docs_pending', 'locked'].includes(d.status)) {
-    lenderPick = `<div class="admin-detail-section"><h4>Lender for this deal</h4>
-      <p style="font-size:11.5px;color:var(--text-muted);margin:0 0 8px;line-height:1.5">That lender's portal users can then check both sides' documents and the loan. Only lenders that fund ${dlEsc(LOAN_TYPE_LABEL[d.loan_type] || d.loan_type).toLowerCase()}s are listed.</p>
-      <div style="display:flex;gap:6px;flex-wrap:wrap"><select id="adminDealFinancer" style="flex:1;min-width:160px"><option value="">Loading...</option></select>
-      <button class="btn-sm btn-sm-blue" onclick="adminDealSetFinancer('${dlEsc(d.id)}')">Save</button></div></div>`;
-  }
+  // The lender is the one the buyer chooses on the loan form, not set here.
 
   dlOpenAdminModal(`
     <div class="pm-body" style="padding-top:20px">
@@ -2172,8 +2232,6 @@ async function adminViewDeal(dealId) {
       ${(d.documents || []).length || d.status === 'docs_pending' ? `<div class="admin-detail-section"><h4>Documents</h4>${dlDocsReviewHtml(d, 'admin')}</div>` : ''}
       ${dlLenderEmailHtml(d, 'admin')}
 
-      ${lenderPick}
-
       <div class="admin-detail-section"><h4>Deal</h4>
         ${r('Agreed price', dlRupees(d.agreed_price))}
         ${r('Offer accepted', dlEsc(fmtDateTime(d.locked_at)))}
@@ -2183,7 +2241,7 @@ async function adminViewDeal(dealId) {
         ${r('Buyer accepted the warning', d.buyer_ack_at ? dlEsc(fmtDateTime(d.buyer_ack_at)) : 'Not yet')}
         ${r('Seller accepted the warning', d.seller_ack_at ? dlEsc(fmtDateTime(d.seller_ack_at)) : 'Not yet')}
         ${d.cancel_request ? r('Cancel requested', `by the ${dlEsc(d.cancel_request.by_role)}, answer due ${dlEsc(fmtDateTime(d.cancel_request.expires_at))}${d.cancel_request.reason ? `<br><small>${dlEsc(d.cancel_request.reason)}</small>` : ''}`) : ''}
-        ${d.lender ? r('Lender', dlEsc(d.lender)) : ''}
+        ${r('Lender', d.lender ? dlEsc(d.lender) : 'Not chosen yet (the buyer chooses it when applying for the loan)')}
         ${d.utr ? r('UTR', dlEsc(d.utr)) : ''}
         ${d.release_reason ? r('Released because', dlEsc(RELEASE_REASON_LABEL[d.release_reason] || d.release_reason)) : ''}
         ${d.release_note ? r('Release note', dlEsc(d.release_note)) : ''}
@@ -2214,21 +2272,6 @@ async function adminViewDeal(dealId) {
 
       <div class="admin-detail-section">${dealTimelineHtml(d, { staff: true }).replace('class="deal-section"', 'class="deal-section deal-section-flat"')}</div>
     </div>`);
-
-  if (lenderPick) {
-    try {
-      const all = await db.adminGetFinancers();
-      const sel = document.getElementById('adminDealFinancer');
-      if (sel) {
-        const fits = (all || []).filter(f => (f.loan_types || ['vehicle', 'personal']).includes(d.loan_type));
-        sel.innerHTML = `<option value="">No lender yet</option>` + fits.map(f =>
-          `<option value="${f.financer_id}" ${d.financer_id === f.financer_id ? 'selected' : ''}>${dlEsc(f.name)}${f.status !== 'active' ? ' (inactive)' : ''}</option>`).join('');
-      }
-    } catch {
-      const sel = document.getElementById('adminDealFinancer');
-      if (sel) sel.innerHTML = '<option value="">Could not load lenders</option>';
-    }
-  }
 }
 
 async function adminDealRun(dealId, fn, ok) {
@@ -2240,11 +2283,6 @@ async function adminDealRun(dealId, fn, ok) {
   }
   await renderAdminDeals();
   adminViewDeal(dealId);
-}
-
-function adminDealSetFinancer(dealId) {
-  const v = document.getElementById('adminDealFinancer')?.value || '';
-  adminDealRun(dealId, () => dealsApi.staffFinancer(dealId, v ? Number(v) : null), v ? 'Lender set.' : 'Lender cleared.');
 }
 
 async function adminDealReady(dealId) {
@@ -2272,6 +2310,9 @@ function adminDealResolve(dealId) {
 async function openAdminDeals(n) {
   await openAdminPanel();
   const s = userSections();
+  // A lender user chose their company, or asks to change it: Users, where a
+  // superadmin changes it (Assign role, Lender).
+  if (n && n.kind === 'lender_firm' && s.includes('users')) { adminSwitchSection('users'); return; }
   let ctx = '';
   if (s.includes('deals')) { adminSwitchSection('deals'); ctx = 'admin'; }
   else if (s.includes('lender')) { adminSwitchSection('lender'); ctx = 'lender'; }
@@ -2338,8 +2379,10 @@ async function adminAssignLenderRole(uid) {
       <p class="deal-small">${dlEsc(`${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email || 'This user')} will see only this lender's loans, deals and seller documents, in the Lender portal tab of the admin panel. What else the role can open is set in Roles &amp; Access.</p>
       <label style="font-size:12px;font-weight:600;display:block;margin:10px 0 4px" for="lenderRoleFinancer">Works for</label>
       <select id="lenderRoleFinancer" style="width:100%">
+        <option value="" ${u.lender ? '' : 'selected'}>Let them choose in the Lender portal</option>
         ${financers.map(f => `<option value="${f.financer_id}" ${u.lender && u.lender.financer_id === f.financer_id ? 'selected' : ''}>${dlEsc(f.name)}${f.status !== 'active' ? ' (inactive)' : ''}</option>`).join('')}
       </select>
+      <p class="deal-small" style="margin-top:6px">If they choose it themselves, it is locked once saved: only a superadmin can change it, here.${u.lender ? ' Choosing “Let them choose” clears their current company.' : ''}</p>
       <div style="display:flex;gap:8px;margin-top:14px">
         <button class="btn-sm" onclick="closeTopModal('product')">Cancel</button>
         <button class="btn-sm btn-sm-blue" onclick="adminSaveLenderRole('${dlEsc(uid)}')">Give lender role</button>
@@ -2349,9 +2392,8 @@ async function adminAssignLenderRole(uid) {
 
 async function adminSaveLenderRole(uid) {
   const fid = Number(document.getElementById('lenderRoleFinancer')?.value || 0);
-  if (!fid) return;
   try {
-    await db.adminUpdateUser(uid, { role_name: 'lender', financer_id: fid });
+    await db.adminUpdateUser(uid, { role_name: 'lender', financer_id: fid || null });
     showToast('Lender role given.', 'success');
     await dlCloseModalThen('product');
     renderAdminUsers();
@@ -2377,22 +2419,36 @@ let lenderState = { me: null, fid: null, tab: 'deals', dealFilter: 'docs_pending
 async function renderLenderPortal() {
   const head = document.getElementById('lenderHeader');
   const body = document.getElementById('lenderBody');
+  const tabs = document.querySelector('#adminSection-lender .lender-tabs');
   if (!head || !body) return;
   body.innerHTML = DL_LOADING;
   try {
     lenderState.me = await lenderApi.me();
   } catch (err) {
     head.innerHTML = '';
+    tabs?.classList.add('hidden');
     body.innerHTML = `<div class="empty-state"><i class="fas fa-building-columns"></i><h3>Lender portal</h3><p>${dlEsc(err.message || 'Not available.')}</p></div>`;
     return;
   }
   await dlRules();
   const me = lenderState.me;
+  // A lender user who hasn't said which company they are with yet.
+  if (me.needs_firm) {
+    head.innerHTML = '';
+    tabs?.classList.add('hidden');
+    body.innerHTML = lenderFirmPickHtml(me.firms || []);
+    return;
+  }
+  tabs?.classList.remove('hidden');
   if (me.financer) {
     lenderState.fid = null;   // a lender user: the server knows their lender
     head.innerHTML = `
-      <div class="lender-head-name"><i class="fas fa-building-columns"></i> ${dlEsc(me.financer.name)}</div>
+      <div class="lender-head-name"><i class="fas fa-building-columns"></i> ${dlEsc(me.financer.name)}
+        <span class="lender-firm-lock" title="Only a DealBriz superadmin can change your company"><i class="fas fa-lock"></i> Locked</span></div>
       <div class="lender-head-sub">Funds: ${(me.financer.loan_types || []).map(t => loanTypeTag(t)).join(' ') || 'no loan types set'}</div>
+      <div class="lender-firm-note">Your company can only be changed by a DealBriz superadmin.
+        <button class="btn-sm" onclick="lenderFirmRequestToggle()"><i class="fas fa-envelope"></i> Contact the superadmin</button></div>
+      <div id="lenderFirmRequest" class="lender-firm-request hidden"></div>
       <div id="lenderDocsEmail" class="lender-docs-email"></div>`;
     lenderState.docsEmail = me.financer.docs_email || '';
     lenderState.canEditEmail = true;
@@ -2418,6 +2474,94 @@ async function renderLenderPortal() {
   lenderState.editingEmail = false;
   lenderDocsEmailRender();
   await lenderRefresh();
+}
+
+/* A lender user chooses their company once. After that it is locked and
+   only a superadmin can change it, so the warning comes first. */
+function lenderFirmPickHtml(firms) {
+  const help = `
+    <div class="lender-firm-help">${firms.length ? 'Your company isn’t listed, or you need help?' : 'No lending companies are set up on DealBriz yet.'}
+      <button class="btn-sm" onclick="lenderFirmRequestToggle()"><i class="fas fa-envelope"></i> Contact the superadmin</button></div>
+    <div id="lenderFirmRequest" class="lender-firm-request hidden"></div>`;
+  return `
+    <div class="lender-firm">
+      <div class="lender-firm-icon"><i class="fas fa-building-columns"></i></div>
+      <h3>Which company are you with?</h3>
+      <p class="deal-small">Choose the lender (NBFC) you work for. You will see the deals and loan applications where the buyer chose this company.</p>
+      ${firms.length ? `
+        <label for="lenderFirmSelect">Your company</label>
+        <select id="lenderFirmSelect">
+          <option value="">Select your company</option>
+          ${firms.map(f => `<option value="${dlEsc(f.financer_id)}">${dlEsc(f.name)}</option>`).join('')}
+        </select>
+        <div class="lender-firm-warn" role="note"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+          <span><strong>Choose carefully.</strong> Once you save, your company is locked and you can’t change it yourself. Only a DealBriz superadmin can change it.</span></div>
+        <p id="lenderFirmError" class="auth-error hidden"></p>
+        <button class="btn-primary full-width" onclick="lenderFirmSave()">Save my company</button>` : ''}
+      ${help}
+    </div>`;
+}
+
+async function lenderFirmSave() {
+  const sel = document.getElementById('lenderFirmSelect');
+  const err = document.getElementById('lenderFirmError');
+  const firm = ((lenderState.me && lenderState.me.firms) || []).find(f => String(f.financer_id) === String(sel ? sel.value : ''));
+  if (!firm) {
+    if (err) { err.textContent = 'Select your company first.'; err.classList.remove('hidden'); }
+    return;
+  }
+  if (err) err.classList.add('hidden');
+  const ok = await dlAsk({
+    tone: 'warn',
+    title: `Save ${firm.name} as your company?`,
+    body: `<p>Once saved, your company is <strong>locked</strong>. You can’t change it yourself; only a DealBriz superadmin can.</p>`,
+    ok: 'Save and lock',
+    cancel: 'Go back',
+  });
+  if (!ok) return;
+  try {
+    await lenderApi.chooseFirm(firm.financer_id);
+    showToast(`Saved: ${firm.name}.`, 'success');
+  } catch (e) {
+    if (err) { err.textContent = e.message || 'Could not save.'; err.classList.remove('hidden'); }
+    return;
+  }
+  renderLenderPortal();
+}
+
+/* Ask the superadmins (bell notification) to change, or set, the company. */
+function lenderFirmRequestToggle(open) {
+  const box = document.getElementById('lenderFirmRequest');
+  if (!box) return;
+  const show = open === undefined ? box.classList.contains('hidden') : !!open;
+  if (!show) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+  box.innerHTML = `
+    <label for="lenderFirmRequestMsg">Message to the DealBriz superadmin</label>
+    <textarea id="lenderFirmRequestMsg" rows="3" maxlength="500" placeholder="Which company you are with, and what should change"></textarea>
+    <p id="lenderFirmRequestError" class="auth-error hidden"></p>
+    <div class="lender-firm-request-actions">
+      <button class="btn-sm" onclick="lenderFirmRequestToggle(false)">Cancel</button>
+      <button class="btn-sm btn-sm-blue" onclick="lenderFirmRequestSend()">Send</button>
+    </div>
+    <small>The superadmin is notified in DealBriz. You can also email support@dealbriz.com.</small>`;
+  box.classList.remove('hidden');
+  setTimeout(() => document.getElementById('lenderFirmRequestMsg')?.focus(), 30);
+}
+
+async function lenderFirmRequestSend() {
+  const msg = (document.getElementById('lenderFirmRequestMsg')?.value || '').trim();
+  const err = document.getElementById('lenderFirmRequestError');
+  if (msg.length < 5) {
+    if (err) { err.textContent = 'Say which company you are with and what should change.'; err.classList.remove('hidden'); }
+    return;
+  }
+  try {
+    await lenderApi.firmRequest(msg);
+    showToast('Sent to the DealBriz superadmin. They will get back to you.', 'success');
+    lenderFirmRequestToggle(false);
+  } catch (e) {
+    if (err) { err.textContent = e.message || 'Could not send.'; err.classList.remove('hidden'); }
+  }
 }
 
 function lenderPickFinancer(fid) {
@@ -2543,7 +2687,11 @@ async function lenderRefresh() {
   renderLenderDealsTable();
 }
 
+// "Documents to check" also lists deals at the documents step with no
+// lender yet (the buyer chooses after they are verified). Every other tab,
+// All included, shows only the deals whose buyer chose this lender.
 const LENDER_DEAL_FILTERS = [
+  ['all', 'All'],
   ['docs_pending', 'Documents to check'],
   ['', 'In progress'],
   ['locked', 'Locked'],
@@ -2643,7 +2791,7 @@ function lenderLoansHtml() {
         ${Object.entries(LOAN_STATUS_LABEL).map(([v, l]) => `<option value="${v}" ${lenderState.loanStatus === v ? 'selected' : ''}>${l}</option>`).join('')}
       </select>
     </div>`;
-  if (!rows.length) return filter + `<div class="empty-state"><i class="fas fa-file-invoice-dollar"></i><h3>No loan applications</h3><p>Applications assigned to this lender show up here.</p></div>`;
+  if (!rows.length) return filter + `<div class="empty-state"><i class="fas fa-file-invoice-dollar"></i><h3>No loan applications</h3><p>Applications sent to this lender show up here.</p></div>`;
   return filter + `
     <div class="admin-table-wrap"><table class="admin-table">
       <thead><tr><th>Applicant</th><th>Listing</th><th>Loan</th><th>Status</th><th>Deal</th><th>Applied</th><th></th></tr></thead>

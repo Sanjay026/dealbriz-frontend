@@ -25,7 +25,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="/home.css?v=20261023b">
-<link rel="stylesheet" href="/deals.css?v=20261022b">
+<link rel="stylesheet" href="/deals.css?v=20261024a">
 
 <!-- Google tag (gtag.js). send_page_view is off because the app swaps pages
      with history.pushState and never reloads — GA's one automatic view would
@@ -1535,6 +1535,7 @@
       <div id="adminListingDocs" class="hidden"></div>
       <div id="adminDealsTableArea">
       <div class="admin-filters">
+        <button class="admin-filter-btn" data-status="all" onclick="adminDealsSetFilter('all')">All</button>
         <button class="admin-filter-btn active" data-status="" onclick="adminDealsSetFilter('')">In progress</button>
         <button class="admin-filter-btn" data-status="awaiting_seller" onclick="adminDealsSetFilter('awaiting_seller')">Awaiting confirmation</button>
         <button class="admin-filter-btn" data-status="docs_pending" onclick="adminDealsSetFilter('docs_pending')">Documents</button>
@@ -1930,6 +1931,13 @@
     <div id="dealLoanFormArea">
     <h3 class="deal-modal-title">Apply for the loan</h3>
     <p class="deal-modal-sub">Agreed price <strong id="dealLoanPrice"></strong> <span id="dealLoanType"></span></p>
+    <!-- The buyer chooses the lender (NBFC). The application and the verified
+         documents are emailed to that lender only (deals.js openLoanForm). -->
+    <div class="form-group deal-loan-lender">
+      <label for="dealLoanLender">Choose your lender</label>
+      <select id="dealLoanLender" onchange="dlLoanLenderChanged()"><option value="">Loading lenders...</option></select>
+      <small id="dealLoanLenderHint" class="deal-loan-lender-hint">Your application and verified documents are sent only to the lender you choose.</small>
+    </div>
     <div id="dealLoanExisting"></div>
     <div class="form-group">
       <label for="dealLoanDown">Down payment (₹)</label>
@@ -1955,7 +1963,7 @@
       <div><span>EMI / month</span><strong id="dealLoanEmi">₹0</strong></div>
       <div><span>Total repayable</span><strong id="dealLoanTotal">₹0</strong></div>
     </div>
-    <p class="deal-small">These are estimates. The lender confirms the final rate and EMI in its Key Fact Statement before you sign anything.</p>
+    <p class="deal-loan-assume" role="note"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><span>The interest rate, EMI and totals here are based on assumptions for now, so pick whatever suits you best. The NBFC you choose will contact you about the actual rate, EMI and other details, and confirms them in its Key Fact Statement before you sign anything.</span></p>
     <div class="form-group"><label for="dealLoanName">Full name</label><input type="text" id="dealLoanName" placeholder="As per Aadhaar" autocomplete="off"></div>
     <div class="form-row">
       <div class="form-group"><label for="dealLoanPhone">Phone</label><input type="tel" id="dealLoanPhone" inputmode="tel" maxlength="17" autocomplete="off"></div>
@@ -2045,7 +2053,7 @@
 <script src="/api-client.js?v=20261020c"></script>
 <script src="/app.js?v=20261023c"></script>
 <!-- DealLock: offers, deals, loan, handover, admin Deals. After app.js (uses its helpers). -->
-<script src="/deals.js?v=20261022b"></script>
+<script src="/deals.js?v=20261024a"></script>
 <div id="reportModal" class="modal-overlay hidden">
   <div class="modal-box" data-enter-flow>
     <button class="modal-close" onclick="closeReportModal()"><i class="fa fa-times"></i></button>
