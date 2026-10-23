@@ -561,21 +561,6 @@
 }
 #homePage .hb-sell-card-foot i { color: var(--hb-green); }
 
-/* ------------------------------------------------------- FINAL CTA */
-#homePage .hb-cta { background: var(--hb-blue); color: #fff; padding: 76px 0; text-align: center; }
-#homePage .hb-cta h2 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: -0.03em; margin: 0; }
-#homePage .hb-cta p { font-size: 17.5px; margin: 16px auto 32px; max-width: 30ch; color: #DBEAFE; line-height: 1.55; }
-#homePage .hb-cta-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
-/* Same lift as the hero buttons (.hb-btn): transform + shadow on a .16s ease.
-   These sit on a blue panel, so the shadow is darker than the hero's blue one
-   to stay visible. */
-#homePage .hb-cta-white { background: #fff; color: var(--hb-blue); border-radius: 999px; padding: 16px 38px; border: none; cursor: pointer; font-family: var(--hb-font); font-size: 16px; font-weight: 700;
-  transition: transform .16s ease, box-shadow .16s ease, background .16s ease; }
-#homePage .hb-cta-white:hover { background: #F1F5F9; transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.22); }
-#homePage .hb-cta-outline { background: none; color: #fff; border: 2px solid rgba(255,255,255,0.6); border-radius: 999px; padding: 15px 38px; cursor: pointer; font-family: var(--hb-font); font-size: 16px; font-weight: 700;
-  transition: transform .16s ease, box-shadow .16s ease, background .16s ease, border-color .16s ease; }
-#homePage .hb-cta-outline:hover { background: rgba(255,255,255,0.12); border-color: #fff; transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.22); }
-
 /* ----------------------------------------------------------- FOOTER */
 /* The footer lives outside #homePage (so the home layout can go full-width),
    which means it would otherwise render on every page. Show it only on the
@@ -635,7 +620,6 @@ body.show-footer .site-footer { display: block; }
   .db-me-wrap::before { animation: none; }
   .db-pin, .db-cluster { transition: none; }
   #homePage .hb-btn:hover,
-  #homePage .hb-cta-white:hover, #homePage .hb-cta-outline:hover,
   #homePage .hb-cat-scroll { scroll-behavior: auto; }
   #homePage .hb-cat, #homePage .hb-cat-media img, #homePage .hb-cat-shade { transition: none; }
   #homePage .hb-cat:hover .hb-cat-media img { transform: scale(1.1); }
