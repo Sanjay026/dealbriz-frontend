@@ -60,6 +60,7 @@ const dealsApi = {
   staffReady: (id, note) => apiFetch(`/deals/staff/${id}/ready-to-pay`, { method: 'POST', body: { note } }),
   staffPaid: (id, utr) => apiFetch(`/deals/staff/${id}/paid`, { method: 'POST', body: { utr } }),
   staffResolve: (id, outcome, note) => apiFetch(`/deals/staff/${id}/resolve`, { method: 'POST', body: { outcome, note } }),
+  staffResendLenderEmail: (id) => apiFetch(`/deals/staff/${id}/lender-email`, { method: 'POST', body: {} }),
 };
 
 /* Lender portal. Staff (deals.manage) pass the lender they are looking at;
@@ -79,6 +80,7 @@ const lenderApi = {
   setDetails: (fid, id, ref, kfs) =>
     apiFetch(`/lender/loans/${id}/details${lenderApi.q(fid)}`, { method: 'POST', body: { nbfc_application_reference: ref, kfs_url: kfs } }),
   deals: (fid, status = '') => apiFetch(`/lender/deals${lenderApi.q(fid, status ? `status=${encodeURIComponent(status)}` : '')}`),
+  saveSettings: (fid, docsEmail) => apiFetch(`/lender/settings${lenderApi.q(fid)}`, { method: 'PUT', body: { docs_email: docsEmail } }),
   ready: (fid, id, note) => apiFetch(`/lender/deals/${id}/ready-to-pay${lenderApi.q(fid)}`, { method: 'POST', body: { note } }),
   paid: (fid, id, utr) => apiFetch(`/lender/deals/${id}/paid${lenderApi.q(fid)}`, { method: 'POST', body: { utr } }),
 };
@@ -282,7 +284,7 @@ async function dlAskAnswer(yes) {
    and close on a backdrop click like the others. The warning closes only
    with its own buttons: it must be read, not clicked away by accident. */
 MODAL_HIDE.dealOffer = () => document.getElementById('dealOfferModal')?.classList.add('hidden');
-MODAL_HIDE.deal = () => { document.getElementById('dealModal')?.classList.add('hidden'); dealModalState = null; };
+MODAL_HIDE.deal = () => { document.getElementById('dealModal')?.classList.add('hidden'); dealModalState = null; dlLiveStop(); };
 MODAL_HIDE.dealLoan = () => document.getElementById('dealLoanModal')?.classList.add('hidden');
 MODAL_HIDE.dealOtp = () => { document.getElementById('dealOtpModal')?.classList.add('hidden'); dlOtpStop(); };
 MODAL_HIDE.dealWarn = () => {
@@ -342,9 +344,9 @@ function dlWarnContent(kind, ctx, rules) {
         `You agree to sell ${title} to ${buyer} for ${price}. From now on no one else can start a deal on it.`,
         vehicle
           ? (ctx.listingDocs === 'verified'
-              ? `Next, within ${docsDays} days, the buyer uploads their PAN and masked Aadhaar (your vehicle documents on the listing are already verified). Once the buyer’s are verified the deal is locked, and the listing reserved for this buyer for ${days} days.`
-              : `Next, within ${docsDays} days, the buyer uploads their PAN and masked Aadhaar, and you upload your vehicle documents on the listing (My Listings, Edit listing) if you haven’t already. Only when DealBriz or the lender has verified all of them is the deal locked, and the listing reserved for this buyer for ${days} days.`)
-          : `Next, within ${docsDays} days, the buyer uploads their PAN and masked Aadhaar. Only when they are verified is the deal locked, and the listing reserved for this buyer for ${days} days.`,
+              ? `Next, within ${docsDays} days, the buyer uploads their PAN card and Aadhaar card (your vehicle documents on the listing are already verified). Once the buyer’s are verified the deal is locked, and the listing reserved for this buyer for ${days} days.`
+              : `Next, within ${docsDays} days, the buyer uploads their PAN card and Aadhaar card, and you upload your vehicle documents on the listing (My Listings, Edit listing) if you haven’t already. Only when DealBriz or the lender has verified all of them is the deal locked, and the listing reserved for this buyer for ${days} days.`)
+          : `Next, within ${docsDays} days, the buyer uploads their PAN card and Aadhaar card. Only when they are verified is the deal locked, and the listing reserved for this buyer for ${days} days.`,
         `The lender pays you directly, never through DealBriz. Hand over the ${vehicle ? 'vehicle' : 'item'} only after the money is in your bank, then enter the buyer’s handover code.`,
         `After you confirm, cancelling needs the buyer’s agreement. If they don’t agree you can force-cancel, but force-cancelling ${limit} deals in a row stops you posting listings or making deals for ${ban} days.`,
       ],
@@ -352,9 +354,9 @@ function dlWarnContent(kind, ctx, rules) {
         `आप ${title} को ${buyer} को ${price} में बेचने के लिए सहमत हैं। अब कोई और इस पर डील शुरू नहीं कर सकता।`,
         vehicle
           ? (ctx.listingDocs === 'verified'
-              ? `लिस्टिंग पर आपके वाहन के दस्तावेज़ों की जाँच हो चुकी है। इसके बाद ${docsDays} दिन के अंदर खरीदार अपना PAN और मास्क्ड आधार अपलोड करे। उनकी जाँच होते ही डील लॉक होगी और लिस्टिंग ${days} दिन के लिए इसी खरीदार के लिए रिज़र्व होगी।`
-              : `इसके बाद ${docsDays} दिन के अंदर खरीदार अपना PAN और मास्क्ड आधार अपलोड करे, और अगर आपने अभी तक नहीं किया है तो आप लिस्टिंग पर (My Listings, Edit listing) अपने वाहन के दस्तावेज़ अपलोड करें। DealBriz या लोन देने वाली कंपनी द्वारा सभी की जाँच होने पर ही डील लॉक होगी और लिस्टिंग ${days} दिन के लिए इसी खरीदार के लिए रिज़र्व होगी।`)
-          : `इसके बाद ${docsDays} दिन के अंदर खरीदार अपना PAN और मास्क्ड आधार अपलोड करे। उनकी जाँच होने पर ही डील लॉक होगी और लिस्टिंग ${days} दिन के लिए इसी खरीदार के लिए रिज़र्व होगी।`,
+              ? `लिस्टिंग पर आपके वाहन के दस्तावेज़ों की जाँच हो चुकी है। इसके बाद ${docsDays} दिन के अंदर खरीदार अपना PAN और आधार कार्ड अपलोड करे। उनकी जाँच होते ही डील लॉक होगी और लिस्टिंग ${days} दिन के लिए इसी खरीदार के लिए रिज़र्व होगी।`
+              : `इसके बाद ${docsDays} दिन के अंदर खरीदार अपना PAN और आधार कार्ड अपलोड करे, और अगर आपने अभी तक नहीं किया है तो आप लिस्टिंग पर (My Listings, Edit listing) अपने वाहन के दस्तावेज़ अपलोड करें। DealBriz या लोन देने वाली कंपनी द्वारा सभी की जाँच होने पर ही डील लॉक होगी और लिस्टिंग ${days} दिन के लिए इसी खरीदार के लिए रिज़र्व होगी।`)
+          : `इसके बाद ${docsDays} दिन के अंदर खरीदार अपना PAN और आधार कार्ड अपलोड करे। उनकी जाँच होने पर ही डील लॉक होगी और लिस्टिंग ${days} दिन के लिए इसी खरीदार के लिए रिज़र्व होगी।`,
         `लोन देने वाली कंपनी सीधे आपको भुगतान करती है, DealBriz के ज़रिए कभी नहीं। ${vehicle ? 'वाहन' : 'सामान'} तभी सौंपें जब पैसे आपके बैंक में आ जाएँ, फिर खरीदार का हैंडओवर कोड डालें।`,
         `पुष्टि के बाद डील रद्द करने के लिए खरीदार की सहमति चाहिए। सहमति न मिलने पर आप फ़ोर्स कैंसल कर सकते हैं, लेकिन लगातार ${limit} डील फ़ोर्स कैंसल करने पर आप ${ban} दिन तक न लिस्टिंग डाल पाएँगे, न डील कर पाएँगे।`,
       ],
@@ -366,14 +368,14 @@ function dlWarnContent(kind, ctx, rules) {
       titleHi: 'डील लॉक होने से पहले इसे ज़रूर पढ़ें',
       en: [
         `You are agreeing to buy ${title} at ${price}. The seller takes the final decision, and can confirm only after you accept this.`,
-        `After the seller confirms, you upload your PAN card and masked Aadhaar within ${docsDays} days${vehicle ? '. The seller’s vehicle documents are uploaded on the listing and checked too' : ''}. Only when DealBriz or the lender has verified them is the deal locked, and the listing reserved for you for ${days} days.`,
+        `After the seller confirms, you upload your PAN card and Aadhaar card within ${docsDays} days${vehicle ? '. The seller’s vehicle documents are uploaded on the listing and checked too' : ''}. Only when DealBriz or the lender has verified them is the deal locked, and the listing reserved for you for ${days} days.`,
         `Apply for the loan as soon as the deal locks. If the lender isn’t ready to pay within those ${days} days, the deal is released.`,
         `After the seller confirms, cancelling needs the seller’s agreement. If they don’t agree you can force-cancel, but force-cancelling ${limit} deals in a row stops you posting listings or making deals for ${ban} days.`,
         `DealBriz never asks you to send money. Pay the down payment only at the handover meeting, and give your handover code only after you have the ${vehicle ? 'vehicle and its papers' : 'item'}.`,
       ],
       hi: [
         `आप ${title} को ${price} में खरीदने के लिए सहमत हो रहे हैं। अंतिम फ़ैसला विक्रेता का है, और वह आपकी सहमति के बाद ही पुष्टि कर सकता है।`,
-        `विक्रेता की पुष्टि के बाद ${docsDays} दिन के अंदर आप अपना PAN कार्ड और मास्क्ड आधार अपलोड करें${vehicle ? '। विक्रेता के वाहन के दस्तावेज़ लिस्टिंग पर अपलोड होते हैं और उनकी भी जाँच होती है' : ''}। DealBriz या लोन देने वाली कंपनी द्वारा जाँच होने पर ही डील लॉक होगी और लिस्टिंग ${days} दिन के लिए आपके लिए रिज़र्व होगी।`,
+        `विक्रेता की पुष्टि के बाद ${docsDays} दिन के अंदर आप अपना PAN कार्ड और आधार कार्ड अपलोड करें${vehicle ? '। विक्रेता के वाहन के दस्तावेज़ लिस्टिंग पर अपलोड होते हैं और उनकी भी जाँच होती है' : ''}। DealBriz या लोन देने वाली कंपनी द्वारा जाँच होने पर ही डील लॉक होगी और लिस्टिंग ${days} दिन के लिए आपके लिए रिज़र्व होगी।`,
         `डील लॉक होते ही लोन के लिए आवेदन करें। अगर उन ${days} दिनों में लोन देने वाली कंपनी भुगतान के लिए तैयार नहीं होती, तो डील रद्द हो जाएगी।`,
         `विक्रेता की पुष्टि के बाद डील रद्द करने के लिए विक्रेता की सहमति चाहिए। सहमति न मिलने पर आप फ़ोर्स कैंसल कर सकते हैं, लेकिन लगातार ${limit} डील फ़ोर्स कैंसल करने पर आप ${ban} दिन तक न लिस्टिंग डाल पाएँगे, न डील कर पाएँगे।`,
         `DealBriz कभी पैसे भेजने के लिए नहीं कहता। डाउन पेमेंट सिर्फ़ हैंडओवर मीटिंग में दें, और अपना हैंडओवर कोड ${vehicle ? 'वाहन और उसके कागज़' : 'सामान'} मिलने के बाद ही दें।`,
@@ -580,10 +582,14 @@ function renderDealChatMessage(m, isSent, time) {
 /* Called by loadChatMessages() after each draw. The bar is refetched only
    when the conversation changed: every deal action writes a chat message,
    so a new last message is the signal. */
+let dealChatBarAt = 0;
 function dealsAfterChatRender(msgs) {
   const last = msgs && msgs.length ? msgs[msgs.length - 1].id : 'none';
-  if (last === dealChatSignature) return;
+  // A new message, or every ~12 s anyway: some deal changes (a document
+  // checked, the lender's progress) don't post a chat message.
+  if (last === dealChatSignature && Date.now() - dealChatBarAt < 12000) return;
   dealChatSignature = last;
+  dealChatBarAt = Date.now();
   refreshChatDealBar();
 }
 
@@ -745,12 +751,12 @@ function dlAcceptOfferDialog(price, isSeller, rules) {
     ? [
         `The buyer reviews and accepts the deal terms within ${hours} hours.`,
         `You give the final confirmation with ${dlConfirmWords(rules)}.`,
-        `The buyer uploads their PAN card and masked Aadhaar${vehicle ? ', and your vehicle documents on the listing are verified' : ''}. The deal then locks and the listing is reserved for the buyer.`,
+        `The buyer uploads their PAN card and Aadhaar card${vehicle ? ', and your vehicle documents on the listing are verified' : ''}. The deal then locks and the listing is reserved for the buyer.`,
       ]
     : [
         `You review and accept the deal terms within ${hours} hours.`,
         'The seller gives the final confirmation.',
-        `You upload your PAN card and masked Aadhaar. Once they’re verified${vehicle ? ', along with the seller’s vehicle documents,' : ''} the deal locks and the listing is reserved for you.`,
+        `You upload your PAN card and Aadhaar card. Once they’re verified${vehicle ? ', along with the seller’s vehicle documents,' : ''} the deal locks and the listing is reserved for you.`,
       ];
   return {
     tone: 'info',
@@ -930,7 +936,99 @@ async function openDeal(dealId) {
   const body = document.getElementById('dealModalBody');
   body.innerHTML = `<div class="deal-loading"><i class="fas fa-spinner fa-spin"></i> Loading deal...</div>`;
   if (!modalStack.includes('deal')) dlOpenOverlay('dealModal', 'deal');
+  // The deal's id in the address bar: a browser refresh reopens this deal
+  // (dlRestoreFromUrl) instead of dropping back to the page underneath.
+  // Only this history entry carries it, so closing the deal removes it.
+  dlUrlDeal(dealId);
   await reloadDealModal(dealId);
+  dlLiveStart();
+}
+
+/* ---------- Live updates ----------
+   While a deal is open it is fetched again every few seconds and redrawn
+   in place when something changed (the other side confirmed, a document
+   was checked...). It never navigates or closes anything. It waits while
+   the person is typing in the deal, has a form or a dialog open on top of
+   it, or the tab is in the background. */
+const DL_LIVE_MS = 4000;
+let dlLiveTimer = null;
+let dlLiveBusy = false;
+
+function dlLiveStart() {
+  dlLiveStop();
+  dlLiveTimer = setInterval(dlLiveTick, DL_LIVE_MS);
+}
+
+function dlLiveStop() {
+  if (dlLiveTimer) clearInterval(dlLiveTimer);
+  dlLiveTimer = null;
+}
+
+function dlDealSignature(d) {
+  if (!d) return '';
+  return JSON.stringify([d.status, d.updated_at, (d.events || []).length,
+    (d.documents || []).map(x => `${x.type}:${x.status}`), d.listing_docs && d.listing_docs.state,
+    d.cancel_request ? [d.cancel_request.by_role, d.cancel_request.created_at] : null,
+    d.loan ? [d.loan.status, d.loan.lender] : null, d.lender, d.buyer_ack_at, d.seller_confirmed_at,
+    d.down_payment_at, d.buyer_ready_at, d.seller_ready_at, d.money_received_at, d.utr]);
+}
+
+async function dlLiveTick() {
+  if (!dealModalState || !modalStack.includes('deal')) { dlLiveStop(); return; }
+  if (document.hidden || dlLiveBusy) return;
+  if (modalStack[modalStack.length - 1] !== 'deal') return;          // a dialog is open on top
+  if (dealModalState.uploading || dealModalState.panel) return;       // uploading, or a form is open
+  const ae = document.activeElement;
+  if (ae && ae.closest && ae.closest('#dealModal') && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  const id = dealModalState.deal.id;
+  dlLiveBusy = true;
+  try {
+    const d = await dealsApi.get(id);
+    if (!dealModalState || dealModalState.deal.id !== id || dealModalState.panel || dealModalState.uploading) return;
+    if (dlDealSignature(d) === dlDealSignature(dealModalState.deal)) return;
+    const box = document.querySelector('#dealModal .modal-box');
+    const top = box ? box.scrollTop : 0;
+    dealModalState.deal = d;
+    renderDealModal();
+    if (box) box.scrollTop = top;
+    // Keep the chat's deal bar and My Deals in step too.
+    if (currentChatConversation && typeof refreshChatDealBar === 'function') refreshChatDealBar();
+    if (currentPage === 'mydeals' && typeof renderMyDeals === 'function') renderMyDeals();
+  } catch { /* a missed tick is fine */ } finally {
+    dlLiveBusy = false;
+  }
+}
+
+function dlUrlDeal(dealId) {
+  try {
+    const url = new URL(window.location.href);
+    if (dealId) url.searchParams.set('deal', dealId); else url.searchParams.delete('deal');
+    history.replaceState(history.state, '', url.pathname + url.search + url.hash);
+  } catch { /* ignore */ }
+}
+
+/* After a browser refresh: reopen the deal that was open (app.js calls
+   this once the page and the signed-in user are restored). */
+function dlRestoreFromUrl(id) {
+  if (!id) {
+    try { id = new URL(window.location.href).searchParams.get('deal'); } catch { /* ignore */ }
+  }
+  if (!id) return;
+  dlUrlDeal(null);           // this entry is the page; the deal gets its own
+  if (currentUser) openDeal(id);
+}
+
+/* The other side's actions that need an answer here (accept the warning,
+   a cancel request) pop up within seconds, not at the next 60 s check. */
+const DL_NOTICE_MS = 10000;
+let dlNoticeTimer = null;
+function dlNoticeLoopStart() {
+  if (dlNoticeTimer) return;
+  dlNoticeTimer = setInterval(() => {
+    if (!currentUser || document.hidden) return;
+    if (modalStack.length && ['dealWarn', 'dealNotice', 'dealOtp', 'dealAsk', 'dealLoan', 'dealOffer'].includes(modalStack[modalStack.length - 1])) return;
+    dealsCheckBuyerNotices();
+  }, DL_NOTICE_MS);
 }
 
 async function reloadDealModal(dealId) {
@@ -982,14 +1080,16 @@ function dealStepper(d) {
   if (status === 'released') {
     return `<div class="deal-ended"><i class="fas fa-rotate-left"></i> This deal was released. The listing is back on sale.</div>`;
   }
-  const steps = [['awaiting_seller', 'Warning & confirm'], ['docs_pending', 'Documents']];
-  steps.push(['locked', 'Locked'], ['loan_in_progress', 'Loan'], ['ready_to_pay', 'Ready to pay'],
-    ['paid', 'Paid'], ['completed', 'Done']);
-  const order = steps.map(s => s[0]);
-  const at = status === 'disputed' ? order.indexOf('paid') : order.indexOf(status);
-  return `<ol class="deal-steps" style="grid-template-columns:repeat(${steps.length},1fr)">${steps.map(([key, label], i) => `
-    <li class="${i < at || status === 'completed' ? 'is-done' : i === at ? 'is-current' : ''}">
-      <span class="deal-step-dot">${i < at || status === 'completed' ? '<i class="fas fa-check"></i>' : i + 1}</span>
+  // Five steps. After the loan application, the lender's checks, the
+  // handover and the payout all lead to step 5, which is ticked only when
+  // the deal is completed.
+  const steps = ['Warning & confirm', 'Documents', 'Locked', 'Apply for loan', 'Deal complete'];
+  const at = { awaiting_seller: 0, docs_pending: 1, locked: 3,
+               loan_in_progress: 4, ready_to_pay: 4, paid: 4, disputed: 4 }[status];
+  const allDone = status === 'completed';
+  return `<ol class="deal-steps" style="grid-template-columns:repeat(${steps.length},1fr)">${steps.map((label, i) => `
+    <li class="${allDone || i < at ? 'is-done' : i === at ? 'is-current' : ''}">
+      <span class="deal-step-dot">${allDone || i < at ? '<i class="fas fa-check"></i>' : i + 1}</span>
       <span class="deal-step-label">${label}</span>
     </li>`).join('')}</ol>`;
 }
@@ -1049,15 +1149,17 @@ function dealNextStepHtml(d) {
         if (lst === 'none') return '';
         if (lst === 'verified') return `<p class="deal-small"><i class="fas fa-circle-check deal-green"></i> ${mineSide ? 'Your listing’s documents are verified.' : 'The seller’s vehicle documents are verified.'}</p>`;
         if (lst === 'checking') return `<p class="deal-small"><i class="fas fa-hourglass-half"></i> ${mineSide ? `Your listing’s documents are uploaded and being checked by ${who}.` : 'The seller’s vehicle documents are uploaded and being checked.'}</p>`;
+        const ls = d.listing_docs || {};
+        const pid = dlEsc((d.product || {}).id || d.product_id || '');
         return mineSide
-          ? `<p class="deal-small deal-red"><i class="fas fa-circle-exclamation"></i> Your listing still needs its vehicle documents${d.listing_docs && d.listing_docs.rejected ? ' (one was sent back)' : ''}. Upload them on the listing.</p>
-             <button class="deal-btn deal-btn-primary deal-btn-wide" onclick="dlGoToListingDocs('${dlEsc((d.product || {}).id || d.product_id || '')}')"><i class="fas fa-upload"></i> Upload documents on the listing</button>`
+          ? `<p class="deal-small deal-red"><i class="fas fa-circle-exclamation"></i> Your listing still needs its vehicle documents${ls.rejected ? ' (one was sent back)' : ''}. Upload them on the listing.</p>
+             <button class="deal-btn deal-btn-primary deal-btn-wide" onclick="dlGoToListingDocs('${pid}')"><i class="fas fa-upload"></i> Upload documents on the listing</button>`
           : `<p class="deal-small"><i class="fas fa-hourglass-half"></i> Waiting for the seller to upload their vehicle documents on the listing.</p>`;
       };
       if (role === 'seller') {
         const buyerLine = buyerUp
-          ? `<p class="deal-small"><i class="fas fa-circle-check deal-green"></i> The buyer has uploaded their PAN card and masked Aadhaar. ${buyer.approved === buyer.need ? 'All verified.' : 'They’re being checked.'}</p>`
-          : `<p class="deal-small"><i class="fas fa-hourglass-half"></i> Waiting for the buyer to upload their PAN card and masked Aadhaar (${buyer.uploaded} of ${buyer.need} so far).</p>`;
+          ? `<p class="deal-small"><i class="fas fa-circle-check deal-green"></i> The buyer has uploaded their PAN card and Aadhaar card. ${buyer.approved === buyer.need ? 'All verified.' : 'They’re being checked.'}</p>`
+          : `<p class="deal-small"><i class="fas fa-hourglass-half"></i> Waiting for the buyer to upload their PAN card and Aadhaar card (${buyer.uploaded} of ${buyer.need} so far).</p>`;
         return box('fa-file-shield', 'Documents pending',
           `The deal locks, and the listing is reserved for ${days} days, once the buyer’s documents${lst === 'none' ? '' : ' and your listing’s documents'} are verified. ${due}`,
           bar + listingLine(true) + buyerLine, 'deal-next-docs');
@@ -1065,7 +1167,7 @@ function dealNextStepHtml(d) {
       if (role === 'buyer') {
         const myText = buyerUp
           ? `Your documents are uploaded and being checked by ${who}.`
-          : 'Upload your PAN card and masked Aadhaar below.';
+          : 'Upload your PAN card and Aadhaar card below.';
         return box('fa-file-shield', 'Documents pending',
           `${myText} The deal locks, and the listing is reserved for you for ${days} days, once they${lst === 'none' ? ' are' : ' and the seller’s vehicle documents are'} verified. ${due}`,
           bar + listingLine(false), 'deal-next-docs');
@@ -1086,7 +1188,9 @@ function dealNextStepHtml(d) {
       return box('fa-magnifying-glass-dollar', `Loan: ${dlEsc(st)}`,
         loan && loan.status === 'approved'
           ? `The loan is approved. ${dlEsc(lender)} will ${isVehicle(d) ? 'check the vehicle and documents, then ' : ''}mark the deal Ready to pay. Reserved until <strong>${dlEsc(dlWhen(d.reserved_until))}</strong>.`
-          : `${role === 'buyer' ? 'Your application is' : 'The buyer’s application is'} with the lender. Reserved until <strong>${dlEsc(dlWhen(d.reserved_until))}</strong>.`);
+          : (role === 'buyer'
+              ? `Your application has been submitted to ${dlEsc(lender)}, who will contact you to complete it. The listing stays reserved for you until <strong>${dlEsc(dlWhen(d.reserved_until))}</strong>.`
+              : `The buyer’s application is with ${dlEsc(lender)}. Reserved until <strong>${dlEsc(dlWhen(d.reserved_until))}</strong>.`));
     }
 
     case 'ready_to_pay':
@@ -1241,16 +1345,15 @@ function dealDocsHtml(d) {
 
   const rules = dealRulesCache || {};
   const accept = dlDocAccept();
-  const privacy = `<p class="deal-small"><i class="fas fa-lock"></i> Private: once uploaded, only DealBriz’s superadmin and the lender can open them. A photo or a PDF, up to ${rules.doc_max_mb || 8} MB each (large photos are shrunk for you). Aadhaar only masked (first 8 digits hidden).</p>`;
+  const privacy = `<p class="deal-small"><i class="fas fa-lock"></i> Private: once uploaded, only DealBriz’s superadmin and the lender can open them. A photo or a PDF, up to ${rules.doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
 
   if (role === 'seller') {
     const docs = all.filter(x => x.party === 'seller');
-    if (!docs.length && !d.docs_question_pending) return '';
+    if (!docs.length) return '';
     const pid = (d.product || {}).id || d.product_id || '';
     return `
       <div class="deal-section deal-docs">
         <h4>Your listing’s documents</h4>
-        ${d.docs_question_pending ? '<p class="deal-small">Say on the listing whether the vehicle ever had a loan, then upload the documents.</p>' : ''}
         ${docs.length ? `<ul class="deal-doc-list">${docs.map(item => dealDocRowHtml(d, item, false, accept)).join('')}</ul>` : ''}
         <p class="deal-small"><i class="fas fa-circle-info"></i> These are uploaded on the listing and checked once for every deal on it. To add or replace one, open the listing.</p>
         <button class="deal-btn deal-btn-wide" onclick="dlGoToListingDocs('${dlEsc(pid)}')"><i class="fas fa-pen"></i> Open the listing’s documents</button>
@@ -1620,6 +1723,8 @@ let loanFormExisting = [];
 async function openLoanForm() {
   const d = dealModalState && dealModalState.deal;
   if (!d) return;
+  document.getElementById('dealLoanDone').classList.add('hidden');
+  document.getElementById('dealLoanFormArea').classList.remove('hidden');
   document.getElementById('dealLoanPrice').textContent = dlRupees(d.agreed_price);
   document.getElementById('dealLoanDown').value = '';
   document.getElementById('dealLoanName').value = [currentUser?.name, currentUser?.lastName].filter(Boolean).join(' ');
@@ -1655,6 +1760,38 @@ async function openLoanForm() {
 }
 
 function closeLoanForm() { closeTopModal('dealLoan'); }
+
+/* What the buyer sees once the application is sent. */
+function dlLoanDoneHtml(app, d) {
+  const lender = app.lender || (d && d.lender) || '';
+  const who = lender ? dlEsc(lender) : 'the lending partner';
+  const title = dlEsc((d && d.product && d.product.title) || 'this item');
+  const phone = app.applicant_phone ? dlEsc(app.applicant_phone) : 'the phone number in your application';
+  const until = (app.deal && app.deal.reserved_until) || (d && d.reserved_until);
+  const ref = (app.id || '').slice(0, 8).toUpperCase();
+  const row = (k, v) => `<div class="deal-loan-done-row"><span>${k}</span><strong>${v}</strong></div>`;
+  return `
+    <div class="deal-loan-done">
+      <div class="deal-loan-done-icon"><i class="fas fa-circle-check"></i></div>
+      <h3>Application submitted</h3>
+      <p class="deal-loan-done-lead">Your loan application for <strong>${title}</strong> has been submitted to <strong>${who}</strong>${lender ? '' : ', which DealBriz assigns to your deal'}.</p>
+      <div class="deal-loan-done-card">
+        ${ref ? row('Application reference', dlEsc(ref)) : ''}
+        ${row('Loan amount requested', dlRupees(app.loan_amount))}
+        ${app.down_payment != null ? row('Down payment', dlRupees(app.down_payment)) : ''}
+        ${app.monthly_emi != null ? row('Estimated EMI', `${dlRupees(app.monthly_emi)} × ${dlEsc(app.tenure_months)} months`) : ''}
+      </div>
+      <div class="deal-ask-sub">What happens next</div>
+      <ol class="deal-ask-steps">
+        <li>${lender ? who : 'The lending partner'} reviews your application together with the verified documents.</li>
+        <li>A representative from ${who} will contact you on <strong>${phone}</strong> to complete your application. They may ask for further details to finish their checks.</li>
+        <li>Once your loan is sanctioned, ${who} confirms the final interest rate and EMI in its Key Fact Statement. Please read it carefully before you sign.</li>
+        <li>You and the seller then meet for the handover, and ${who} pays the seller directly.</li>
+      </ol>
+      <p class="deal-ask-note"><i class="fas fa-circle-info"></i> ${until ? `The listing stays reserved for you until <strong>${dlEsc(dlWhen(until))}</strong>. ` : ''}You can follow your application under <strong>My Deals</strong>. Never pay anyone who offers to speed up your loan approval.</p>
+      <button class="btn-primary full-width" onclick="closeLoanForm()">Done</button>
+    </div>`;
+}
 
 function dealLoanNumbers() {
   const d = dealModalState && dealModalState.deal;
@@ -1707,9 +1844,13 @@ async function submitDealLoan(existingId = null) {
   const btns = document.querySelectorAll('#dealLoanModal button');
   btns.forEach(b => { b.disabled = true; });
   try {
-    await dealsApi.applyLoan(body);
-    await dlCloseModalThen('dealLoan');
-    showToast('Loan application sent.', 'success');
+    const res = await dealsApi.applyLoan(body);
+    // The confirmation replaces the form; the deal sheet underneath updates.
+    document.getElementById('dealLoanFormArea').classList.add('hidden');
+    const done = document.getElementById('dealLoanDone');
+    done.innerHTML = dlLoanDoneHtml(res, d);
+    done.classList.remove('hidden');
+    document.querySelector('#dealLoanModal .modal-box')?.scrollTo?.({ top: 0 });
     await reloadDealModal(d.id);
     if (currentChatConversation) loadChatMessages();
   } catch (err) {
@@ -1821,11 +1962,9 @@ function dlDocsReviewHtml(d, ctx) {
       }).join('')}
     </ul>`;
   return `
-    ${d.docs_question_pending ? '<p class="deal-small">The seller hasn’t yet said whether the vehicle had a loan (if yes, a loan NOC is added).</p>' : ''}
-    ${d.vehicle_had_loan === true ? '<p class="deal-small">Seller says the vehicle had a loan: check the NOC and that the bank is removed from the RC.</p>' : ''}
     ${group('seller', all.filter(x => x.party === 'seller'))}
     ${group('buyer', all.filter(x => x.party === 'buyer'))}
-    ${canReview ? '<p class="deal-small">Check each file: names match the PAN, the RC is for this vehicle, insurance and PUC are valid, both Aadhaars are masked, and the buyer’s PAN is the buyer’s own. The seller’s documents belong to the listing and are checked once for every deal on it. When the listing’s documents and the buyer’s are all verified, the deal locks.</p>'
+    ${canReview ? '<p class="deal-small">Check each file: the RC is for this vehicle and in the seller’s name, the insurance is valid, the buyer’s PAN and Aadhaar card are the buyer’s own and the names match. The seller’s documents belong to the listing and are checked once for every deal on it. When the listing’s documents and the buyer’s are all verified, the deal locks.</p>'
       : (canView ? '' : '<p class="deal-small"><i class="fas fa-lock"></i> Only a superadmin or the deal’s lender can open and verify these files.</p>')}`;
 }
 
@@ -2031,6 +2170,7 @@ async function adminViewDeal(dealId) {
       ${action ? `<div class="admin-detail-section"><h4>Next step</h4>${action}</div>` : ''}
 
       ${(d.documents || []).length || d.status === 'docs_pending' ? `<div class="admin-detail-section"><h4>Documents</h4>${dlDocsReviewHtml(d, 'admin')}</div>` : ''}
+      ${dlLenderEmailHtml(d, 'admin')}
 
       ${lenderPick}
 
@@ -2232,7 +2372,7 @@ async function adminLiftDealBan(uid) {
 /* =====================================================
    LENDER PORTAL (admin panel tab "Lender portal")
    ===================================================== */
-let lenderState = { me: null, fid: null, tab: 'docs', loans: [], deals: [], loanStatus: '' };
+let lenderState = { me: null, fid: null, tab: 'deals', dealFilter: 'docs_pending', showListings: false, loans: [], deals: [], loanStatus: '' };
 
 async function renderLenderPortal() {
   const head = document.getElementById('lenderHeader');
@@ -2252,7 +2392,10 @@ async function renderLenderPortal() {
     lenderState.fid = null;   // a lender user: the server knows their lender
     head.innerHTML = `
       <div class="lender-head-name"><i class="fas fa-building-columns"></i> ${dlEsc(me.financer.name)}</div>
-      <div class="lender-head-sub">Funds: ${(me.financer.loan_types || []).map(t => loanTypeTag(t)).join(' ') || 'no loan types set'}</div>`;
+      <div class="lender-head-sub">Funds: ${(me.financer.loan_types || []).map(t => loanTypeTag(t)).join(' ') || 'no loan types set'}</div>
+      <div id="lenderDocsEmail" class="lender-docs-email"></div>`;
+    lenderState.docsEmail = me.financer.docs_email || '';
+    lenderState.canEditEmail = true;
   } else {
     const list = me.financers || [];
     if (!lenderState.fid || !list.some(f => String(f.financer_id) === String(lenderState.fid))) {
@@ -2262,18 +2405,99 @@ async function renderLenderPortal() {
       <div class="lender-head-sub">DealBriz staff view. See and act as:</div>
       <select id="lenderPick" onchange="lenderPickFinancer(this.value)" style="min-width:220px">
         ${list.map(f => `<option value="${f.financer_id}" ${String(f.financer_id) === String(lenderState.fid) ? 'selected' : ''}>${dlEsc(f.name)}${f.status !== 'active' ? ' (inactive)' : ''}</option>`).join('')}
-      </select>`;
+      </select>
+      <div id="lenderDocsEmail" class="lender-docs-email"></div>`;
     if (!lenderState.fid) {
       body.innerHTML = `<div class="empty-state"><i class="fas fa-building-columns"></i><h3>No lenders yet</h3><p>Add one in Financers.</p></div>`;
       return;
     }
+    const picked = list.find(f => String(f.financer_id) === String(lenderState.fid));
+    lenderState.docsEmail = (picked && picked.docs_email) || '';
+    lenderState.canEditEmail = typeof userCan === 'function' && userCan('financers.manage');
   }
+  lenderState.editingEmail = false;
+  lenderDocsEmailRender();
   await lenderRefresh();
 }
 
 function lenderPickFinancer(fid) {
   lenderState.fid = fid;
+  const picked = ((lenderState.me && lenderState.me.financers) || []).find(f => String(f.financer_id) === String(fid));
+  lenderState.docsEmail = (picked && picked.docs_email) || '';
+  lenderState.editingEmail = false;
+  lenderDocsEmailRender();
   lenderRefresh();
+}
+
+/* Where this lender receives each new loan application, with the buyer's
+   and the seller's documents attached. */
+function lenderDocsEmailRender() {
+  const box = document.getElementById('lenderDocsEmail');
+  if (!box) return;
+  const email = lenderState.docsEmail || '';
+  const can = !!lenderState.canEditEmail;
+  if (lenderState.editingEmail && can) {
+    box.innerHTML = `
+      <label for="lenderDocsEmailInput">Email for loan applications and documents</label>
+      <div class="lender-docs-email-row">
+        <input id="lenderDocsEmailInput" type="text" inputmode="email" autocomplete="off" maxlength="255"
+               value="${dlEsc(email)}" placeholder="e.g. loans@yourcompany.in" onkeydown="if(event.key==='Enter') lenderDocsEmailSave()">
+        <button class="btn-sm btn-sm-blue" onclick="lenderDocsEmailSave()">Save</button>
+        <button class="btn-sm" onclick="lenderState.editingEmail=false;lenderDocsEmailRender()">Cancel</button>
+      </div>
+      <small>Up to 3 addresses, separated by commas. Every new loan application on a DealBriz deal is sent here with the buyer’s and the seller’s verified documents attached.</small>
+      <p id="lenderDocsEmailError" class="auth-error hidden"></p>`;
+    setTimeout(() => document.getElementById('lenderDocsEmailInput')?.focus(), 30);
+    return;
+  }
+  box.innerHTML = email
+    ? `<span><i class="fas fa-envelope"></i> Loan applications and documents are emailed to <strong>${dlEsc(email)}</strong></span>
+       ${can ? `<button class="btn-sm" onclick="lenderState.editingEmail=true;lenderDocsEmailRender()">Change</button>` : ''}`
+    : `<span class="lender-docs-email-missing"><i class="fas fa-circle-exclamation"></i> No email set for loan applications. Add one so each new application and its documents reach your team.</span>
+       ${can ? `<button class="btn-sm btn-sm-blue" onclick="lenderState.editingEmail=true;lenderDocsEmailRender()">Add email</button>` : ''}`;
+}
+
+async function lenderDocsEmailSave() {
+  const input = document.getElementById('lenderDocsEmailInput');
+  const err = document.getElementById('lenderDocsEmailError');
+  if (!input) return;
+  try {
+    const res = await lenderApi.saveSettings(lenderState.fid, input.value.trim());
+    lenderState.docsEmail = (res.financer && res.financer.docs_email) || '';
+    const list = (lenderState.me && lenderState.me.financers) || [];
+    const picked = list.find(f => String(f.financer_id) === String(lenderState.fid));
+    if (picked) picked.docs_email = lenderState.docsEmail;
+    if (lenderState.me && lenderState.me.financer) lenderState.me.financer.docs_email = lenderState.docsEmail;
+    lenderState.editingEmail = false;
+    lenderDocsEmailRender();
+    showToast(res.queued ? `Saved. ${res.queued} waiting application${res.queued === 1 ? ' is' : 's are'} being emailed now.` : 'Saved.', 'success');
+  } catch (e) {
+    if (err) { err.textContent = e.message || 'Could not save.'; err.classList.remove('hidden'); }
+  }
+}
+
+/* The documents email to the lender, on a deal (staff and lender views). */
+function dlLenderEmailHtml(d, ctx) {
+  const m = d.lender_email;
+  const canResend = ctx === 'admin' && d.can_resend_lender_email;
+  if (!m && !canResend) return '';
+  let line;
+  if (!m) line = '<p class="deal-small">Not sent yet.</p>';
+  else if (m.status === 'sent') line = `<p class="deal-small"><i class="fas fa-circle-check deal-green"></i> Loan application and documents emailed to <strong>${dlEsc(m.to_email || '')}</strong> on ${dlEsc(dlWhen(m.sent_at))}${m.parts > 1 ? ` (in ${m.parts} emails)` : ''}.</p>`;
+  else if (m.status === 'no_email') line = `<p class="deal-small deal-red"><i class="fas fa-circle-exclamation"></i> Not sent: the lender has no email set for loan applications. It goes out as soon as one is added (Lender portal or Financers).</p>`;
+  else if (m.status === 'failed') line = `<p class="deal-small deal-red"><i class="fas fa-circle-exclamation"></i> Sending failed (${m.attempts} ${m.attempts === 1 ? 'try' : 'tries'}): ${dlEsc(m.last_error || '')}. It is retried automatically.</p>`;
+  else line = `<p class="deal-small"><i class="fas fa-hourglass-half"></i> Being sent to <strong>${dlEsc(m.to_email || '')}</strong>${m.last_error ? `. ${dlEsc(m.last_error)}` : ''}.</p>`;
+  return `<div class="admin-detail-section"><h4>Email to the lender</h4>${line}
+    ${canResend ? `<button class="btn-sm" onclick="dlResendLenderEmail('${dlEsc(d.id)}')"><i class="fas fa-paper-plane"></i> Send again</button>` : ''}</div>`;
+}
+
+async function dlResendLenderEmail(dealId) {
+  if (!(await dlAsk({ title: 'Send the documents email again?', body: '<p>The lender gets the loan application with the buyer’s and the seller’s documents again, at its current email address.</p>', ok: 'Send again' }))) return;
+  try {
+    await dealsApi.staffResendLenderEmail(dealId);
+    showToast('Sending.', 'success');
+  } catch (err) { showToast(err.message || 'Could not send.', 'error'); }
+  setTimeout(() => adminViewDeal(dealId), 1500);
 }
 
 function lenderSetTab(tab) {
@@ -2284,28 +2508,129 @@ function lenderSetTab(tab) {
 async function lenderRefresh() {
   const body = document.getElementById('lenderBody');
   if (!body) return;
+  if (!['deals', 'loans'].includes(lenderState.tab)) lenderState.tab = 'deals';
   document.querySelectorAll('#adminSection-lender .admin-filter-btn[data-ltab]').forEach(b =>
     b.classList.toggle('active', b.dataset.ltab === lenderState.tab));
   body.innerHTML = DL_LOADING;
   const fid = lenderState.fid;
-  if (lenderState.tab === 'listings') {
-    try { ldQueue.rows = (await listingDocsApi.queue(ldQueue.lenderState)).rows || []; }
+  if (lenderState.tab === 'loans') {
+    try { lenderState.loans = await lenderApi.loans(fid, lenderState.loanStatus); }
     catch (err) { body.innerHTML = `<div class="empty-state"><p>${dlEsc(err.message || 'Could not load.')}</p></div>`; return; }
-    body.innerHTML = ldQueueHtml('lender', ldQueue.lenderState);
+    body.innerHTML = lenderLoansHtml();
     return;
   }
+  // Deals: the same layout as Admin -> Deals.
+  if (lenderState.showListings) {
+    try { ldQueue.rows = (await listingDocsApi.queue(ldQueue.lenderState)).rows || []; }
+    catch (err) { body.innerHTML = lenderDealsSwitchHtml() + `<div class="empty-state"><p>${dlEsc(err.message || 'Could not load.')}</p></div>`; return; }
+    body.innerHTML = lenderDealsSwitchHtml() + ldQueueHtml('lender', ldQueue.lenderState);
+    return;
+  }
+  const filter = lenderState.dealFilter;
   try {
-    if (lenderState.tab === 'loans') {
-      lenderState.loans = await lenderApi.loans(fid, lenderState.loanStatus);
-    } else {
-      lenderState.deals = await lenderApi.deals(fid, lenderState.tab === 'docs' ? 'docs_pending' : '');
-    }
+    const [deals, lq] = await Promise.all([
+      lenderApi.deals(fid, filter),
+      // "Documents to check" also lists the sellers' listing documents.
+      filter === 'docs_pending' ? listingDocsApi.queue('checking').then(r => r.rows || []).catch(() => []) : Promise.resolve([]),
+    ]);
+    lenderState.deals = deals || [];
+    ldQueue.rows = lq;
   } catch (err) {
     body.innerHTML = `<div class="empty-state"><p>${dlEsc(err.message || 'Could not load.')}</p></div>`;
     return;
   }
-  if (lenderState.tab === 'loans') body.innerHTML = lenderLoansHtml();
-  else body.innerHTML = lenderDealsHtml();
+  body.innerHTML = lenderDealsShellHtml();
+  renderLenderDealsTable();
+}
+
+const LENDER_DEAL_FILTERS = [
+  ['docs_pending', 'Documents to check'],
+  ['', 'In progress'],
+  ['locked', 'Locked'],
+  ['loan_in_progress', 'Loan in progress'],
+  ['ready_to_pay', 'Ready to pay'],
+  ['paid', 'Paid'],
+  ['completed', 'Completed'],
+  ['released', 'Released'],
+];
+
+function lenderDealsSwitchHtml() {
+  return `<div class="admin-deals-switch">
+    <button id="lenderListingDocsBtn" class="btn-sm ${lenderState.showListings ? 'active' : ''}" onclick="lenderToggleListings()">
+      ${lenderState.showListings ? '<i class="fas fa-arrow-left"></i> Back to deals' : '<i class="fas fa-file-shield"></i> Listing documents'}</button>
+  </div>`;
+}
+
+function lenderToggleListings() {
+  lenderState.showListings = !lenderState.showListings;
+  lenderRefresh();
+}
+
+function lenderDealsSetFilter(status) {
+  lenderState.dealFilter = status;
+  adminResetPage('lenderdeals');
+  lenderRefresh();
+}
+
+function lenderDealsShellHtml() {
+  const f = lenderState.dealFilter;
+  const lrows = f === 'docs_pending' ? (ldQueue.rows || []) : [];
+  return `
+    ${lenderDealsSwitchHtml()}
+    <div class="admin-filters">
+      ${LENDER_DEAL_FILTERS.map(([v, l]) => `<button class="admin-filter-btn ${v === f ? 'active' : ''}" onclick="lenderDealsSetFilter('${v}')">${l}</button>`).join('')}
+    </div>
+    ${lrows.length ? `
+      <h4 class="lender-group-head"><i class="fas fa-car"></i> Vehicle listings <small>the seller’s documents, checked once for every deal on the listing</small></h4>
+      ${ldQueueTableHtml(lrows, 'lender')}
+      <h4 class="lender-group-head"><i class="fas fa-handshake"></i> Deals waiting for documents <small>the buyer’s PAN card and Aadhaar</small></h4>` : ''}
+    <div class="admin-search-bar">
+      <i class="fas fa-search"></i>
+      <input type="text" id="lenderDealSearch" placeholder="Search listing, buyer, seller or UTR..." oninput="adminResetPage('lenderdeals'); renderLenderDealsTable()" autocomplete="off">
+      <span id="lenderDealCount" class="admin-search-count"></span>
+    </div>
+    <div id="adminPager-lenderdeals" class="admin-pager"></div>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead><tr><th>Listing</th><th>Buyer</th><th>Seller</th><th>Price</th><th>Loan</th><th>Status</th><th>Until</th><th>Action</th></tr></thead>
+        <tbody id="lenderDealsBody"></tbody>
+      </table>
+      <div id="lenderNoDeals" class="empty-state hidden"><i class="fas fa-handshake"></i><h3>${f === 'docs_pending' ? (lrows.length ? 'No deals waiting for documents' : 'No documents to check') : 'No deals here'}</h3></div>
+    </div>`;
+}
+
+ADMIN_TABLE_RERENDER.lenderdeals = renderLenderDealsTable;
+
+function renderLenderDealsTable() {
+  const tbody = document.getElementById('lenderDealsBody');
+  const none = document.getElementById('lenderNoDeals');
+  if (!tbody) return;
+  const all = lenderState.deals || [];
+  const q = document.getElementById('lenderDealSearch')?.value || '';
+  const filtered = all.filter(d => adminMatches(q, d.product && d.product.title, d.buyer && d.buyer.name,
+    d.seller && d.seller.name, d.buyer && d.buyer.phone, d.seller && d.seller.phone, d.utr));
+  const rows = adminPaginate('lenderdeals', filtered);
+  const count = document.getElementById('lenderDealCount');
+  if (count) count.textContent = `${filtered.length} of ${all.length}`;
+  if (!filtered.length) { tbody.innerHTML = ''; none.classList.remove('hidden'); return; }
+  none.classList.add('hidden');
+  tbody.innerHTML = rows.map(d => {
+    const loan = d.loan;
+    const next = lenderDealNext(d);
+    const until = d.status === 'awaiting_seller' ? d.confirm_by : d.reserved_until;
+    const check = d.status === 'docs_pending' && d.docs_to_check;
+    return `
+    <tr>
+      <td><div class="admin-product-cell"><img src="${dlEsc(toAbsoluteUrl(d.product?.image_url || ''))}" alt="" onerror="this.style.display='none'"><span>${dlEsc(d.product?.title || '—')}</span></div>${loanTypeTag(d.loan_type)}</td>
+      <td>${dlEsc(d.buyer?.name || '—')}<br><small>${dlEsc(d.buyer?.phone || '')}</small></td>
+      <td>${dlEsc(d.seller?.name || '—')}<br><small>${dlEsc(d.seller?.phone || '')}</small></td>
+      <td>${dlRupees(d.agreed_price)}</td>
+      <td>${loan ? `${dlEsc(LOAN_STATUS_LABEL[loan.status] || loan.status)}<br><small>${dlEsc(loan.loan_amount != null ? dlRupees(loan.loan_amount) : '')}</small>` : '<small>Not applied</small>'}</td>
+      <td>${dealPill(d.status)}${d.status === 'docs_pending' && d.docs_needed ? `<br><small>${d.docs_approved || 0} of ${d.docs_needed} verified</small>` : ''}${next ? `<br><small class="deal-attn">${dlEsc(next)}</small>` : ''}</td>
+      <td><small>${dlEsc(dlWhen(until))}</small></td>
+      <td><button class="btn-sm btn-sm-blue" onclick="lenderViewDeal('${dlEsc(d.id)}')">${check ? 'Check documents' : 'Details'}</button></td>
+    </tr>`;
+  }).join('');
 }
 
 function lenderLoansHtml() {
@@ -2336,34 +2661,14 @@ function lenderLoansHtml() {
 }
 
 function lenderDealNext(d) {
-  if (d.status === 'docs_pending') return d.docs_to_check ? `Check ${d.docs_to_check} document${d.docs_to_check === 1 ? '' : 's'}` : 'Waiting for documents';
+  if (d.status === 'docs_pending') {
+    if (d.docs_to_check) return `Check ${d.docs_to_check} document${d.docs_to_check === 1 ? '' : 's'}`;
+    return 'Waiting for documents';
+  }
   if (d.status === 'loan_in_progress') return 'Work the loan, then Ready to pay';
   if (d.status === 'ready_to_pay' && d.buyer_ready_at && d.seller_ready_at) return 'Pay the seller, then mark Paid';
   if (d.status === 'ready_to_pay') return 'Handover meeting';
   return '';
-}
-
-function lenderDealsHtml() {
-  const rows = lenderState.deals;
-  if (!rows.length) {
-    return lenderState.tab === 'docs'
-      ? `<div class="empty-state"><i class="fas fa-file-shield"></i><h3>No documents to check</h3><p>Deals assigned to this lender that are waiting for documents show up here.</p></div>`
-      : `<div class="empty-state"><i class="fas fa-handshake"></i><h3>No live deals</h3></div>`;
-  }
-  return `
-    <div class="admin-table-wrap"><table class="admin-table">
-      <thead><tr><th>Listing</th><th>Buyer</th><th>Seller</th><th>Price</th><th>Status</th><th>Next</th><th></th></tr></thead>
-      <tbody>${rows.map(d => `
-        <tr>
-          <td>${dlEsc(d.product?.title || '—')}<br>${loanTypeTag(d.loan_type)}</td>
-          <td>${dlEsc(d.buyer?.name || '—')}<br><small>${dlEsc(d.buyer?.phone || '')}</small></td>
-          <td>${dlEsc(d.seller?.name || '—')}<br><small>${dlEsc(d.seller?.phone || '')}</small></td>
-          <td>${dlRupees(d.agreed_price)}</td>
-          <td>${dealPill(d.status)}${d.status === 'docs_pending' ? `<br><small>${d.docs_needed} needed</small>` : ''}</td>
-          <td><small class="deal-attn">${dlEsc(lenderDealNext(d))}</small></td>
-          <td><button class="btn-sm btn-sm-blue" onclick="lenderViewDeal('${dlEsc(d.id)}')">Open</button></td>
-        </tr>`).join('')}</tbody>
-    </table></div>`;
 }
 
 function lenderDealActionsHtml(d, app) {
@@ -2387,25 +2692,45 @@ async function lenderViewDeal(dealId) {
   let d;
   try { d = await dealsApi.get(dealId); }
   catch (err) { content.innerHTML = `<div style="text-align:center;padding:60px 20px">${dlEsc(err.message || 'Could not load this deal.')}</div>`; return; }
+  // The list row carries the phone numbers; the deal itself only names people.
+  const row = (lenderState.deals || []).find(x => x.id === dealId) || {};
   const r = (label, value) => `<div class="admin-detail-row"><span>${label}</span><strong>${value}</strong></div>`;
   const loan = d.loan;
-  const actions = lenderDealActionsHtml(d, loan);
+  let action = lenderDealActionsHtml(d, loan);
+  if (!action && d.status === 'docs_pending') {
+    action = d.can_review_docs
+      ? `<p class="deal-small">Check the documents below: the seller's (on the listing) and the buyer's. When every one is verified the deal locks and the buyer can apply for the loan.</p>`
+      : `<p class="deal-small">Waiting for the documents to be uploaded.</p>`;
+  } else if (!action && d.status === 'locked') {
+    action = `<p class="deal-small">The deal is locked. Waiting for the buyer to apply for the loan.</p>`;
+  }
+  // Same layout as Admin -> Deals -> Details.
   dlOpenAdminModal(`
     <div class="pm-body" style="padding-top:20px">
-      <div class="staff-mod-bar"><span><i class="fas fa-handshake"></i> Deal</span>${dealPill(d.status)}</div>
+      <div class="staff-mod-bar"><span><i class="fas fa-handshake"></i> DealLock deal</span>${dealPill(d.status)}</div>
       <h2 class="pm-title" style="margin-bottom:4px">${dlEsc(d.product?.title || 'Listing')}</h2>
-      <div class="pm-meta">${loanTypeTag(d.loan_type)} · Agreed ${dlRupees(d.agreed_price)}</div>
-      ${actions ? `<div class="admin-detail-section"><h4>Next step</h4>${actions}</div>` : ''}
+      <div class="pm-meta">Deal ID: ${dlEsc(d.id)} ${loanTypeTag(d.loan_type)}</div>
+      ${action ? `<div class="admin-detail-section"><h4>Next step</h4>${action}</div>` : ''}
       ${(d.documents || []).length || d.status === 'docs_pending' ? `<div class="admin-detail-section"><h4>Documents</h4>${dlDocsReviewHtml(d, 'lender')}</div>` : ''}
+      ${dlLenderEmailHtml(d, 'lender')}
       <div class="admin-detail-section"><h4>Deal</h4>
-        ${d.buyer ? r('Buyer', dlEsc(d.buyer.name)) : ''}
-        ${d.seller ? r('Seller', dlEsc(d.seller.name)) : ''}
-        ${r('Reserved until', dlEsc(fmtDateTime(d.reserved_until)))}
+        ${r('Agreed price', dlRupees(d.agreed_price))}
+        ${r('Offer accepted', dlEsc(fmtDateTime(d.locked_at)))}
+        ${d.seller_confirmed_at ? r('Seller confirmed', dlEsc(fmtDateTime(d.seller_confirmed_at))) : ''}
+        ${d.docs_approved_at ? r('Documents verified', dlEsc(fmtDateTime(d.docs_approved_at))) : ''}
+        ${d.status === 'awaiting_seller' ? r('Seller must confirm by', dlEsc(fmtDateTime(d.confirm_by))) : r('Reserved until', dlEsc(fmtDateTime(d.reserved_until)))}
+        ${d.lender ? r('Lender', dlEsc(d.lender)) : ''}
         ${d.utr ? r('UTR', dlEsc(d.utr)) : ''}
+      </div>
+      <div class="admin-detail-section"><h4>People</h4>
+        ${r('Buyer', `${dlEsc((row.buyer || d.buyer || {}).name || '—')}${row.buyer && row.buyer.phone ? `<br><small>${dlEsc(row.buyer.phone)}</small>` : ''}`)}
+        ${r('Seller', `${dlEsc((row.seller || d.seller || {}).name || '—')}${row.seller && row.seller.phone ? `<br><small>${dlEsc(row.seller.phone)}</small>` : ''}`)}
       </div>
       ${loan ? `<div class="admin-detail-section"><h4>Loan</h4>
         ${r('Status', dlEsc(LOAN_STATUS_LABEL[loan.status] || loan.status))}
         ${loan.loan_amount != null ? r('Loan amount', dlRupees(loan.loan_amount)) : ''}
+        ${loan.down_payment != null ? r('Down payment (planned)', dlRupees(loan.down_payment)) : ''}
+        ${loan.nbfc_application_reference ? r('Your reference', dlEsc(loan.nbfc_application_reference)) : ''}
         ${loan.application_id ? `<button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="lenderViewLoan('${dlEsc(loan.application_id)}')">Open loan application</button>` : ''}
       </div>` : ''}
       <div class="admin-detail-section">${dealTimelineHtml(d, { staff: true }).replace('class="deal-section"', 'class="deal-section deal-section-flat"')}</div>
@@ -2517,9 +2842,8 @@ async function lenderPaid(dealId) {
 /* =====================================================
    LISTING DOCUMENTS (phase 5)
 
-   A car or bike listing carries the seller's documents: RC, insurance,
-   PUC, PAN, masked Aadhaar, bank proof, plus the loan NOC when the vehicle
-   ever had a loan. They are chosen in the Sell form and upload right after
+   A car or bike listing carries the seller's documents: the RC and the
+   insurance policy. They are chosen in the Sell form and upload right after
    the ad is saved; for listings posted before this, the seller adds them
    from My Listings, Edit listing. A superadmin or a lender that funds
    vehicle loans checks them once, for every deal on the listing.
@@ -2620,9 +2944,16 @@ function dlUploadErrorText(err) {
 }
 
 /* ---------- Sell form ---------- */
-// create: { mode, hadLoan, files: {type: File} }
+// create: { mode, files: {type: File} }
 // edit:   { mode, pid, cat, view, busy }
-let sellDocsState = { mode: 'create', hadLoan: null, files: {} };
+let sellDocsState = { mode: 'create', files: {} };
+
+/* "Offer EMI option" (under the categories) is ticked and visible here. */
+function sellEmiOn() {
+  const cb = document.getElementById('sellEmiEligible');
+  if (!cb || !cb.checked) return false;
+  return typeof emiVisibleHere !== 'function' || emiVisibleHere();
+}
 
 function sellDocsIsVehicle(cat) {
   return ((dealRulesCache || {}).vehicle_categories || ['cars', 'bikes']).includes(cat);
@@ -2632,7 +2963,7 @@ function sellDocsIsVehicle(cat) {
 function sellDocsNeeded(cat) {
   const ld = (dealRulesCache || {}).listing_docs || { vehicle: [], vehicle_loan_extra: [], other: [] };
   if (sellDocsIsVehicle(cat)) {
-    return [...(ld.vehicle || []), ...(sellDocsState.hadLoan === true ? (ld.vehicle_loan_extra || []) : [])];
+    return [...(ld.vehicle || [])];
   }
   return [...(ld.other || [])];
 }
@@ -2649,25 +2980,13 @@ function sellDocsSection(show, title) {
 }
 
 function sellDocsReset() {
-  sellDocsState = { mode: 'create', hadLoan: null, files: {} };
+  sellDocsState = { mode: 'create', files: {} };
   sellDocsSection(false);
   const body = document.getElementById('sellDocsBody');
   if (body) body.innerHTML = '';
 }
 
-function sellDocsQuestionHtml(v, handler) {
-  return `
-    <div class="deal-doc-question ${v === null || v === undefined ? 'is-open' : ''}">
-      <div><strong>Has this vehicle ever had a loan on it?</strong>
-        <span>Look for a bank’s name (“hypothecated to”) on the RC. If yes, you also need the loan NOC.</span></div>
-      <div class="deal-doc-yesno">
-        <button type="button" class="deal-btn ${v === true ? 'deal-btn-primary' : ''}" onclick="${handler}(true)">Yes</button>
-        <button type="button" class="deal-btn ${v === false ? 'deal-btn-primary' : ''}" onclick="${handler}(false)">No</button>
-      </div>
-    </div>`;
-}
-
-const SELL_DOCS_PRIVACY = () => `<p class="deal-small"><i class="fas fa-lock"></i> Private: never shown on the ad. Only DealBriz’s superadmin and the lender can open them. A photo or a PDF, up to ${(dealRulesCache || {}).doc_max_mb || 8} MB each (large photos are shrunk for you). Aadhaar only masked (first 8 digits hidden).</p>`;
+const SELL_DOCS_PRIVACY = () => `<p class="deal-small"><i class="fas fa-lock"></i> Private: never shown on the ad. Only DealBriz’s superadmin and the lender can open them. A photo or a PDF, up to ${(dealRulesCache || {}).doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
 
 async function sellDocsRender() {
   await dlRules();
@@ -2675,14 +2994,15 @@ async function sellDocsRender() {
   if (sellDocsState.mode === 'edit') {
     // Category changed while editing: the documents follow once it's saved.
     if (cat === sellDocsState.cat) { sellDocsRenderEdit(); return; }
-    if (!sellDocsIsVehicle(cat)) { sellDocsSection(false); return; }
+    if (!sellDocsIsVehicle(cat) || !sellEmiOn()) { sellDocsSection(false); return; }
     const body = sellDocsSection(true, 'Vehicle documents');
     if (body) body.innerHTML = `<p class="deal-small"><i class="fas fa-circle-info"></i> Save your changes first. The documents for this category show here after that.</p>`;
     return;
   }
   const vehicle = sellDocsIsVehicle(cat);
   const need = cat ? sellDocsNeeded(cat) : [];
-  if (!cat || (!vehicle && !need.length)) { sellDocsSection(false); return; }
+  // Asked only when the seller offers EMI.
+  if (!cat || (!vehicle && !need.length) || !sellEmiOn()) { sellDocsSection(false); return; }
   const body = sellDocsSection(true, vehicle ? 'Vehicle documents' : 'Your documents');
   if (!body) return;
   const accept = dlDocAccept();
@@ -2709,19 +3029,9 @@ async function sellDocsRender() {
       </li>`;
   }).join('');
   body.innerHTML = `
-    <p class="sell-docs-intro">To sell a ${cat === 'bikes' ? 'bike' : 'vehicle'} with a DealBriz deal and EMI, add its documents. They upload when you post the ad, and DealBriz or the lender checks them once. A deal can only lock after they’re verified.</p>
-    ${vehicle ? sellDocsQuestionHtml(sellDocsState.hadLoan, 'sellDocsSetLoan') : ''}
+    <p class="sell-docs-intro">You’re offering EMI, so add the ${cat === 'bikes' ? 'bike' : 'vehicle'}’s RC and insurance policy. They upload when you post the ad and are checked once by DealBriz or the lender. A buyer’s deal can only lock after they’re verified.</p>
     <ul class="deal-doc-list">${rows}</ul>
     ${SELL_DOCS_PRIVACY()}`;
-}
-
-function sellDocsSetLoan(had) {
-  sellDocsState.hadLoan = had;
-  if (!had) {
-    const extra = ((dealRulesCache || {}).listing_docs || {}).vehicle_loan_extra || [];
-    extra.forEach(t => { delete sellDocsState.files[t]; });
-  }
-  sellDocsRender();
 }
 
 async function sellDocsPick(type, input) {
@@ -2748,10 +3058,7 @@ function sellDocsProblem() {
   if (!cat || !dealRulesCache) return null;
   const vehicle = sellDocsIsVehicle(cat);
   const need = sellDocsNeeded(cat);
-  if (!vehicle && !need.length) return null;
-  if (vehicle && sellDocsState.hadLoan === null) {
-    return 'In Vehicle documents, say whether this vehicle ever had a loan on it.';
-  }
+  if ((!vehicle && !need.length) || !sellEmiOn()) return null;
   const missing = need.filter(t => !sellDocsState.files[t]);
   if (missing.length) {
     return `Add ${missing.length === 1 ? 'this document' : 'these documents'}: ${missing.map(dlDocLabel).join(', ')}.`;
@@ -2759,11 +3066,9 @@ function sellDocsProblem() {
   return null;
 }
 
-/* The loan answer goes with the new ad (vehicle_had_loan). */
 function sellDocsLoanAnswer() {
-  if (sellDocsState.mode !== 'create') return null;
-  const cat = typeof selectedSellCat !== 'undefined' ? selectedSellCat : '';
-  return sellDocsIsVehicle(cat) ? sellDocsState.hadLoan : null;
+  // The "had a loan" question was removed (22 Oct 2026): nothing to send.
+  return null;
 }
 
 /* Right after the ad is saved. A failed upload doesn't undo the post: the
@@ -2771,7 +3076,7 @@ function sellDocsLoanAnswer() {
 async function sellDocsUploadAfterCreate(pid) {
   if (sellDocsState.mode !== 'create') return;
   const cat = typeof selectedSellCat !== 'undefined' ? selectedSellCat : '';
-  const need = cat ? sellDocsNeeded(cat) : [];
+  const need = cat && sellEmiOn() ? sellDocsNeeded(cat) : [];
   const files = need.map(t => [t, sellDocsState.files[t]]).filter(([, f]) => f);
   if (!files.length) return;
   const failed = [];
@@ -2801,6 +3106,8 @@ async function sellDocsLoadForEdit(pid, viaAdmin = false) {
 function sellDocsRenderEdit() {
   const v = sellDocsState.view;
   if (!v || !v.needs_docs) { sellDocsSection(false); return; }
+  // Shown when the listing offers EMI, or when a deal on it needs them.
+  if (!sellEmiOn() && !v.deal_status) { sellDocsSection(false); return; }
   const vehicle = sellDocsIsVehicle(v.category);
   const body = sellDocsSection(true, vehicle ? 'Vehicle documents' : 'Your documents');
   if (!body) return;
@@ -2809,7 +3116,7 @@ function sellDocsRenderEdit() {
   const accept = dlDocAccept();
   const head = {
     needed: `<div class="ld-summary ld-summary-needed"><i class="fas fa-circle-exclamation"></i> <strong>Documents needed</strong>
-               <span>${s.question_pending ? 'Answer the loan question, then upload each document.' : `${s.uploaded || 0} of ${s.needed || 0} uploaded${s.rejected ? `, ${s.rejected} to upload again` : ''}. A deal on this ${vehicle ? 'vehicle' : 'listing'} can only lock once they’re all verified.`}</span></div>`,
+               <span>${s.uploaded || 0} of ${s.needed || 0} uploaded${s.rejected ? `, ${s.rejected} to upload again` : ''}. A deal on this ${vehicle ? 'vehicle' : 'listing'} can only lock once they’re all verified.</span></div>`,
     checking: `<div class="ld-summary ld-summary-checking"><i class="fas fa-hourglass-half"></i> <strong>Documents being checked</strong>
                <span>${s.approved || 0} of ${s.needed || 0} verified. DealBriz or the lender checks them soon.</span></div>`,
     verified: `<div class="ld-summary ld-summary-verified"><i class="fas fa-circle-check"></i> <strong>Documents verified</strong>
@@ -2844,20 +3151,9 @@ function sellDocsRenderEdit() {
   body.innerHTML = `
     ${head}
     ${v.frozen ? '<p class="deal-small"><i class="fas fa-lock"></i> A deal on this listing is locked, so its documents can’t be changed now.</p>' : ''}
-    ${vehicle && canUpload ? sellDocsQuestionHtml(v.vehicle_had_loan, 'sellDocsSetLoanEdit') : ''}
     <ul class="deal-doc-list">${rows}</ul>
     <p class="deal-small"><i class="fas fa-circle-info"></i> Each file saves as soon as you choose it. You don’t need to press Save Changes for documents.</p>
     ${SELL_DOCS_PRIVACY()}`;
-}
-
-async function sellDocsSetLoanEdit(had) {
-  const st = sellDocsState;
-  if (st.mode !== 'edit' || !st.view) return;
-  if (st.view.vehicle_had_loan === had) return;
-  try {
-    st.view = await listingDocsApi.loanAnswer(st.pid, had);
-    sellDocsRenderEdit();
-  } catch (err) { showToast(err.message || 'Could not save that.', 'error'); }
 }
 
 async function sellDocsUploadEdit(type, input) {
@@ -2956,13 +3252,17 @@ function ldQueueHtml(ctx, state) {
   if (!rows.length) {
     return filters + `<div class="empty-state"><i class="fas fa-file-shield"></i><h3>Nothing here</h3><p>${state === 'checking' ? 'No listing documents are waiting for a check.' : 'No listings in this list.'}</p></div>`;
   }
+  return filters + ldQueueTableHtml(rows, ctx);
+}
+
+function ldQueueTableHtml(rows, ctx) {
   const stateCell = (r) => {
     const s = r.summary || {};
     if (s.state === 'verified') return `<span class="ld-badge ld-badge-verified"><i class="fas fa-circle-check"></i> Verified</span>`;
     if (s.state === 'checking') return `<span class="ld-badge ld-badge-checking">Waiting for a check</span><br><small>${s.to_check} to check</small>`;
     return `<span class="ld-badge ld-badge-needed">Waiting for the seller</span><br><small>${s.uploaded} of ${s.needed} uploaded${s.to_check ? ` · ${s.to_check} to check` : ''}</small>`;
   };
-  return filters + `
+  return `
     <div class="admin-table-wrap"><table class="admin-table">
       <thead><tr><th>Listing</th><th>Seller</th><th>Documents</th><th>Deal</th><th>Waiting since</th><th></th></tr></thead>
       <tbody>${rows.map(r => `
@@ -2993,10 +3293,6 @@ function ldRenderReview(v, ctx) {
   const row = (ldQueue.rows || []).find(r => r.product && r.product.id === v.product_id);
   const s = v.summary || {};
   const stateWord = { verified: 'Verified', checking: 'Being checked', needed: 'Documents needed', none: 'Not needed' }[s.state] || s.state;
-  const loanLine = v.vehicle_had_loan === true
-    ? 'Seller says the vehicle had a loan: check the NOC and that the bank is removed from the RC.'
-    : v.vehicle_had_loan === false ? 'Seller says the vehicle never had a loan: the RC should show no bank.'
-    : 'The seller hasn’t said yet whether the vehicle had a loan.';
   const docs = v.documents || [];
   const rows = docs.map(item => {
     const doc = item.document;
@@ -3026,10 +3322,9 @@ function ldRenderReview(v, ctx) {
       <h2 class="pm-title" style="margin-bottom:4px">${dlEsc(v.title || 'Listing')}</h2>
       <div class="pm-meta">${row && row.seller ? `Seller: ${dlEsc(row.seller.name || '—')}${row.seller.phone ? ` · ${dlEsc(row.seller.phone)}` : ''} · ` : ''}${s.approved || 0} of ${s.needed || 0} verified${v.deal_status ? ` · Deal: ${dealPill(v.deal_status)}` : ''}</div>
       <div class="admin-detail-section">
-        <p class="deal-small">${dlEsc(loanLine)}</p>
         ${v.frozen ? '<p class="deal-small"><i class="fas fa-lock"></i> A deal on this listing is locked: these documents can’t change now.</p>' : ''}
         ${docs.length ? `<ul class="deal-doc-list deal-doc-review">${rows}</ul>` : '<p class="deal-small">Nothing uploaded yet.</p>'}
-        ${v.can_review ? '<p class="deal-small">Check each file: the RC is for this vehicle, insurance and PUC are valid, the PAN name matches the RC owner and the bank proof, and the Aadhaar is masked. Your decision counts for every deal on this listing.</p>'
+        ${v.can_review ? '<p class="deal-small">Check each file: the RC is for this vehicle and in the seller’s name, and the insurance policy is valid for this vehicle. Your decision counts for every deal on this listing.</p>'
           : '<p class="deal-small"><i class="fas fa-lock"></i> Only a superadmin or a lender that funds this kind of loan can open and check these files.</p>'}
       </div>
     </div>`);
@@ -3051,7 +3346,7 @@ async function ldReview(pid, docId, decision, ctx) {
     ldOpenReview(pid, ctx);
   }
   // Keep the list behind the modal current.
-  if (ctx === 'lender') { if (lenderState.tab === 'listings') lenderRefresh(); }
+  if (ctx === 'lender') { if (lenderState.tab === 'deals') lenderRefresh(); }
   else if (ldQueue.open) ldShowQueue(ldQueue.adminState);
 }
 

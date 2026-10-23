@@ -606,23 +606,9 @@ body.show-footer .site-footer { display: block; }
 /* Below the split layout the map drops under the copy and gets its card
    borders back, so the hero still reads top-to-bottom on phones/tablets. */
 @media (max-width: 1079px) {
-  #homePage .hb-hero { padding: 36px 0 52px; }
   /* The desktop rule caps the copy at 46vw to leave room for the map; on
      a phone that is ~180px, which forced every line into a narrow column. */
   #homePage .hb-hero-copy { max-width: 100%; }
-  #homePage .hb-hero h1 { margin-top: 20px; }
-  #homePage .hb-lede { margin-top: 16px; font-size: 16.5px; line-height: 1.55; max-width: 46ch; }
-  #homePage .hb-hero-btns { margin-top: 22px; gap: 10px; flex-wrap: nowrap; }
-  #homePage .hb-btn { flex: 1 1 0; padding: 14px 12px; font-size: 14.5px; white-space: nowrap; }
-  #homePage .hb-hero-search { margin-top: 20px; }
-  #homePage .hb-hero-loc { height: 54px; padding: 0 14px; font-size: 14px; }
-  #homePage .hb-hero-search input { height: 54px; padding: 0 14px; font-size: 14px; }
-  #homePage .hb-hero-search button.hb-go { width: 46px; height: 40px; margin-right: 6px; }
-  /* Three compact stats on one row instead of wrapping with empty gaps. */
-  #homePage .hb-stats { margin-top: 22px; gap: 8px; flex-wrap: nowrap; justify-content: space-between; }
-  #homePage .hb-stat strong { font-size: 21px; }
-  #homePage .hb-stat span { font-size: 11.5px; }
-  #homePage .hb-stat-div { display: none; }
 
   #homePage .hb-hero-map {
     position: relative; inset: auto;
@@ -655,11 +641,6 @@ body.show-footer .site-footer { display: block; }
 }
 
 @media (max-width: 560px) {
-  #homePage .hb-hero { padding: 28px 0 44px; }
-  #homePage .hb-badge { padding: 8px 14px; font-size: 10.5px; letter-spacing: 0.04em; }
-  #homePage .hb-hero h1 { font-size: clamp(38px, 12vw, 54px); }
-  #homePage .hb-lede { font-size: 15.5px; }
-  #homePage .hb-btn { padding: 13px 10px; font-size: 13.5px; }
   #homePage .hb-hero-map { height: 340px; margin: 24px 16px 0; border-radius: 18px; }
   #homePage .hb-map-status { gap: 8px; }
 }
