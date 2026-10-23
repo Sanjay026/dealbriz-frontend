@@ -547,6 +547,15 @@
 #homePage .hb-trust-card p { color: var(--hb-muted); font-size: 14.5px; line-height: 1.6; margin: 0; }
 
 /* ------------------------------------------------------ HOW IT WORKS */
+/* Buyer explainer is one designed image, edge to edge. The image carries the
+   heading and the step rail, so the markup only keeps a screen-reader heading.
+   #howSellingWorks below still uses the .hb-step cards. */
+#homePage .hiw { background: #fff; padding: 0; }
+#homePage .hiw-img { display: block; width: 100%; height: auto; }
+#homePage .sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 #homePage .hb-steps { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
 #homePage .hb-step {
   background: #fff; border: 1px solid var(--hb-line); border-radius: 18px; padding: 30px 24px;
@@ -557,7 +566,12 @@
 
 /* --------------------------------------------------------- SELL BAND */
 #homePage .hb-sell {
-  background: linear-gradient(140deg, #0B1A33 0%, #10233F 55%, #143059 100%);
+  /* Top strip matches the navy baked into how-it-works.webp (#0E1D3A) so the
+     curved white edge above it runs into the band with no visible seam; the
+     diagonal gradient takes over a few pixels lower. */
+  background:
+    linear-gradient(180deg, #0E1D3A 0, #0E1D3A 2px, rgba(14,29,58,0) 64px),
+    linear-gradient(140deg, #0E1D3A 0%, #10233F 55%, #143059 100%);
   color: #fff; padding: 84px 0;
 }
 #homePage .hb-sell-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 44px; align-items: center; }
