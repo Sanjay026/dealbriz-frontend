@@ -1116,20 +1116,26 @@ function dealInfo(p) {
   return { saving, pct, isGoodDeal: pct >= 0.05 };
 }
 
-/* Scrolls to the seller-side explainer. Same shape as goHowItWorks(): the
-   section lives on the home page, so a visitor on Buy or Sell has to be
-   returned home first, and the timeout gives that render a frame before we
-   measure the scroll target. */
+/* Scrolls to the seller-side explainer. The selling steps now live in the
+   unified Buying/Selling switch on #howItWorks, so switch to Selling and
+   scroll there. Same pattern as goHowItWorks(): return home first if needed. */
 function goHowSellingWorks() {
   showPage('home');
   setTimeout(() => {
-    document.getElementById('howSellingWorks')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (window.dbzHow && typeof window.dbzHow.setFlow === 'function') {
+      window.dbzHow.setFlow('sell', false);
+    }
+    const el = document.getElementById('howItWorks');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 80);
 }
 
 function goHowItWorks() {
   showPage('home');
   setTimeout(() => {
+    if (window.dbzHow && typeof window.dbzHow.setFlow === 'function') {
+      window.dbzHow.setFlow('buy', false);
+    }
     const el = document.getElementById('howItWorks');
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 80);

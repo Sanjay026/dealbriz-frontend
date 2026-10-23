@@ -24,7 +24,8 @@
 <link rel="stylesheet" href="/style.css?v=20261022a">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-<link rel="stylesheet" href="/home.css?v=20261023b">
+<link rel="stylesheet" href="/home.css?v=20261023d">
+<link rel="stylesheet" href="/how-it-works.css?v=20261023d">
 <link rel="stylesheet" href="/deals.css?v=20261022b">
 
 <!-- Google tag (gtag.js). send_page_view is off because the app swaps pages
@@ -578,11 +579,24 @@
   </section>
 
   <!-- HOW IT WORKS -->
-  <section class="hiw" id="howItWorks">
-    <h2 class="sr-only">How DealBriz Works</h2>
-    <img class="hiw-img" src="how-it-works.webp" width="2560" height="846"
-         alt="How DealBriz Works: 01 Browse — find second-hand listings near you with smart search; 02 Connect — chat directly with the seller in secure in-app messaging; 03 Choose — buy directly or choose EMI financing; 04 Complete — finish your transaction safely."
-         loading="lazy" decoding="async">
+  <section class="hb-section hb-section--how" id="howItWorks">
+    <div class="hb-wrap">
+      <div class="dbz-how" data-dbz-how>
+        <div class="hb-head-center hb-reveal">
+          <h2>How DealBriz Works</h2>
+          <p data-how-sub aria-live="polite">Buying or selling locally has never been simpler.</p>
+          <div class="dbz-how__toggle" role="group" aria-label="Show steps for">
+            <button type="button" data-flow="buy" aria-pressed="true">Buying</button>
+            <button type="button" data-flow="sell" aria-pressed="false">Selling</button>
+          </div>
+        </div>
+        <div class="dbz-how__track">
+          <svg class="dbz-how__road" aria-hidden="true" focusable="false"></svg>
+          <ol class="dbz-how__steps"></ol>
+          <div class="dbz-how__finish" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- SELL BAND -->
@@ -621,41 +635,11 @@
     </div>
   </section>
 
-  <!-- HOW SELLING WORKS =====================================================
-       The existing #howItWorks section is written for buyers (Browse ->
-       Connect -> Choose -> Complete), so "Learn How Selling Works" needed a
-       seller-side answer of its own rather than reusing it. Sits directly
-       under the sell band the button lives in, so the scroll is short. -->
-  <section class="hb-section" id="howSellingWorks">
+  <!-- SELLING NOTES =========================================================
+       The selling steps now live in the Buying/Selling switch above, so this
+       section keeps only the fine print under it. -->
+  <section class="hb-section hb-section--notes" id="howSellingWorks">
     <div class="hb-wrap">
-      <div class="hb-head-center hb-reveal">
-        <h2>How Selling Works</h2>
-        <p>From photo to sold, and what it costs you: nothing.</p>
-      </div>
-
-      <div class="hb-steps hb-reveal">
-        <div class="hb-step">
-          <div class="hb-step-n">01</div>
-          <h3>List it</h3>
-          <p>Pick a category and the form asks only what matters for it &mdash; year and kilometres for a car, storage and RAM for a phone. Add up to 5 photos, set your price, mark it negotiable if you like.</p>
-        </div>
-        <div class="hb-step">
-          <div class="hb-step-n">02</div>
-          <h3>Buyers nearby find you</h3>
-          <p>Your pincode puts you in front of people in your own area first. Buyers searching in plain language &mdash; &ldquo;iPhone under 20k&rdquo; &mdash; match against your listing automatically.</p>
-        </div>
-        <div class="hb-step">
-          <div class="hb-step-n">03</div>
-          <h3>Talk on your terms</h3>
-          <p>Buyers reach you through in-app chat. Your phone number stays hidden unless you choose to show it, so you decide when a conversation moves off the platform.</p>
-        </div>
-        <div class="hb-step">
-          <div class="hb-step-n">04</div>
-          <h3>Close the sale</h3>
-          <p>Agree a price, meet somewhere public, hand it over. Mark the listing sold and it moves out of search but stays in your history.</p>
-        </div>
-      </div>
-
       <div class="hb-sell-notes hb-reveal">
         <div class="hb-note">
           <i class="fas fa-indian-rupee-sign"></i>
@@ -2043,9 +2027,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="/geo.js?v=20261022c"></script>
 <script src="/api-client.js?v=20261020c"></script>
-<script src="/app.js?v=20261023c"></script>
+<script src="/app.js?v=20261023d"></script>
 <!-- DealLock: offers, deals, loan, handover, admin Deals. After app.js (uses its helpers). -->
 <script src="/deals.js?v=20261022b"></script>
+<!-- Homepage How It Works scroll road (needs the #howItWorks markup above). -->
+<script src="/how-it-works.js?v=20261023d"></script>
 <div id="reportModal" class="modal-overlay hidden">
   <div class="modal-box" data-enter-flow>
     <button class="modal-close" onclick="closeReportModal()"><i class="fa fa-times"></i></button>
