@@ -811,6 +811,10 @@
         <div class="sell-cat-item" data-cat="property" onclick="selectSellCat(this,'property')"><i class="fas fa-home"></i><span>Property</span></div>
         <div class="sell-cat-item" data-cat="others" onclick="selectSellCat(this,'others')"><i class="fas fa-box-open"></i><span>Others</span></div>
       </div>
+      <!-- Ticked by default. For a car or bike, ticking it asks for the RC
+           and insurance just below (deals.js sellDocsRender). -->
+      <label class="toggle-label emi-feature sell-emi-toggle"><input type="checkbox" id="sellEmiEligible" checked onchange="if (typeof sellDocsRender === 'function') sellDocsRender()">
+        <span><strong>Offer EMI option</strong><small>Buyers can pay in monthly instalments through DealBriz’s lending partners.</small></span></label>
     </div>
 
     <!-- DealLock: the vehicle's documents, for cars and bikes (deals.js
@@ -873,7 +877,6 @@
         </div>
       </div>
       <label class="toggle-label"><input type="checkbox" id="sellNegotiable"> Price is negotiable</label>
-      <label class="toggle-label emi-feature" style="margin-top:10px"><input type="checkbox" id="sellEmiEligible"> Offer EMI option</label>
       <label class="toggle-label" style="margin-top:10px"><input type="checkbox" id="sellFeature"> <i class="fas fa-bolt" style="color:var(--gold)"></i> Show at top for 7 days <small style="color:var(--text-light)">(free while in beta)</small></label>
     </div>
 
@@ -1563,11 +1566,9 @@
          their own lender's work. DealBriz staff can pick a lender. -->
     <div id="adminSection-lender" class="admin-section hidden">
       <div id="lenderHeader" class="lender-head"></div>
-      <div class="admin-filters">
-        <button class="admin-filter-btn active" data-ltab="docs" onclick="lenderSetTab('docs')">Documents to check</button>
-        <button class="admin-filter-btn" data-ltab="listings" onclick="lenderSetTab('listings')">Vehicle listings</button>
-        <button class="admin-filter-btn" data-ltab="loans" onclick="lenderSetTab('loans')">Loan applications</button>
-        <button class="admin-filter-btn" data-ltab="deals" onclick="lenderSetTab('deals')">Deals</button>
+      <div class="admin-filters lender-tabs">
+        <button class="admin-filter-btn active" data-ltab="deals" onclick="lenderSetTab('deals')"><i class="fas fa-handshake"></i> Deals</button>
+        <button class="admin-filter-btn" data-ltab="loans" onclick="lenderSetTab('loans')"><i class="fas fa-file-invoice-dollar"></i> Loan applications</button>
       </div>
       <div id="lenderBody" class="lender-body"></div>
     </div>
@@ -1828,6 +1829,10 @@
           <div class="form-group"><label>Contact Email</label><input type="email" id="financerEmail" autocomplete="off"></div>
           <div class="form-group"><label>Contact Phone</label><input type="text" id="financerPhone" autocomplete="off"></div>
         </div>
+        <div class="form-group"><label>Email for loan applications and documents</label>
+          <input type="text" id="financerDocsEmail" inputmode="email" autocomplete="off" maxlength="255" placeholder="e.g. loans@lender.in">
+          <small style="color:var(--text-muted)">Each new loan application on a DealBriz deal is emailed here with the buyer’s and the seller’s verified documents. Up to 3 addresses, separated by commas. The lender can also set it in its portal.</small>
+        </div>
         <div class="form-group" style="margin-bottom:4px">
           <label style="font-weight:700;color:var(--navy)">Address</label>
         </div>
@@ -1920,6 +1925,9 @@
 <div id="dealLoanModal" class="modal-overlay hidden">
   <div class="modal-box deal-modal-box">
     <button class="modal-close" onclick="closeLoanForm()" aria-label="Close"><i class="fas fa-xmark"></i></button>
+    <!-- After sending: the confirmation (deals.js dlLoanDoneHtml) -->
+    <div id="dealLoanDone" class="hidden"></div>
+    <div id="dealLoanFormArea">
     <h3 class="deal-modal-title">Apply for the loan</h3>
     <p class="deal-modal-sub">Agreed price <strong id="dealLoanPrice"></strong> <span id="dealLoanType"></span></p>
     <div id="dealLoanExisting"></div>
@@ -1955,6 +1963,7 @@
     </div>
     <p id="dealLoanError" class="auth-error hidden"></p>
     <button class="btn-primary full-width" onclick="submitDealLoan()">Send application</button>
+    </div>
   </div>
 </div>
 
