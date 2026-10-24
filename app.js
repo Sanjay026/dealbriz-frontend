@@ -841,6 +841,10 @@ function showPage(page, fromPopstate = false, fromHistory = false) {
   if (!fromPopstate) {
     history.pushState({ view: 'page', page }, '', pagePath(page));
   }
+  // Update SEO meta tags for crawlers and social previews
+  if (typeof window.updateSEO === 'function') {
+    try { window.updateSEO(page === 'emi-status' ? 'emi-status' : page); } catch(e){}
+  }
   // Legal documents share this page but each has its own URL, so they are
   // reported by openLegalPage() after it rewrites the path.
   if (page !== 'legal') window.dbTrackPageView?.();
