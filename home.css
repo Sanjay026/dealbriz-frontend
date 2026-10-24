@@ -307,129 +307,6 @@
 #homePage .hb-head-center h2 { font-size: clamp(28px, 4.6vw, 42px); font-weight: 800; letter-spacing: -0.03em; margin: 0; }
 #homePage .hb-head-center p { color: var(--hb-muted); font-size: 16.5px; margin: 14px 0 0; line-height: 1.6; }
 
-/* ------------------------------------------------------- CATEGORIES */
-/* Skewed card carousel. The card is skewed -12deg, the photo inside is
-   skewed back and widened so it still fills the parallelogram's corners,
-   and the label is skewed back once more so it reads upright. */
-#homePage .hb-cat-nav { display: none; align-items: center; gap: 10px; }
-#homePage .hb-cat-nav-btn {
-  width: 44px; height: 44px; border-radius: 50%; flex: none;
-  border: 1px solid rgba(37,99,235,0.18);
-  background: rgba(255,255,255,0.65);
-  color: var(--hb-blue);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 14px rgba(11,26,51,0.08);
-  display: grid; place-items: center; cursor: pointer;
-  font-family: var(--hb-font); font-size: 14px; line-height: 1;
-  transition: background .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease;
-}
-#homePage .hb-cat-nav-btn:hover { background: rgba(255,255,255,0.92); border-color: rgba(37,99,235,0.34); color: var(--hb-blue-dk); }
-#homePage .hb-cat-nav-btn[aria-disabled="true"] { opacity: .35; pointer-events: none; }
-
-#homePage .hb-cat-scroll {
-  position: relative;
-  margin: -14px -24px 0;
-  padding: 14px 0 48px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  scroll-behavior: smooth;
-  cursor: grab;
-}
-#homePage .hb-cat-scroll::-webkit-scrollbar { display: none; }
-#homePage .hb-cat-scroll:focus-visible { outline: 2px solid var(--hb-blue); outline-offset: -2px; border-radius: 18px; }
-#homePage .hb-cat-scroll.is-dragging { cursor: grabbing; scroll-behavior: auto; }
-#homePage .hb-cat-scroll.is-dragging .hb-cat { cursor: grabbing; }
-#homePage .hb-cat-scroll.is-dragging,
-#homePage .hb-cat-scroll.is-dragging * { user-select: none; }
-
-#homePage .hb-cats {
-  display: flex; align-items: center;
-  min-width: max-content;
-  padding: 0 84px 0 24px;
-}
-
-#homePage .hb-cat {
-  position: relative;
-  flex: 0 0 180px; height: 288px;
-  margin: 0 8px; padding: 0;
-  border: 0; border-radius: 16px;
-  background: #0B1120;
-  overflow: hidden;
-  transform: skewX(-12deg);
-  box-shadow: 0 16px 36px rgba(11,26,51,0.22);
-  cursor: pointer;
-  transition: box-shadow .3s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-#homePage .hb-cat:hover { z-index: 2; box-shadow: 0 26px 56px rgba(37,99,235,0.28); }
-#homePage .hb-cat:focus-visible { outline: 3px solid var(--hb-blue); outline-offset: 3px; z-index: 3; }
-/* Glass rim + top-left gloss, painted above the photo. */
-#homePage .hb-cat::after {
-  content: ''; position: absolute; inset: 0; z-index: 2;
-  background: linear-gradient(135deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.06) 38%, rgba(255,255,255,0) 60%);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.20);
-  pointer-events: none;
-}
-
-#homePage .hb-cat-media {
-  position: absolute; top: 0; left: -20%; z-index: 1;
-  width: 140%; height: 100%;
-  display: block; overflow: hidden;
-  transform: skewX(12deg);
-  pointer-events: none;
-}
-#homePage .hb-cat-media img {
-  display: block; width: 100%; height: 100%;
-  object-fit: cover;
-  filter: saturate(.92) contrast(1.02) brightness(1.02);
-  transform: scale(1.1);
-  transition: transform .7s ease-out, filter .7s ease-out;
-  -webkit-user-drag: none;
-  user-select: none;
-}
-#homePage .hb-cat:hover .hb-cat-media img { transform: scale(1.25); }
-
-#homePage .hb-cat-ico {
-  position: absolute; inset: 0; z-index: 0;
-  display: grid; place-items: center;
-  font-size: 54px; color: rgba(255,255,255,0.30);
-  pointer-events: none;
-}
-#homePage .hb-cat-shade {
-  position: absolute; inset: 0; z-index: 2;
-  background:
-    linear-gradient(to top, rgba(5,8,15,0.78) 0%, rgba(5,8,15,0.30) 26%, rgba(5,8,15,0) 55%),
-    linear-gradient(160deg, rgba(37,99,235,0.30) 0%, rgba(30,64,175,0.26) 38%, rgba(18,37,63,0.42) 72%, rgba(11,26,51,0.60) 100%);
-  opacity: 1;
-  transition: opacity .3s ease;
-  pointer-events: none;
-}
-/* Hover polishes the glass a touch instead of darkening it. */
-#homePage .hb-cat:hover .hb-cat-shade { opacity: .92; }
-
-#homePage .hb-cat-body {
-  position: absolute; inset: 0; z-index: 3;
-  display: flex; flex-direction: column; justify-content: flex-end;
-  padding: 22px 22px 30px;
-  pointer-events: none;
-}
-#homePage .hb-cat-text { display: block; transform: skewX(12deg) translateX(-4px); }
-#homePage .hb-cat-name {
-  display: block;
-  font-size: 20px; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
-  color: #fff;
-  text-shadow: 0 2px 10px rgba(3,8,20,0.45);
-}
-#homePage .hb-cat-count {
-  display: block; margin-top: 8px;
-  font-size: 14px; font-weight: 600; color: #DBEAFE;
-  text-shadow: 0 1px 6px rgba(3,8,20,0.4);
-}
-
 /* --------------------------------------------------------- EMI BAND */
 #homePage .hb-emi {
   background:
@@ -454,7 +331,9 @@
 #homePage .hb-emi-list li { display: flex; align-items: center; gap: 12px; font-size: 15.5px; color: #E2E8F0; }
 #homePage .hb-emi-list i { color: var(--hb-green); font-size: 16px; }
 
-/* Calculator */
+/* Calculator: hidden on the home page. EMI stays available from listings,
+   the EMI modal and the EMI Partners page. */
+#homePage .hb-calc { display: none; }
 #homePage .hb-calc {
   background: var(--hb-navy-2); border: 1px solid rgba(255,255,255,0.09);
   border-radius: 20px; padding: 28px 24px;
@@ -499,76 +378,20 @@
 #homePage .hb-disclaimer { color: #7C8BA4; font-size: 12px; line-height: 1.55; margin: 16px 0 0; }
 #homePage .hb-calc .hb-btn { width: 100%; margin-top: 18px; }
 
-/* ----------------------------------------------------------- TRUST */
-#homePage .hb-trust-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-#homePage .hb-trust-card {
-  background: var(--hb-panel); border-radius: 18px; padding: 32px 24px; text-align: center;
-}
-#homePage .hb-trust-ico {
-  width: 58px; height: 58px; margin: 0 auto 20px; border-radius: 15px;
-  display: grid; place-items: center; font-size: 22px;
-}
-/* Cards lift like the buttons do. They are not clickable, so the movement is
-   smaller and the shadow softer — enough to feel responsive without implying
-   an action that isn't there. */
-#homePage .hb-trust-card, #homePage .hb-step {
-  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
-}
-#homePage .hb-trust-card:hover, #homePage .hb-step:hover {
-  transform: translateY(-3px); box-shadow: 0 12px 28px rgba(15,23,42,0.10); border-color: #BFDBFE;
-}
-#homePage .hb-trust-card h3 { font-size: 18px; font-weight: 800; margin: 0 0 10px; letter-spacing: -0.01em; }
-
-/* ===== How Selling Works: the notes row under the four steps =====
-   Two columns on desktop, one on mobile. Deliberately a different shape from
-   .hb-step above it so the section reads as "steps, then the fine print"
-   rather than eight equal cards. */
-#homePage .hb-sell-notes {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px; margin-top: 28px;
-}
-#homePage .hb-note {
-  display: flex; gap: 14px; align-items: flex-start;
-  padding: 18px 20px; background: #F8FAFC;
-  border: 1px solid #E2E8F0; border-radius: 14px;
-  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
-}
-#homePage .hb-note:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(15,23,42,0.10); border-color: #BFDBFE; }
-#homePage .hb-note > i {
-  flex-shrink: 0; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
-  background: #EFF6FF; color: var(--hb-blue); border-radius: 10px; font-size: 15px;
-}
-#homePage .hb-note strong { display: block; font-size: 15px; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.01em; }
-#homePage .hb-note span { display: block; font-size: 14px; line-height: 1.55; color: #64748B; }
-
-@media (max-width: 760px) {
-  #homePage .hb-sell-notes { grid-template-columns: 1fr; }
-}
-#homePage .hb-trust-card p { color: var(--hb-muted); font-size: 14.5px; line-height: 1.6; margin: 0; }
+/* --------------------------------------------- BUY & SELL POSTER */
+/* Designed banner, full-bleed like the other explainer artwork; its navy
+   bottom runs straight into the sell band below. */
+#homePage .hb-buy-sell { background: #fff; padding: 0; }
+#homePage .hb-buy-sell-img { display: block; width: 100%; height: auto; }
 
 /* ------------------------------------------------------ HOW IT WORKS */
-/* Buyer explainer is one designed image, edge to edge. The image carries the
-   heading and the step rail, so the markup only keeps a screen-reader heading.
-   #howSellingWorks below still uses the .hb-step cards. */
-#homePage .hiw { background: #fff; padding: 0; }
-#homePage .hiw-img { display: block; width: 100%; height: auto; }
-#homePage .sr-only {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
-}
-#homePage .hb-steps { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-#homePage .hb-step {
-  background: #fff; border: 1px solid var(--hb-line); border-radius: 18px; padding: 30px 24px;
-}
-#homePage .hb-step-n { font-size: 44px; font-weight: 800; color: #BFD5FB; letter-spacing: -0.04em; line-height: 1; }
-#homePage .hb-step h3 { font-size: 19px; font-weight: 800; margin: 18px 0 10px; letter-spacing: -0.01em; }
-#homePage .hb-step p { color: var(--hb-muted); font-size: 14.5px; line-height: 1.6; margin: 0; }
+/* The buyer/seller explainer is the scroll-road section, styled in
+   how-it-works.css. */
 
 /* --------------------------------------------------------- SELL BAND */
 #homePage .hb-sell {
-  /* Top strip matches the navy baked into how-it-works.webp (#0E1D3A) so the
-     curved white edge above it runs into the band with no visible seam; the
-     diagonal gradient takes over a few pixels lower. */
+  /* Top strip keeps the curved white edge above it flush with the band;
+     the diagonal gradient takes over a few pixels lower. */
   background:
     linear-gradient(180deg, #0E1D3A 0, #0E1D3A 2px, rgba(14,29,58,0) 64px),
     linear-gradient(140deg, #0E1D3A 0%, #10233F 55%, #143059 100%);
@@ -614,21 +437,6 @@
   color: var(--hb-muted); display: flex; align-items: center; gap: 9px;
 }
 #homePage .hb-sell-card-foot i { color: var(--hb-green); }
-
-/* ------------------------------------------------------- FINAL CTA */
-#homePage .hb-cta { background: var(--hb-blue); color: #fff; padding: 76px 0; text-align: center; }
-#homePage .hb-cta h2 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: -0.03em; margin: 0; }
-#homePage .hb-cta p { font-size: 17.5px; margin: 16px auto 32px; max-width: 30ch; color: #DBEAFE; line-height: 1.55; }
-#homePage .hb-cta-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
-/* Same lift as the hero buttons (.hb-btn): transform + shadow on a .16s ease.
-   These sit on a blue panel, so the shadow is darker than the hero's blue one
-   to stay visible. */
-#homePage .hb-cta-white { background: #fff; color: var(--hb-blue); border-radius: 999px; padding: 16px 38px; border: none; cursor: pointer; font-family: var(--hb-font); font-size: 16px; font-weight: 700;
-  transition: transform .16s ease, box-shadow .16s ease, background .16s ease; }
-#homePage .hb-cta-white:hover { background: #F1F5F9; transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.22); }
-#homePage .hb-cta-outline { background: none; color: #fff; border: 2px solid rgba(255,255,255,0.6); border-radius: 999px; padding: 15px 38px; cursor: pointer; font-family: var(--hb-font); font-size: 16px; font-weight: 700;
-  transition: transform .16s ease, box-shadow .16s ease, background .16s ease, border-color .16s ease; }
-#homePage .hb-cta-outline:hover { background: rgba(255,255,255,0.12); border-color: #fff; transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0,0,0,0.22); }
 
 /* ----------------------------------------------------------- FOOTER */
 /* The footer lives outside #homePage (so the home layout can go full-width),
@@ -689,23 +497,10 @@ body.show-footer .site-footer { display: block; }
   .db-me-wrap::before { animation: none; }
   .db-pin, .db-cluster { transition: none; }
   #homePage .hb-btn:hover,
-  #homePage .hb-cta-white:hover, #homePage .hb-cta-outline:hover,
-  #homePage .hb-trust-card:hover, #homePage .hb-step:hover,
-  #homePage .hb-note:hover { transform: none; }
-  #homePage .hb-cat-scroll { scroll-behavior: auto; }
-  #homePage .hb-cat, #homePage .hb-cat-media img, #homePage .hb-cat-shade { transition: none; }
-  #homePage .hb-cat:hover .hb-cat-media img { transform: scale(1.1); }
 }
 
 /* ------------------------------------------------------ BREAKPOINTS */
 @media (min-width: 700px) {
-  #homePage .hb-cat-nav { display: flex; }
-  #homePage .hb-cat { flex-basis: 210px; height: 336px; margin: 0 12px; border-radius: 22px; }
-  #homePage .hb-cat-body { padding: 26px 26px 32px; }
-  #homePage .hb-cat-name { font-size: 24px; }
-  #homePage .hb-cat-count { font-size: 15px; }
-  #homePage .hb-cats { padding: 0 88px 0 44px; }
-  #homePage .hb-trust-grid, #homePage .hb-steps { grid-template-columns: repeat(2, 1fr); }
   .site-footer .sf-grid { grid-template-columns: 1.4fr 1fr 1fr 1fr; }
 }
 
@@ -728,8 +523,7 @@ body.show-footer .site-footer { display: block; }
   /* Below ::before: the hero wash covers the map's left edge and melts into
      it, so there is no seam between the copy side and the map. */
   #homePage .hb-hero-map { inset: 0 0 0 42%; z-index: 0; }
-  #homePage .hb-trust-grid, #homePage .hb-steps { grid-template-columns: repeat(4, 1fr); }
-  #homePage .hb-emi-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 60px; }
+  #homePage .hb-emi-grid { grid-template-columns: minmax(0,1fr); max-width: 780px; margin: 0 auto; gap: 60px; }
   #homePage .hb-emi-list { grid-template-columns: 1fr; }
   #homePage .hb-sell-grid { grid-template-columns: minmax(0,1.1fr) minmax(0,0.9fr); }
   #homePage .hb-sell-card { margin-left: auto; }

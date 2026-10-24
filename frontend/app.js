@@ -860,6 +860,11 @@ function browseCategory(cat) {
   setTimeout(() => setCatDirect(cat), 50);
 }
 
+function browseAllCategories() {
+  showPage('buy');
+  setTimeout(() => setCatDirect('all'), 50);
+}
+
 function browseEmiListings() {
   if (!emiVisibleHere()) { showToast('EMI is not available in your area yet.', 'info'); return; }
   showPage('buy');
@@ -1116,20 +1121,26 @@ function dealInfo(p) {
   return { saving, pct, isGoodDeal: pct >= 0.05 };
 }
 
-/* Scrolls to the seller-side explainer. Same shape as goHowItWorks(): the
-   section lives on the home page, so a visitor on Buy or Sell has to be
-   returned home first, and the timeout gives that render a frame before we
-   measure the scroll target. */
+/* Scrolls to the seller-side explainer. The selling steps now live in the
+   unified Buying/Selling switch on #howItWorks, so switch to Selling and
+   scroll there. Same pattern as goHowItWorks(): return home first if needed. */
 function goHowSellingWorks() {
   showPage('home');
   setTimeout(() => {
-    document.getElementById('howSellingWorks')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (window.dbzHow && typeof window.dbzHow.setFlow === 'function') {
+      window.dbzHow.setFlow('sell', false);
+    }
+    const el = document.getElementById('howItWorks');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 80);
 }
 
 function goHowItWorks() {
   showPage('home');
   setTimeout(() => {
+    if (window.dbzHow && typeof window.dbzHow.setFlow === 'function') {
+      window.dbzHow.setFlow('buy', false);
+    }
     const el = document.getElementById('howItWorks');
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 80);
@@ -4824,18 +4835,20 @@ const HOME_EMI_RATE = 12; // % p.a. used by the on-page calculator
 
 /* Live listing counts per category. Each request asks for a single item and
    reads the `total` from the pagination metadata, so we get real counts
-   without pulling every listing down. */
+   without pulling every listing down. The tiles keep the number in
+   data-count; the category panel reads it when it opens. */
 async function loadHomeCategoryCounts() {
   await Promise.all(HOME_CATEGORIES.map(async cat => {
-    const el = document.querySelector(`[data-cat-count="${cat}"]`);
-    if (!el) return;
+    const tile = document.querySelector(`#homeCatGrid .dbz-tile[data-slug="${cat}"]`);
+    if (!tile) return;
     try {
       const { total } = await db.getProducts({ category: cat, page: 1, perPage: 1 });
-      el.textContent = `${formatCompactCount(total)} listing${total === 1 ? '' : 's'}`;
+      tile.dataset.count = String(total);
     } catch {
-      el.textContent = '';
+      tile.dataset.count = '';
     }
   }));
+  window.dbzCats?.refresh();
 }
 
 function homeSearch() {
@@ -4906,94 +4919,6 @@ function initHomeReveal() {
   items.forEach(el => io.observe(el));
 }
 
-/* Horizontal category carousel: mouse drag scrolls it, the arrows and the
-   arrow keys nudge it. Touch and trackpads keep their native scrolling. */
-function initHomeCatScroll() {
-  const scroller = document.getElementById('homeCatScroll');
-  const strip = document.getElementById('homeCatGrid');
-  if (!scroller || !strip || scroller.dataset.scrollReady === '1') return;
-  scroller.dataset.scrollReady = '1';
-
-  const prevBtn = document.getElementById('homeCatPrev');
-  const nextBtn = document.getElementById('homeCatNext');
-  const cards = strip.querySelectorAll('.hb-cat');
-  const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  // Layout offsets (not bounding boxes) so the card's skew doesn't inflate it.
-  const cardStep = () => (cards.length > 1 ? cards[1].offsetLeft - cards[0].offsetLeft : 240);
-
-  const syncNav = () => {
-    const max = scroller.scrollWidth - scroller.clientWidth;
-    if (prevBtn) prevBtn.setAttribute('aria-disabled', String(scroller.scrollLeft <= 2));
-    if (nextBtn) nextBtn.setAttribute('aria-disabled', String(scroller.scrollLeft >= max - 2));
-  };
-  const move = dir => scroller.scrollBy({
-    left: dir * cardStep() * 2,
-    behavior: reduceMotion() ? 'auto' : 'smooth',
-  });
-
-  if (prevBtn) prevBtn.addEventListener('click', () => move(-1));
-  if (nextBtn) nextBtn.addEventListener('click', () => move(1));
-  scroller.addEventListener('scroll', syncNav, { passive: true });
-  window.addEventListener('resize', syncNav);
-
-  let dragging = false, startX = 0, startLeft = 0, moved = 0, pointerId = null, captured = false;
-  scroller.addEventListener('pointerdown', e => {
-    moved = 0;
-    if (e.pointerType !== 'mouse' || e.button !== 0) return;
-    dragging = true;
-    pointerId = e.pointerId;
-    captured = false;
-    startX = e.clientX;
-    startLeft = scroller.scrollLeft;
-    scroller.classList.add('is-dragging');
-  });
-  scroller.addEventListener('pointermove', e => {
-    if (!dragging) return;
-    const dx = e.clientX - startX;
-    moved = Math.max(moved, Math.abs(dx));
-    if (moved > 4) {
-      // Capture only once it is a real drag: capturing on pointerdown would
-      // retarget the click that follows a plain tap away from the card.
-      if (!captured && pointerId != null) {
-        try { scroller.setPointerCapture(pointerId); captured = true; } catch { /* not supported */ }
-      }
-      scroller.scrollLeft = startLeft - dx;
-      e.preventDefault();
-    }
-  });
-  const endDrag = () => {
-    if (!dragging) return;
-    dragging = false;
-    scroller.classList.remove('is-dragging');
-    if (captured && pointerId != null) {
-      try { scroller.releasePointerCapture(pointerId); } catch { /* already gone */ }
-    }
-    captured = false;
-    pointerId = null;
-    syncNav();
-  };
-  scroller.addEventListener('pointerup', endDrag);
-  scroller.addEventListener('pointercancel', endDrag);
-  scroller.addEventListener('lostpointercapture', endDrag);
-
-  // A drag that happens to end on a card must not open that category.
-  // Keyboard/programmatic activations report detail 0 and must always pass:
-  // after a drag, `moved` is still large, so filtering on detail avoids
-  // swallowing Enter on a focused card.
-  scroller.addEventListener('click', e => {
-    if (moved > 6 && e.detail > 0) { e.preventDefault(); e.stopPropagation(); }
-  }, true);
-
-  scroller.addEventListener('keydown', e => {
-    if (e.key === 'ArrowRight') { e.preventDefault(); move(1); }
-    else if (e.key === 'ArrowLeft') { e.preventDefault(); move(-1); }
-    else if (e.key === 'Home') { e.preventDefault(); scroller.scrollLeft = 0; }
-    else if (e.key === 'End') { e.preventDefault(); scroller.scrollLeft = scroller.scrollWidth; }
-  });
-
-  syncNav();
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   // showPage() isn't called on first load — the home page is visible by
   // default — so set the light-navbar class here too.
@@ -5001,7 +4926,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (home && !home.classList.contains('hidden')) document.body.classList.add('on-home');
   initSelectedArea();
   initHomeReveal();
-  initHomeCatScroll();
   recalcHomeEmi();
   loadHomeCategoryCounts();
   initHomeMap();

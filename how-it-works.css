@@ -1,0 +1,93 @@
+/* =========================================================
+   DealBriz — How It Works (scroll road)
+   Uses the home theme tokens from style.css / home.css.
+   ========================================================= */
+.dbz-how{--navy:var(--hb-navy,#0B1A33);--blue:var(--accent,#3B6EF5);--blue-tint:var(--accent-light,#EEF3FF);
+  --amber:var(--hb-amber,#F5B942);--ink:var(--hb-text,#0F172A);--muted:var(--hb-muted,#64748B);--line:#DCE4F2;
+  --ease:cubic-bezier(.22,1,.36,1);font-family:var(--hb-font,'Plus Jakarta Sans','Inter',system-ui,sans-serif);color:var(--ink)}
+.dbz-how *,.dbz-how *::before,.dbz-how *::after{box-sizing:border-box}
+
+/* buying / selling switch */
+.dbz-how__toggle{display:inline-flex;gap:4px;margin-top:24px;padding:5px;background:#fff;border:1px solid var(--line);border-radius:999px;
+  box-shadow:0 1px 2px rgba(16,20,31,.05)}
+.dbz-how__toggle button{border:0;background:transparent;font:inherit;font-weight:700;font-size:15px;padding:10px 22px;border-radius:999px;
+  color:var(--muted);cursor:pointer;transition:color .2s,background .25s}
+.dbz-how__toggle button:hover{color:var(--ink)}
+.dbz-how__toggle button[aria-pressed="true"]{background:var(--navy);color:#fff}
+.dbz-how__toggle button:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+
+/* track: road (svg) behind, steps on top */
+.dbz-how__track{position:relative;max-width:1000px;margin:36px auto 0;padding:24px 0 96px}
+.dbz-how__road{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.dbz-how__steps{position:relative;z-index:1;list-style:none;margin:0;padding:0;transition:opacity .2s ease}
+.dbz-how.is-switching .dbz-how__steps,.dbz-how.is-switching .dbz-how__road{opacity:0}
+.dbz-how__road{transition:opacity .2s ease}
+
+.dbz-step{display:grid;grid-template-columns:1fr 260px 1fr;align-items:center;min-height:210px}
+.dbz-step__node{grid-column:2;grid-row:1;justify-self:start;margin-left:48px;width:52px;height:52px;border-radius:50%;
+  display:grid;place-items:center;background:#fff;border:3px solid var(--line);color:var(--muted);font-weight:800;font-size:15px;
+  transition:background .35s,border-color .35s,color .35s,box-shadow .5s var(--ease),transform .5s var(--ease)}
+.dbz-step:nth-child(even) .dbz-step__node{justify-self:end;margin-left:0;margin-right:48px}
+.dbz-step.is-on .dbz-step__node{background:var(--amber);border-color:var(--amber);color:var(--navy);transform:scale(1.08);
+  box-shadow:0 0 0 8px rgba(245,185,66,.22)}
+
+.dbz-step__card{grid-row:1;grid-column:1;justify-self:end;width:100%;max-width:380px;display:grid;grid-template-columns:48px 1fr;gap:16px;
+  padding:22px 24px;background:#fff;border:1px solid var(--line);border-radius:18px;
+  box-shadow:0 1px 2px rgba(16,20,31,.06),0 6px 20px rgba(16,20,31,.05);
+  opacity:.4;transform:translateY(16px);transition:opacity .5s ease,transform .6s var(--ease),box-shadow .5s,border-color .5s}
+.dbz-step:nth-child(even) .dbz-step__card{grid-column:3;justify-self:start}
+.dbz-step.is-on .dbz-step__card{opacity:1;transform:none;border-color:transparent;box-shadow:0 2px 4px rgba(16,20,31,.05),0 18px 40px -16px rgba(11,26,51,.28)}
+
+.dbz-step__icon{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:var(--blue-tint);color:var(--blue);
+  transition:background .4s,color .4s}
+.dbz-step__icon svg{width:24px;height:24px}
+.dbz-step.is-on .dbz-step__icon{background:var(--navy);color:var(--amber)}
+.dbz-step__eyebrow{display:block;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--blue)}
+.dbz-step__title{margin:4px 0 0;font-size:20px;font-weight:800;letter-spacing:-.02em;line-height:1.2;color:var(--ink)}
+.dbz-step__text{margin:6px 0 0;font-size:15px;line-height:1.55;color:var(--muted)}
+
+/* finish pill at the end of the road */
+.dbz-how__finish{position:absolute;z-index:1;transform:translate(-50%,0) scale(.85);opacity:0;display:inline-flex;align-items:center;gap:8px;
+  padding:10px 18px;border-radius:999px;background:var(--navy);color:#fff;font-weight:700;font-size:15px;white-space:nowrap;
+  box-shadow:0 12px 28px -12px rgba(11,26,51,.5);transition:opacity .4s ease,transform .5s var(--ease)}
+.dbz-how__finish svg{width:18px;height:18px;color:var(--amber)}
+.dbz-how__finish.is-on{opacity:1;transform:translate(-50%,0) scale(1)}
+
+/* road strokes (sizes set per breakpoint) */
+.dbz-how__road .r-base{stroke:#E6EBF3;stroke-width:var(--road-w,26px)}
+.dbz-how__road .r-dash-base{stroke:#fff;stroke-width:3px;stroke-dasharray:16 14}
+.dbz-how__road .r-fill{stroke:var(--navy);stroke-width:var(--road-w,26px)}
+.dbz-how__road .r-dash{stroke:var(--amber);stroke-width:3px;stroke-dasharray:16 14}
+.dbz-how__road .r-mask{stroke:#fff;stroke-width:calc(var(--road-w,26px) + 6px)}
+.dbz-how__road path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.dbz-how__road .car-body{transform:scale(var(--car-s,1))}
+
+/* ---------- phones: road on the left, cards on the right ---------- */
+@media (max-width:760px){
+  .dbz-how{--road-w:16px;--car-s:.62}
+  .dbz-how__toggle button{padding:9px 18px;font-size:14px}
+  .dbz-how__track{padding:8px 0 80px}
+  .dbz-step{grid-template-columns:64px 1fr;min-height:0;padding:14px 0}
+  .dbz-step__node,.dbz-step:nth-child(even) .dbz-step__node{grid-column:1;margin:0;width:38px;height:38px;font-size:12px;border-width:2px}
+  .dbz-step:nth-child(odd) .dbz-step__node{justify-self:start}
+  .dbz-step:nth-child(even) .dbz-step__node{justify-self:end}
+  .dbz-step.is-on .dbz-step__node{box-shadow:0 0 0 5px rgba(245,185,66,.22)}
+  .dbz-step__card,.dbz-step:nth-child(even) .dbz-step__card{grid-column:2;justify-self:stretch;max-width:none;
+    grid-template-columns:40px 1fr;gap:12px;padding:16px 16px 18px}
+  .dbz-step__icon{width:40px;height:40px;border-radius:12px}
+  .dbz-step__icon svg{width:20px;height:20px}
+  .dbz-step__title{font-size:17px}
+  .dbz-step__text{font-size:14px}
+  .dbz-how__finish{font-size:14px;padding:8px 14px;transform:translate(-19px,0) scale(.85);transform-origin:left center}
+  .dbz-how__finish.is-on{transform:translate(-19px,0) scale(1)}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .dbz-step__card,.dbz-step__node,.dbz-how__finish{transition:none}
+}
+
+/* section rhythm: matches the other home sections, tighter on phones */
+#homePage .hb-section--how { padding: 76px 0; }
+@media (max-width: 760px) {
+  #homePage .hb-section--how { padding: 48px 0 40px; }
+}
