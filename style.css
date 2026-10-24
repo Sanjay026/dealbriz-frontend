@@ -2461,3 +2461,24 @@ body.on-admin .bot-fab, body.on-admin .bot-panel { display: none; }
   .sell-attrs-grid { grid-template-columns: 1fr 1fr; }
   .search-understood { margin-left: 24px; margin-right: 24px; }
 }
+
+/* Highlight "Sell" CTA in orange to stand out */
+.nav-links a[data-nav="sell"],
+.nav-right .nav-sell {
+  background: var(--hb-amber);
+  color: #3A2A05 !important;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.nav-links a[data-nav="sell"]:hover,
+.nav-right .nav-sell:hover {
+  background: var(--hb-amber-dk);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(245,185,66,0.28);
+}
+.nav-links a[data-nav="sell"].active,
+.nav-right .nav-sell.active {
+  background: var(--hb-amber-dk);
+}

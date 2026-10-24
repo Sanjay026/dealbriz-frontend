@@ -769,13 +769,6 @@ body.on-home .nav-dot { box-shadow: 0 0 0 2px #fff; }
 .auth-sub { color: var(--text-muted); font-size: 13px; margin-bottom: 20px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .forgot-link { display: block; text-align: right; font-size: 13px; color: var(--accent); margin-bottom: 16px; }
-/* Forgot password (code by email) */
-.forgot-info { background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF; font-size: 13px; line-height: 1.45; padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 14px; }
-.forgot-code-input { font-size: 22px !important; letter-spacing: 8px; text-align: center; font-weight: 700; }
-.forgot-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
-.forgot-link-btn { background: none; border: none; padding: 4px 0; font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; }
-.forgot-link-btn:disabled { color: var(--text-muted); cursor: default; }
-.forgot-actions .forgot-link-btn:last-child { margin-left: auto; }
 .auth-error { background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; font-size: 13px; padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 14px; }
 .btn-primary { background: var(--accent); color: white; border: none; padding: 13px 20px; border-radius: var(--radius-sm); font-size: 15px; font-weight: 700; transition: 0.2s; }
 .btn-primary:active { background: var(--accent-hover); transform: scale(0.98); }
@@ -2467,4 +2460,25 @@ body.on-admin .bot-fab, body.on-admin .bot-panel { display: none; }
 @media (min-width: 600px) {
   .sell-attrs-grid { grid-template-columns: 1fr 1fr; }
   .search-understood { margin-left: 24px; margin-right: 24px; }
+}
+
+/* Highlight "Sell" CTA in orange to stand out */
+.nav-links a[data-nav="sell"],
+.nav-right .nav-sell {
+  background: var(--hb-amber);
+  color: #3A2A05 !important;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 700;
+  transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.nav-links a[data-nav="sell"]:hover,
+.nav-right .nav-sell:hover {
+  background: var(--hb-amber-dk);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(245,185,66,0.28);
+}
+.nav-links a[data-nav="sell"].active,
+.nav-right .nav-sell.active {
+  background: var(--hb-amber-dk);
 }
