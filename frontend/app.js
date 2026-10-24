@@ -3016,7 +3016,10 @@ function togglePassword(inputId, btn) {
    Uses optional chaining throughout: this runs during teardown, and a null
    element here would resurrect exactly the failure mode it is fixing. */
 function resetAuthForms() {
-  ['loginForm', 'signupForm'].forEach(id => {
+  // A half-finished password reset starts again from the sign-in form.
+  if (!document.getElementById('forgotForm')?.classList.contains('hidden')) switchTab('login');
+  forgotResetState();
+  ['loginForm', 'signupForm', 'forgotForm'].forEach(id => {
     // #loginForm and #signupForm are <div>s, not <form>s, so .reset() does
     // not exist on them -- calling it would throw a TypeError and recreate
     // the exact freeze this function was missing for. Clear the fields.
@@ -3042,7 +3045,7 @@ function resetAuthForms() {
 }
 
 function clearAuthErrors() {
-  ['loginError','signupError'].forEach(id => {
+  ['loginError','signupError','forgotError'].forEach(id => {
     const el = document.getElementById(id);
     if (el) { el.classList.add('hidden'); el.textContent = ''; }
   });
@@ -3112,9 +3115,122 @@ function openLegalFull() {
 function switchTab(tab) {
   document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
   document.getElementById('signupForm').classList.toggle('hidden', tab !== 'signup');
+  document.getElementById('forgotForm')?.classList.toggle('hidden', tab !== 'forgot');
+  document.querySelector('#authModal .modal-tabs')?.classList.toggle('hidden', tab === 'forgot');
   document.getElementById('loginTab').classList.toggle('active', tab === 'login');
   document.getElementById('signupTab').classList.toggle('active', tab === 'signup');
+  if (tab !== 'forgot') forgotResetState();
   clearAuthErrors();
+}
+
+/* ===== FORGOT PASSWORD =====
+   Step 1: the account email -> a 6-digit code is emailed (POST
+   /auth/forgot-password). The answer is the same whether or not the account
+   exists, so the form can't be used to find out who has one.
+   Step 2: the code and the new password (POST /auth/reset-password). Every
+   device is then signed out and the user signs in with the new password. */
+let forgotState = { step: 1, email: '', timer: null };
+
+function forgotResetState() {
+  if (forgotState.timer) clearInterval(forgotState.timer);
+  forgotState = { step: 1, email: '', timer: null };
+  document.getElementById('forgotStep1')?.classList.remove('hidden');
+  document.getElementById('forgotStep2')?.classList.add('hidden');
+  document.getElementById('forgotResend')?.classList.add('hidden');
+  const info = document.getElementById('forgotInfo');
+  if (info) { info.textContent = ''; info.classList.add('hidden'); }
+  const sub = document.getElementById('forgotSub');
+  if (sub) sub.textContent = 'Enter the email you signed up with. We’ll email you a 6-digit code.';
+  const btn = document.getElementById('forgotSubmit');
+  if (btn) { btn.textContent = 'Send code'; btn.disabled = false; }
+}
+
+function openForgotPassword() {
+  const typed = (document.getElementById('loginEmail')?.value || '').trim();
+  switchTab('forgot');
+  ['forgotEmail', 'forgotCode', 'forgotNewPassword', 'forgotConfirmPassword'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('forgotEmail').value = typed;
+  setTimeout(() => document.getElementById(typed ? 'forgotSubmit' : 'forgotEmail')?.focus(), 30);
+}
+
+function forgotPrimary() {
+  if (forgotState.step === 1) forgotSendCode(false);
+  else forgotSubmitNewPassword();
+}
+
+function forgotResendCountdown(seconds) {
+  const btn = document.getElementById('forgotResend');
+  if (!btn) return;
+  if (forgotState.timer) clearInterval(forgotState.timer);
+  let left = seconds;
+  const tick = () => {
+    btn.disabled = left > 0;
+    btn.textContent = left > 0 ? `Send the code again in ${left}s` : 'Send the code again';
+    if (left <= 0 && forgotState.timer) { clearInterval(forgotState.timer); forgotState.timer = null; }
+    left -= 1;
+  };
+  btn.classList.remove('hidden');
+  tick();
+  forgotState.timer = setInterval(tick, 1000);
+}
+
+async function forgotSendCode(resend) {
+  const errEl = document.getElementById('forgotError');
+  const email = resend ? forgotState.email
+    : (document.getElementById('forgotEmail').value || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthError(errEl, 'Enter a valid email address.'); return; }
+  errEl.classList.add('hidden');
+  const btn = resend ? document.getElementById('forgotResend') : document.getElementById('forgotSubmit');
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('/auth/forgot-password', { method: 'POST', body: { email } });
+    forgotState.email = email;
+    forgotState.step = 2;
+    document.getElementById('forgotStep1').classList.add('hidden');
+    document.getElementById('forgotStep2').classList.remove('hidden');
+    document.getElementById('forgotSub').textContent = `Enter the code sent to ${email} and choose a new password.`;
+    const info = document.getElementById('forgotInfo');
+    info.textContent = res.message || 'If an account exists for that email, we’ve sent it a 6-digit code.';
+    info.classList.remove('hidden');
+    const submit = document.getElementById('forgotSubmit');
+    submit.textContent = 'Set new password';
+    submit.disabled = false;
+    forgotResendCountdown(res.resend_after_seconds || 60);
+    if (resend) showToast('Code sent again.', 'success');
+    setTimeout(() => document.getElementById('forgotCode')?.focus(), 30);
+  } catch (err) {
+    showAuthError(errEl, err.message || 'Could not send the code. Please try again.');
+    btn.disabled = false;
+  }
+}
+
+async function forgotSubmitNewPassword() {
+  const errEl = document.getElementById('forgotError');
+  const code = (document.getElementById('forgotCode').value || '').replace(/\D/g, '');
+  const pass = document.getElementById('forgotNewPassword').value;
+  const confirm = document.getElementById('forgotConfirmPassword').value;
+  if (code.length !== 6) { showAuthError(errEl, 'Enter the 6-digit code from the email.'); return; }
+  if (pass.length < 8) { showAuthError(errEl, 'Password must be at least 8 characters.'); return; }
+  if (pass !== confirm) { showAuthError(errEl, 'Passwords do not match.'); return; }
+  errEl.classList.add('hidden');
+  const btn = document.getElementById('forgotSubmit');
+  btn.disabled = true;
+  try {
+    await apiFetch('/auth/reset-password', { method: 'POST', body: { email: forgotState.email, code, new_password: pass } });
+    const email = forgotState.email;
+    switchTab('login');
+    document.getElementById('loginEmail').value = email;
+    document.getElementById('loginPassword').value = '';
+    showToast('Password changed. Sign in with your new password.', 'success');
+    setTimeout(() => document.getElementById('loginPassword')?.focus(), 30);
+  } catch (err) {
+    showAuthError(errEl, err.message || 'Could not change the password.');
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function handleLogin() {

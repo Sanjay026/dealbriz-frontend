@@ -26,10 +26,10 @@ const dealsApi = {
   rules: () => apiFetch('/deals/rules'),
   thread: (productId, otherId) =>
     apiFetch(`/deals/thread?product_id=${encodeURIComponent(productId)}&other_id=${encodeURIComponent(otherId)}`),
-  sendOffer: ({ productId, buyerId, price, note }) =>
-    apiFetch('/deals/offers', { method: 'POST', body: { product_id: productId, buyer_id: buyerId, price, note } }),
-  counter: (id, price, note) =>
-    apiFetch(`/deals/offers/${id}/counter`, { method: 'POST', body: { price, note } }),
+  sendOffer: ({ productId, buyerId, price, note, useDeallock }) =>
+    apiFetch('/deals/offers', { method: 'POST', body: { product_id: productId, buyer_id: buyerId, price, note, use_deallock: useDeallock } }),
+  counter: (id, price, note, useDeallock) =>
+    apiFetch(`/deals/offers/${id}/counter`, { method: 'POST', body: { price, note, use_deallock: useDeallock } }),
   accept: (id) => apiFetch(`/deals/offers/${id}/accept`, { method: 'POST', body: {} }),
   decline: (id) => apiFetch(`/deals/offers/${id}/decline`, { method: 'POST', body: {} }),
   withdraw: (id) => apiFetch(`/deals/offers/${id}/withdraw`, { method: 'POST', body: {} }),
@@ -547,6 +547,7 @@ function renderDealChatMessage(m, isSent, time) {
 
   const o = m.offer;
   const isCounter = o.round_number > 1;
+  const isLock = o.use_deallock !== false;
   const rules = (dealChatThread && dealChatThread.rules) || { max_counter_rounds: 3 };
   const countersLeft = Math.max(0, rules.max_counter_rounds - (o.round_number - 1));
   const who = o.from_role === 'buyer' ? 'Buyer’s' : 'Seller’s';
@@ -559,8 +560,8 @@ function renderDealChatMessage(m, isSent, time) {
   if (o.can_respond) {
     actions = `
       <div class="deal-card-actions">
-        <button class="deal-btn deal-btn-primary" onclick="dealAcceptOffer('${dlEsc(o.id)}', ${Number(o.price)})"><i class="fas fa-check"></i> Accept</button>
-        ${countersLeft > 0 ? `<button class="deal-btn" onclick="openOfferComposer('counter', '${dlEsc(o.id)}', ${Number(o.price)}, ${countersLeft})">Counter</button>` : ''}
+        <button class="deal-btn deal-btn-primary" onclick="dealAcceptOffer('${dlEsc(o.id)}', ${Number(o.price)}, ${isLock})"><i class="fas fa-check"></i> Accept</button>
+        ${countersLeft > 0 ? `<button class="deal-btn" onclick="openOfferComposer('counter', '${dlEsc(o.id)}', ${Number(o.price)}, ${countersLeft}, ${isLock})">Counter</button>` : ''}
         <button class="deal-btn deal-btn-quiet" onclick="dealDeclineOffer('${dlEsc(o.id)}')">Decline</button>
       </div>
       ${countersLeft === 0 ? `<div class="deal-card-hint">No counter-offers left. Accept or decline.</div>` : ''}`;
@@ -574,12 +575,21 @@ function renderDealChatMessage(m, isSent, time) {
   return `
     <div class="deal-card ${isSent ? 'sent' : 'received'} deal-card-${dlEsc(o.status)}">
       <div class="deal-card-kicker"><i class="fas fa-handshake"></i> ${label}</div>
+      ${dlOfferTypeBadge(isLock)}
       <div class="deal-card-price">${dlRupees(o.price)}</div>
       ${o.note ? `<div class="deal-card-note">${dlEsc(o.note)}</div>` : ''}
       <div class="deal-card-meta"><span class="deal-dot deal-dot-${dlEsc(o.status)}"></span>${meta}</div>
       ${actions}
       <div class="chat-msg-time">${dlEsc(time)}</div>
     </div>`;
+}
+
+/* Which kind of offer: DealLock (EMI, becomes a locked deal) or a normal
+   offer (only agrees the price). Shown on every offer card to both sides. */
+function dlOfferTypeBadge(isLock) {
+  return isLock
+    ? `<div class="deal-offer-type is-lock" title="Accepting starts a DealLock deal: EMI through a DealBriz lending partner, documents checked, listing reserved"><i class="fas fa-lock"></i> DealLock · with EMI</div>`
+    : `<div class="deal-offer-type is-normal" title="Accepting only agrees the price. No EMI, the listing isn't reserved, payment is settled directly"><i class="fas fa-handshake-simple"></i> Normal offer · no EMI</div>`;
 }
 
 /* Called by loadChatMessages() after each draw. The bar is refetched only
@@ -624,8 +634,6 @@ async function refreshChatDealBar() {
 function chatDealBarHtml(t) {
   const deal = t.deal;
   const isSeller = t.my_role === 'seller';
-  const cats = (t.rules && t.rules.categories) || [];
-  const inScope = t.product && (cats.includes('all') || cats.includes(t.product.category));
 
   if (deal && (LIVE_DEAL.includes(deal.status) || deal.status === 'completed')) {
     let line = `${dealPill(deal.status)} <strong>${dlRupees(deal.agreed_price)}</strong>`;
@@ -657,17 +665,23 @@ function chatDealBarHtml(t) {
   if (!isSeller && t.listing_reserved_for_someone_else) {
     return `<div class="deal-bar deal-bar-info"><i class="fas fa-lock"></i> Another buyer is in a deal for this listing right now.</div>`;
   }
-  if (!inScope) return '';
 
   if (t.can_send_offer) {
     const pending = t.current_offer;   // only ever the viewer's own, when sending is allowed
-    const type = loanTypeTag(t.loan_type);
-    const idle = isSeller
-      ? `<span class="deal-bar-muted">Agree a price and lock it for an EMI deal</span>`
-      : `<span class="deal-bar-muted">Make an offer and buy on EMI</span>`;
+    const type = t.deallock_available ? loanTypeTag(t.loan_type) : '';
+    // The newest offer was a normal one that got accepted: say so, the
+    // price is agreed and settled between the two of them.
+    const latest = (t.offers || [])[0];
+    const agreed = !pending && latest && latest.status === 'accepted' && latest.use_deallock === false;
+    const idle = agreed
+      ? `Agreed (normal offer): <strong>${dlRupees(latest.price)}</strong> <span class="deal-bar-muted">· no EMI, settle payment directly</span>`
+      : isSeller
+        ? `<span class="deal-bar-muted">${t.deallock_available ? 'Agree a price, with or without EMI' : 'Agree a price with the buyer'}</span>`
+        : `<span class="deal-bar-muted">${t.deallock_available ? 'Make an offer, with or without EMI' : 'Make an offer to the seller'}</span>`;
+    const pendingKind = pending ? (pending.use_deallock === false ? ' <span class="deal-bar-muted">· normal</span>' : ' <span class="deal-bar-muted">· DealLock</span>') : '';
     return `
       <div class="deal-bar">
-        <div class="deal-bar-text">${pending ? `Your offer: <strong>${dlRupees(pending.price)}</strong>` : idle} ${type}</div>
+        <div class="deal-bar-text">${pending ? `Your offer: <strong>${dlRupees(pending.price)}</strong>${pendingKind}` : idle} ${type}</div>
         <button class="deal-btn deal-btn-primary" onclick="openOfferComposer('new')"><i class="fas fa-handshake"></i> ${pending ? 'New offer' : (isSeller ? 'Send offer' : 'Make offer')}</button>
       </div>`;
   }
@@ -681,12 +695,12 @@ function chatDealBarHtml(t) {
 /* ---------- Offer composer (new offer or counter) ---------- */
 let offerComposer = null;
 
-async function openOfferComposer(mode, offerId = null, offerPrice = null, countersLeft = null) {
+async function openOfferComposer(mode, offerId = null, offerPrice = null, countersLeft = null, currentIsLock = true) {
   const c = currentChatConversation;
   if (!c) return;
   const rules = await dlRules();
   const isSeller = dealChatThread?.my_role === 'seller';
-  offerComposer = { mode, offerId, isSeller };
+  offerComposer = { mode, offerId, isSeller, rules };
   const isCounter = mode === 'counter';
   const listPrice = dealChatThread?.product?.price;
   const startPrice = isCounter ? offerPrice : listPrice;
@@ -700,11 +714,40 @@ async function openOfferComposer(mode, offerId = null, offerPrice = null, counte
   document.getElementById('dealOfferNote').value = '';
   document.getElementById('dealOfferError').classList.add('hidden');
   document.getElementById('dealOfferSubmit').textContent = isCounter ? 'Send counter-offer' : 'Send offer';
-  document.getElementById('dealOfferInfo').innerHTML = isSeller
-    ? `Valid for ${rules.offer_valid_hours} hours. If the buyer accepts, they read the deal warning, then you confirm with ${dlConfirmWords(rules)}. The deal locks once the buyer’s documents${sellDocsIsVehicle(dealChatThread?.product?.category) ? ' and your listing’s documents' : ''} are verified.`
-    : `Valid for ${rules.offer_valid_hours} hours. If it’s accepted, you read the deal warning and the seller confirms. The deal locks, and the listing is reserved for you for ${rules.reservation_days} days, once your documents${sellDocsIsVehicle(dealChatThread?.product?.category) ? ' and the seller’s vehicle documents' : ''} are verified.`;
+  // DealLock (with EMI) or a normal offer. Ticked by default when DealLock
+  // is available; a counter starts as the offer it answers.
+  const available = dealChatThread ? dealChatThread.deallock_available !== false : true;
+  const box = document.getElementById('dealOfferDeallock');
+  box.checked = available && (isCounter ? currentIsLock !== false : true);
+  box.disabled = !available;
+  document.getElementById('dealOfferModeTitle').textContent = isSeller ? 'Sell with EMI (DealLock)' : 'Buy with EMI (DealLock)';
+  const off = document.getElementById('dealOfferModeOff');
+  off.textContent = available ? '' : ((dealChatThread && dealChatThread.deallock_unavailable_reason) || 'EMI isn’t available on this listing. This will be a normal offer.');
+  off.classList.toggle('hidden', available);
+  dlOfferModeChanged();
   dlOpenOverlay('dealOfferModal', 'dealOffer');
   setTimeout(() => price.focus(), 50);
+}
+
+/* The composer's texts follow the DealLock tick box. */
+function dlOfferModeChanged() {
+  const comp = offerComposer;
+  if (!comp) return;
+  const rules = comp.rules || dealRulesCache || { offer_valid_hours: 48, reservation_days: 7 };
+  const isSeller = comp.isSeller;
+  const lock = document.getElementById('dealOfferDeallock').checked;
+  const vehicle = sellDocsIsVehicle(dealChatThread?.product?.category);
+  document.getElementById('dealOfferModeHint').textContent = lock
+    ? (isSeller
+      ? 'The buyer pays through a loan from a DealBriz lending partner, who pays you. The listing is held and documents are verified.'
+      : 'Pay in EMIs through a DealBriz lending partner, who pays the seller. The listing is held for you and documents are verified.')
+    : 'Normal offer: no EMI, the listing isn’t held, and the payment is settled directly. Tick to use EMI.';
+  document.getElementById('dealOfferWrap').classList.toggle('is-lock', lock);
+  document.getElementById('dealOfferInfo').innerHTML = lock
+    ? (isSeller
+      ? `DealLock offer, valid for ${rules.offer_valid_hours} hours. If the buyer accepts, they read the deal warning, then you confirm with ${dlConfirmWords(rules)}. The deal locks once the buyer’s documents${vehicle ? ' and your listing’s documents' : ''} are verified.`
+      : `DealLock offer, valid for ${rules.offer_valid_hours} hours. If it’s accepted, you read the deal warning and the seller confirms. The deal locks, and the listing is reserved for you for ${rules.reservation_days} days, once your documents${vehicle ? ' and the seller’s vehicle documents' : ''} are verified.`)
+    : `Normal offer, valid for ${rules.offer_valid_hours} hours. If it’s accepted, the price is agreed in this chat and that’s all: DealBriz doesn’t reserve the listing or arrange a loan, and the ${isSeller ? 'buyer pays you' : 'payment goes to the seller'} directly.`;
 }
 
 function closeOfferComposer() { closeTopModal('dealOffer'); }
@@ -723,20 +766,22 @@ async function submitOfferComposer() {
   }
   errEl.classList.add('hidden');
   const composer = offerComposer;
+  const useDeallock = !!document.getElementById('dealOfferDeallock')?.checked;
   // No warning here, for either side: the warning comes with the seller's
   // final confirmation, and the buyer is told when that happens.
   btn.disabled = true;
   try {
     if (composer.mode === 'counter') {
-      await dealsApi.counter(composer.offerId, price, note);
+      await dealsApi.counter(composer.offerId, price, note, useDeallock);
     } else if (composer.isSeller) {
       // In a seller's chat the other party is the buyer.
-      await dealsApi.sendOffer({ productId: c.listingId, buyerId: c.sellerId, price, note });
+      await dealsApi.sendOffer({ productId: c.listingId, buyerId: c.sellerId, price, note, useDeallock });
     } else {
-      await dealsApi.sendOffer({ productId: c.listingId, price, note });
+      await dealsApi.sendOffer({ productId: c.listingId, price, note, useDeallock });
     }
     await dlCloseModalThen('dealOffer');
-    showToast(composer.mode === 'counter' ? 'Counter-offer sent.' : 'Offer sent.', 'success');
+    const what = composer.mode === 'counter' ? 'Counter-offer' : 'Offer';
+    showToast(useDeallock ? `DealLock ${what.toLowerCase()} sent.` : `Normal ${what.toLowerCase()} sent.`, 'success');
     await loadChatMessages();
   } catch (err) {
     errEl.textContent = err.message || 'Could not send the offer.';
@@ -776,9 +821,36 @@ function dlAcceptOfferDialog(price, isSeller, rules) {
   };
 }
 
-async function dealAcceptOffer(offerId, price) {
+/* Accepting a normal offer: the price is agreed, nothing else happens. */
+function dlAcceptNormalOfferDialog(price, isSeller) {
+  return {
+    tone: 'info',
+    title: 'Accept this normal offer?',
+    body: `
+      <div class="deal-ask-amount"><span>Agreed price</span><strong>${dlRupees(price)}</strong></div>
+      <p>This is a <strong>normal offer, not DealLock</strong>: no EMI through DealBriz, and the listing isn’t reserved.</p>
+      <p class="deal-ask-note"><i class="fas fa-circle-info"></i> ${isSeller
+        ? 'Agree the payment and the handover with the buyer yourselves, and mark the listing sold once it’s done.'
+        : 'Agree the payment and the handover with the seller yourselves. Pay only once you have checked the item, and meet in a safe public place.'}</p>`,
+    ok: 'Accept offer',
+    cancel: 'Not now',
+  };
+}
+
+async function dealAcceptOffer(offerId, price, isLock = true) {
   const isSeller = dealChatThread?.my_role === 'seller';
   const rules = await dlRules();
+  if (isLock === false) {
+    if (!(await dlAsk(dlAcceptNormalOfferDialog(price, isSeller)))) return;
+    try {
+      await dealsApi.accept(offerId);
+      showToast('Offer accepted. The price is agreed.', 'success');
+    } catch (err) {
+      showToast(err.message || 'Could not accept the offer.', 'error');
+    }
+    loadChatMessages();
+    return;
+  }
   if (!(await dlAsk(dlAcceptOfferDialog(price, isSeller, rules)))) return;
   try {
     const deal = await dealsApi.accept(offerId);

@@ -580,3 +580,16 @@ label.deal-btn { position: relative; overflow: hidden; }
 @media (max-width: 600px) {
   .lender-firm { margin: 4px 0 18px; padding: 18px 16px; }
 }
+
+/* Offers: DealLock (with EMI) or a normal offer */
+.deal-offer-type { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 3px 9px; margin: 4px 0 2px; }
+.deal-offer-type i { font-size: 10.5px; }
+.deal-offer-type.is-lock { background: #EEF3FF; color: #2E5CE0; border: 1px solid #C7D7FE; }
+.deal-offer-type.is-normal { background: #F3F4F6; color: #374151; border: 1px solid #E5E7EB; }
+.deal-offer-mode { border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 12px; transition: border-color .15s, background .15s; }
+.deal-offer-mode.is-lock { border-color: #C7D7FE; background: #F5F8FF; }
+.deal-offer-mode-row { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; margin: 0; }
+.deal-offer-mode-row input { width: 18px; height: 18px; margin-top: 2px; flex: 0 0 auto; accent-color: var(--accent); }
+.deal-offer-mode-row strong { display: block; font-size: 14px; }
+.deal-offer-mode-row small { display: block; font-size: 12.5px; color: var(--text-muted); line-height: 1.45; margin-top: 2px; font-weight: 500; }
+.deal-offer-mode-off { font-size: 12.5px; color: #92400E; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: var(--radius-sm); padding: 7px 9px; margin: 8px 0 0; line-height: 1.45; }
