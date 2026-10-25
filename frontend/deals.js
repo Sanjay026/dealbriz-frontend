@@ -898,8 +898,14 @@ async function dealStartBuyerAccept() {
 
 /* The seller confirms with their account password (no SMS provider set up
    yet) or a 6-digit SMS code: the server says which (confirm_method). */
-function dlConfirmWords(d) { return d && d.confirm_method === 'password' ? 'your password' : 'the SMS code'; }
-function dlConfirmLabel(d) { return d && d.confirm_method === 'password' ? 'Confirm with your password' : 'Confirm with SMS code'; }
+function dlConfirmWords(d) {
+  const m = d && d.confirm_method;
+  return m === 'password' ? 'your password' : m === 'email' ? 'the code sent to your email' : 'the SMS code';
+}
+function dlConfirmLabel(d) {
+  const m = d && d.confirm_method;
+  return m === 'password' ? 'Confirm with your password' : m === 'email' ? 'Confirm with email code' : 'Confirm with SMS code';
+}
 
 async function dealStartConfirm() {
   const d = dealModalState && dealModalState.deal;
@@ -913,11 +919,13 @@ async function dealStartConfirm() {
     listingDocs: d.listing_docs && d.listing_docs.state,
   });
   if (!ok) return;
-  // How the seller proves it's them: their account password (no SMS
-  // provider set up yet), or a 6-digit SMS code.
+  // How the seller proves it's them: a 6-digit code by email (or SMS, if
+  // an SMS provider is set up), or, if neither is, their account password.
   const pw = d.confirm_method === 'password';
-  dlOtpState = { dealId: d.id, timer: null, method: pw ? 'password' : 'sms' };
-  document.getElementById('dealOtpTitle').textContent = pw ? 'Confirm with your password' : 'Confirm with the SMS code';
+  const method = pw ? 'password' : (d.confirm_method === 'email' ? 'email' : 'sms');
+  dlOtpState = { dealId: d.id, timer: null, method };
+  document.getElementById('dealOtpTitle').textContent = pw ? 'Confirm with your password'
+    : method === 'email' ? 'Confirm with the code from your email' : 'Confirm with the SMS code';
   document.getElementById('dealOtpCode').value = '';
   document.getElementById('dealOtpPassword').value = '';
   document.getElementById('dealOtpCode').classList.toggle('hidden', pw);
@@ -926,7 +934,7 @@ async function dealStartConfirm() {
   document.getElementById('dealOtpError').classList.add('hidden');
   document.getElementById('dealOtpSub').textContent = pw
     ? 'Enter your DealBriz account password to confirm that this decision is really yours.'
-    : 'Sending the code to your mobile number...';
+    : (method === 'email' ? 'Sending the code to your email...' : 'Sending the code to your mobile number...');
   dlOpenOverlay('dealOtpModal', 'dealOtp');
   if (pw) setTimeout(() => document.getElementById('dealOtpPassword').focus(), 50);
   else await dlOtpSend();
@@ -960,13 +968,16 @@ async function dlOtpSend() {
   err.classList.add('hidden');
   try {
     const r = await dealsApi.confirmSendCode(dlOtpState.dealId);
-    sub.textContent = `We sent a 6-digit code to ${r.sent_to}. It works for ${r.expires_in_minutes} minutes.`;
+    sub.textContent = `We sent a 6-digit code to ${r.sent_to}. It works for ${r.expires_in_minutes} minutes.`
+      + (dlOtpState.method === 'email' ? ' Check your spam folder too.' : '');
     dlOtpCountdown(r.resend_after_seconds || 60);
     setTimeout(() => document.getElementById('dealOtpCode').focus(), 50);
   } catch (e) {
     err.textContent = e.message || 'Could not send the code.';
     err.classList.remove('hidden');
-    sub.textContent = 'The code is sent by SMS to the mobile number on your profile.';
+    sub.textContent = dlOtpState.method === 'email'
+      ? 'The code is sent to the email address of your DealBriz account.'
+      : 'The code is sent by SMS to the mobile number on your profile.';
     btn.disabled = false;
     btn.textContent = 'Send the code again';
   }
@@ -980,7 +991,7 @@ async function dlOtpSubmit() {
   const err = document.getElementById('dealOtpError');
   const btn = document.getElementById('dealOtpSubmit');
   if (pw && !password) { err.textContent = 'Enter your password.'; err.classList.remove('hidden'); return; }
-  if (!pw && code.length !== 6) { err.textContent = 'Enter the 6-digit code from the SMS.'; err.classList.remove('hidden'); return; }
+  if (!pw && code.length !== 6) { err.textContent = `Enter the 6-digit code from the ${dlOtpState.method === 'email' ? 'email' : 'SMS'}.`; err.classList.remove('hidden'); return; }
   btn.disabled = true;
   err.classList.add('hidden');
   const dealId = dlOtpState.dealId;

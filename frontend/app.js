@@ -841,10 +841,6 @@ function showPage(page, fromPopstate = false, fromHistory = false) {
   if (!fromPopstate) {
     history.pushState({ view: 'page', page }, '', pagePath(page));
   }
-  // Update SEO meta tags for crawlers and social previews
-  if (typeof window.updateSEO === 'function') {
-    try { window.updateSEO(page === 'emi-status' ? 'emi-status' : page); } catch(e){}
-  }
   // Legal documents share this page but each has its own URL, so they are
   // reported by openLegalPage() after it rewrites the path.
   if (page !== 'legal') window.dbTrackPageView?.();
@@ -1407,7 +1403,6 @@ async function openListing(id) {
           ${p.dealStage === 'reserved' ? `<div class="pdp-reserved-note"><i class="fas fa-lock"></i> Reserved: another buyer has locked a deal on this listing. You can still message the seller.</div>`
             : p.dealStage === 'pending' ? `<div class="pdp-reserved-note"><i class="fas fa-handshake"></i> Another buyer is in a deal on this listing (documents being checked). You can still message the seller.</div>` : ''}
           <div class="pdp-actions">
-            ${p.emiEligible && !p.dealStage ? `<button class="pdp-btn pdp-btn-amber" onclick="openEmiForProduct('${p.id}')"><i class="fas fa-bolt"></i> Buy with EMI</button>` : ''}
             <button class="pdp-btn pdp-btn-blue" onclick="startChat('${p.id}')"><i class="fas fa-comment-dots"></i> Chat with Seller</button>
             <button class="pdp-icon-btn ${savedItems.has(p.id) ? 'is-saved' : ''}" data-save-id="${p.id}" aria-pressed="${savedItems.has(p.id)}" onclick="toggleSaveItem(event,'${p.id}')" aria-label="${savedItems.has(p.id) ? 'Remove from saved' : 'Save listing'}">
               <i class="fas fa-heart"></i>
@@ -4048,7 +4043,7 @@ function renderAdminUsersTable() {
   const noUsers = document.getElementById('adminNoUsers');
   const q = document.getElementById('adminUserSearch')?.value || '';
   const filtered = adminUsersCache.filter(u =>
-    adminMatches(q, `${escapeHtml(u.first_name)} ${escapeHtml(u.last_name)}`, u.email, u.phone, u.city));
+    adminMatches(q, `${escapeHtml(u.first_name)} ${escapeHtml(u.last_name)}`, u.email, u.phone, u.city, u.place && u.place.city));
   const users = adminPaginate('users', filtered);
 
   document.getElementById('adminUserCount').textContent = `${filtered.length} of ${adminUsersCache.length}`;
@@ -4089,12 +4084,25 @@ function renderAdminUsersTable() {
       <td>${escapeHtml(u.first_name)} ${escapeHtml(u.last_name)}</td>
       <td>${escapeHtml(u.email)}</td>
       <td>${u.phone || '—'}</td>
-      <td>${u.city || '—'}</td>
+      <td>${adminUserPlaceHtml(u)}</td>
       <td>${rolesBadges}</td>
       <td>${new Date(u.created_at).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'})}</td>
       <td>${roleControls}</td>
     </tr>`;
   }).join('');
+}
+
+/* City and pincode for the Users table. users.city holds the signup
+   pincode, or a city name on older accounts; the server adds the city for a
+   pincode from the pincodes table. A pincode is never guessed from a name. */
+function adminUserPlaceHtml(u) {
+  const pl = u.place || {};
+  const pin = pl.pincode || '';
+  const city = pl.city || (!pin ? (u.city || '') : '');
+  if (!pin && !city) return '—';
+  const top = city ? escapeHtml(city) : '<span style="color:var(--text-muted)">City not found</span>';
+  const bottom = pin ? escapeHtml(pin) : 'No pincode saved';
+  return `${top}<br><small style="color:var(--text-muted)">${bottom}</small>`;
 }
 
 async function adminAssignRole(uid, roleName) {
