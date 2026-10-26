@@ -1503,8 +1503,8 @@ function dealLoanHtml(d) {
     l.lender ? ['Lender', l.lender] : null,
     l.loan_amount != null ? ['Loan amount', dlRupees(l.loan_amount)] : null,
     l.down_payment != null ? ['Down payment', dlRupees(l.down_payment)] : null,
-    l.monthly_emi != null ? ['EMI', `${dlRupees(l.monthly_emi)} × ${l.tenure_months} months`] : null,
-    l.interest_rate != null ? ['Interest', `${l.interest_rate}% p.a.`] : null,
+    l.monthly_emi != null ? ['EMI (estimate)', `up to ${dlRupees(l.monthly_emi)} × ${l.tenure_months} months`] : null,
+    l.interest_rate != null ? ['Interest (estimate)', dlRateRangeText()] : null,
     l.nbfc_application_reference ? ['Lender reference', l.nbfc_application_reference] : null,
   ].filter(Boolean);
   return `
@@ -1535,7 +1535,7 @@ const DEAL_EVENT_TEXT = {
   document_approved: (e) => `${dlEsc(DOC_LABEL(e.data.doc_type))} verified`,
   document_rejected: (e) => `${dlEsc(DOC_LABEL(e.data.doc_type))} sent back${e.data.reason ? `: ${dlEsc(e.data.reason)}` : ''}`,
   locked: (e) => (e.data && e.data.price ? `Deal locked at ${dlRupees(e.data.price)}` : 'Deal locked'),
-  lender_set: (e) => (e.data && e.data.lender ? `Lender set: ${dlEsc(e.data.lender)}` : 'Lender cleared'),
+  lender_set: (e) => (e.data && e.data.lender ? `Lender ${e.data.previous ? 'changed' : 'set'} by DealBriz: ${dlEsc(e.data.lender)}` : 'Lender cleared'),
   loan_applied: (e) => (e.data && e.data.lender ? `Buyer applied for the loan with ${dlEsc(e.data.lender)}` : 'Buyer applied for the loan'),
   loan_approved: () => 'Loan approved',
   ready_to_pay: () => 'Lender ready to pay',
@@ -1928,7 +1928,7 @@ function dlLoanDoneHtml(app, d) {
         ${ref ? row('Application reference', dlEsc(ref)) : ''}
         ${row('Loan amount requested', dlRupees(app.loan_amount))}
         ${app.down_payment != null ? row('Down payment', dlRupees(app.down_payment)) : ''}
-        ${app.monthly_emi != null ? row('Estimated EMI', `${dlRupees(app.monthly_emi)} × ${dlEsc(app.tenure_months)} months`) : ''}
+        ${app.monthly_emi != null ? row('Estimated EMI', `${dlRupees(dlEmi(Number(app.loan_amount), Number(app.tenure_months), dlLoanRates().lo))} – ${dlRupees(app.monthly_emi)} × ${dlEsc(app.tenure_months)} months`) : ''}
       </div>
       <div class="deal-ask-sub">What happens next</div>
       <ol class="deal-ask-steps">
@@ -1948,18 +1948,32 @@ function dealLoanNumbers() {
   const downRaw = document.getElementById('dealLoanDown').value.trim();
   const down = downRaw ? dlParseRupees(downRaw) : 0;
   const tenure = parseInt(document.getElementById('dealLoanTenure').value, 10);
-  const rate = parseFloat(document.getElementById('dealLoanRate').value);
   const loan = Math.max(0, price - (isNaN(down) ? 0 : down));
-  const mr = rate / 12 / 100;
-  const emi = mr > 0 ? loan * mr * Math.pow(1 + mr, tenure) / (Math.pow(1 + mr, tenure) - 1) : loan / tenure;
-  return { price, down, tenure, rate, loan, emi };
+  const { lo, hi } = dlLoanRates();
+  const emiLow = dlEmi(loan, tenure, lo);
+  const emi = dlEmi(loan, tenure, hi);   // stored estimate: the top of the range
+  return { price, down, tenure, rate: hi, loan, emi, emiLow };
 }
+
+/* The DealLock loan rate is fixed (a range), not chosen by the buyer. */
+function dlLoanRates() {
+  const r = dealRulesCache || {};
+  return { lo: r.loan_rate_min || 10, hi: r.loan_rate_max || 16 };
+}
+function dlEmi(loan, tenure, rate) {
+  const mr = rate / 12 / 100;
+  if (!loan || !tenure) return 0;
+  return mr > 0 ? loan * mr * Math.pow(1 + mr, tenure) / (Math.pow(1 + mr, tenure) - 1) : loan / tenure;
+}
+function dlRateRangeText() { const { lo, hi } = dlLoanRates(); return `${lo}–${hi}% p.a.`; }
 
 function calcDealLoan() {
   const n = dealLoanNumbers();
   document.getElementById('dealLoanAmount').textContent = dlRupees(n.loan);
-  document.getElementById('dealLoanEmi').textContent = dlRupees(n.emi);
-  document.getElementById('dealLoanTotal').textContent = dlRupees(n.emi * n.tenure);
+  document.getElementById('dealLoanEmi').textContent = `${dlRupees(n.emiLow)} – ${dlRupees(n.emi)}`;
+  document.getElementById('dealLoanTotal').textContent = `${dlRupees(n.emiLow * n.tenure)} – ${dlRupees(n.emi * n.tenure)}`;
+  const rateEl = document.getElementById('dealLoanRate');
+  if (rateEl) rateEl.textContent = dlRateRangeText();
 }
 
 async function submitDealLoan(existingId = null) {
@@ -2034,7 +2048,7 @@ async function renderMyDeals() {
     return;
   }
   const banner = currentUser.dealBanUntil && new Date(currentUser.dealBanUntil) > new Date()
-    ? `<div class="deal-ban-banner"><i class="fas fa-ban"></i> New listings and deals are paused until ${dlEsc(dlWhen(currentUser.dealBanUntil))}, because ${((dealRulesCache || {}).cancel_limit) || 3} deals were force-cancelled in a row. Your current deals carry on as normal.</div>`
+    ? `<div class="deal-ban-banner"><i class="fas fa-ban"></i> New listings and deals are paused until ${dlEsc(dlWhen(currentUser.dealBanUntil))}, ${currentUser.dealBanReason ? `by DealBriz. Reason: ${dlEsc(currentUser.dealBanReason)}.` : `because ${((dealRulesCache || {}).cancel_limit) || 3} deals were force-cancelled in a row.`} Your current deals carry on as normal.</div>`
     : '';
   if (!deals.length) {
     el.innerHTML = banner + (myDealsTab === 'live'
@@ -2299,7 +2313,14 @@ async function adminViewDeal(dealId) {
       <button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="adminDealResolve('${dlEsc(d.id)}')">Resolve</button>`;
   }
 
-  // The lender is the one the buyer chooses on the loan form, not set here.
+  // The buyer chooses the lender on the loan form; staff who manage deals
+  // can change it at any point while the deal is live.
+  const lenderPick = can && LIVE_DEAL.includes(d.status)
+    ? `<div class="admin-detail-section"><h4>Change lender</h4>
+        <p style="font-size:11.5px;color:var(--text-muted);margin:0 0 8px;line-height:1.5">Active lenders that fund ${dlEsc((LOAN_TYPE_LABEL[d.loan_type] || d.loan_type).toLowerCase())}s. The loan application moves with the deal${['loan_in_progress', 'ready_to_pay'].includes(d.status) ? ', and the new lender is emailed the application and documents' : ''}.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><select id="adminDealFinancer" style="flex:1;min-width:160px"><option value="">Loading...</option></select>
+        <button class="btn-sm btn-sm-blue" onclick="adminDealSetFinancer('${dlEsc(d.id)}')">Save</button></div></div>`
+    : '';
 
   dlOpenAdminModal(`
     <div class="pm-body" style="padding-top:20px">
@@ -2314,6 +2335,7 @@ async function adminViewDeal(dealId) {
 
       ${(d.documents || []).length || d.status === 'docs_pending' ? `<div class="admin-detail-section"><h4>Documents</h4>${dlDocsReviewHtml(d, 'admin')}</div>` : ''}
       ${dlLenderEmailHtml(d, 'admin')}
+      ${lenderPick}
 
       <div class="admin-detail-section"><h4>Deal</h4>
         ${r('Agreed price', dlRupees(d.agreed_price))}
@@ -2355,6 +2377,26 @@ async function adminViewDeal(dealId) {
 
       <div class="admin-detail-section">${dealTimelineHtml(d, { staff: true }).replace('class="deal-section"', 'class="deal-section deal-section-flat"')}</div>
     </div>`);
+
+  if (lenderPick) {
+    const sel = document.getElementById('adminDealFinancer');
+    try {
+      const fits = (await db.adminGetFinancers() || []).filter(f => (f.status || 'active') === 'active'
+        && (f.loan_types || []).includes(d.loan_type));
+      if (sel) sel.innerHTML = (d.financer_id ? '' : '<option value="">Choose a lender</option>') + fits.map(f =>
+        `<option value="${f.financer_id}" ${d.financer_id === f.financer_id ? 'selected' : ''}>${dlEsc(f.name)}</option>`).join('');
+    } catch {
+      if (sel) sel.innerHTML = '<option value="">Could not load lenders</option>';
+    }
+  }
+}
+
+async function adminDealSetFinancer(dealId) {
+  const v = document.getElementById('adminDealFinancer')?.value || '';
+  if (!v) { showToast('Choose a lender.', 'error'); return; }
+  const name = document.getElementById('adminDealFinancer').selectedOptions[0]?.textContent || 'this lender';
+  if (!(await dlAsk({ title: `Change the lender to ${name}?`, body: '<p>The deal and its loan application move to this lender. If the loan has been applied for, the new lender is emailed the application and documents.</p>', ok: 'Change lender' }))) return;
+  adminDealRun(dealId, () => apiFetch(`/deals/staff/${encodeURIComponent(dealId)}/financer`, { method: 'POST', body: { financer_id: Number(v) } }), 'Lender changed.');
 }
 
 async function adminDealRun(dealId, fn, ok) {
@@ -2482,6 +2524,71 @@ async function adminSaveLenderRole(uid) {
     renderAdminUsers();
   } catch (err) {
     showToast(err.message || 'Could not assign the role.', 'error');
+  }
+}
+
+/* Superadmin: a user's restriction (no new listings, offers or deals):
+   impose it, shorten or extend it, lift it, and set the force-cancel count. */
+function adminRestrictionsOpen(uid) {
+  const u = (typeof adminUsersCache !== 'undefined' ? adminUsersCache : []).find(x => x.id === uid);
+  if (!u) return;
+  const rules = dealRulesCache || { cancel_limit: 3, ban_days: 7 };
+  const active = !!u.deal_ban_until;
+  const pad = (n) => String(n).padStart(2, '0');
+  const local = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  const start = active ? new Date(u.deal_ban_until) : new Date(Date.now() + (rules.ban_days || 7) * 86400000);
+  const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email;
+  dlOpenAdminModal(`
+    <div class="pm-body" style="padding-top:20px">
+      <h2 class="pm-title" style="margin-bottom:4px">Restrictions</h2>
+      <p class="deal-small">${dlEsc(name)} · ${dlEsc(u.email)}</p>
+      <div class="admin-detail-section"><h4>Now</h4>
+        <div class="admin-detail-row"><span>New listings, offers and deals</span><strong>${active
+          ? `<span class="status-pill status-rejected">Paused till ${dlEsc(fmtDateTime(u.deal_ban_until))}</span>` : '<span class="status-pill status-approved">Allowed</span>'}</strong></div>
+        ${active ? `<div class="admin-detail-row"><span>Why</span><strong>${u.deal_ban_reason ? dlEsc(u.deal_ban_reason) : `${rules.cancel_limit} force cancels in a row (automatic)`}</strong></div>` : ''}
+        <div class="admin-detail-row"><span>Force cancels in a row</span><strong>${u.consecutive_cancels || 0} of ${rules.cancel_limit}</strong></div>
+      </div>
+      <div class="admin-detail-section"><h4>${active ? 'Change the end, or lift it' : 'Restrict this user'}</h4>
+        <label style="font-size:12px;font-weight:600;display:block;margin:0 0 4px" for="restrictUntil">Paused until</label>
+        <input id="restrictUntil" type="datetime-local" style="width:100%" value="${local(start)}" min="${local(new Date())}">
+        <label style="font-size:12px;font-weight:600;display:block;margin:10px 0 4px" for="restrictReason">Reason (the user sees it)</label>
+        <input id="restrictReason" type="text" maxlength="255" style="width:100%" value="${dlEsc(u.deal_ban_reason || '')}" placeholder="e.g. Repeated no-shows at handovers" autocomplete="off">
+        <label style="font-size:12px;font-weight:600;display:block;margin:10px 0 4px" for="restrictCancels">Force cancels in a row</label>
+        <select id="restrictCancels" style="width:100%">${Array.from({ length: rules.cancel_limit }, (_, i) =>
+          `<option value="${i}" ${i === Math.min(u.consecutive_cancels || 0, rules.cancel_limit - 1) ? 'selected' : ''}>${i}</option>`).join('')}</select>
+        <p class="deal-small" style="margin-top:6px">While paused, the user can't post listings or send offers, and their open offers are withdrawn. Deals already running carry on.</p>
+        <p id="restrictError" class="auth-error hidden"></p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+          <button class="btn-sm btn-sm-red" onclick="adminRestrictionSave('${dlEsc(uid)}', 'set')">${active ? 'Save new end' : 'Restrict'}</button>
+          ${active ? `<button class="btn-sm btn-sm-blue" onclick="adminRestrictionSave('${dlEsc(uid)}', 'lift')">Lift now</button>` : ''}
+          <button class="btn-sm" onclick="adminRestrictionSave('${dlEsc(uid)}', 'cancels')">Save cancel count only</button>
+        </div>
+      </div>
+    </div>`);
+}
+
+async function adminRestrictionSave(uid, action) {
+  const err = document.getElementById('restrictError');
+  const cancels = Number(document.getElementById('restrictCancels')?.value || 0);
+  const body = { cancels };
+  if (action === 'set') {
+    const v = document.getElementById('restrictUntil')?.value;
+    const reason = (document.getElementById('restrictReason')?.value || '').trim();
+    if (!v) { err.textContent = 'Choose until when.'; err.classList.remove('hidden'); return; }
+    if (!reason) { err.textContent = 'Add a reason. The user is shown it.'; err.classList.remove('hidden'); return; }
+    body.until = new Date(v).toISOString();
+    body.reason = reason;
+  } else if (action === 'lift') {
+    if (!(await dlAsk({ title: 'Lift the restriction?', body: '<p>The user can post listings and make deals again straight away.</p>', ok: 'Lift now' }))) return;
+    body.until = null;
+  }
+  try {
+    await apiFetch(`/admin/users/${encodeURIComponent(uid)}/restriction`, { method: 'POST', body });
+    showToast(action === 'lift' ? 'Restriction lifted.' : action === 'set' ? 'Restriction saved.' : 'Cancel count saved.', 'success');
+    await dlCloseModalThen('product');
+    renderAdminUsers();
+  } catch (e) {
+    if (err) { err.textContent = e.message || 'Could not save.'; err.classList.remove('hidden'); }
   }
 }
 
@@ -3006,7 +3113,7 @@ async function lenderViewLoan(appId) {
         ${r('Down payment', dlRupees(a.down_payment))}
         ${r('Loan amount', dlRupees(a.loan_amount))}
         ${r('EMI (estimate)', `${dlRupees(a.monthly_emi)} × ${a.tenure_months} months`)}
-        ${r('Interest (estimate)', `${a.interest_rate}% p.a.`)}
+        ${r('Interest (estimate)', `${dlRateRangeText()}${a.deal_id ? `, EMI worked out at ${dlEsc(a.interest_rate)}%` : ''}`)}
       </div>
       <div class="admin-detail-section"><h4>Your reference and KFS</h4>
         <input id="lenderRef" type="text" style="width:100%" maxlength="150" placeholder="Your application reference" value="${dlEsc(a.nbfc_application_reference || '')}" autocomplete="off">

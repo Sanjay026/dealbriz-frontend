@@ -300,6 +300,7 @@ async function refreshCurrentUser() {
         // DealLock: set while new listings and deals are paused (3 locked
         // deals cancelled in a row). The server enforces it either way.
         dealBanUntil: profile.deal_ban_until || null,
+        dealBanReason: profile.deal_ban_reason || null,
         createdAt: profile.created_at
       };
       updateUserUI();
@@ -2468,7 +2469,9 @@ async function handleSellSubmit() {
   if (!isEdit && currentUser.dealBanUntil && new Date(currentUser.dealBanUntil) > new Date()) {
     const until = new Date(currentUser.dealBanUntil).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
     const limit = (typeof dealRulesCache !== 'undefined' && dealRulesCache && dealRulesCache.cancel_limit) || 3;
-    showAuthError(errEl, `You force-cancelled ${limit} deals in a row, so you can't post new listings until ${until}.`);
+    showAuthError(errEl, currentUser.dealBanReason
+      ? `DealBriz has paused new listings on your account until ${until}. Reason: ${currentUser.dealBanReason}`
+      : `You force-cancelled ${limit} deals in a row, so you can't post new listings until ${until}.`);
     return;
   }
   errEl.classList.add('hidden');
@@ -4042,7 +4045,8 @@ function renderAdminUsersTable() {
   const tbody = document.getElementById('adminUsersBody');
   const noUsers = document.getElementById('adminNoUsers');
   const q = document.getElementById('adminUserSearch')?.value || '';
-  const filtered = adminUsersCache.filter(u =>
+  const restrictedOnly = !!document.getElementById('adminUserRestrictedOnly')?.checked;
+  const filtered = adminUsersCache.filter(u => (!restrictedOnly || u.deal_ban_until) &&
     adminMatches(q, `${escapeHtml(u.first_name)} ${escapeHtml(u.last_name)}`, u.email, u.phone, u.city, u.place && u.place.city));
   const users = adminPaginate('users', filtered);
 
@@ -4058,8 +4062,9 @@ function renderAdminUsersTable() {
       : (u.is_admin ? '<span class="status-pill status-pending">admin (legacy)</span>' : '—'))
       + (u.lender ? `<br><small><i class="fas fa-building-columns"></i> ${escapeHtml(u.lender.name || 'Lender')}</small>` : '')
       // DealLock: paused after 3 force-cancelled deals in a row.
-      + (u.deal_ban_until ? `<br><span class="status-pill status-rejected" title="No new listings or deals">Deals paused till ${new Date(u.deal_ban_until).toLocaleDateString('en-IN', {day:'numeric',month:'short'})}</span>`
-          + (userCan('users.suspend') ? ` <button class="btn-sm" style="margin-top:4px" onclick="adminLiftDealBan('${u.id}')">Lift</button>` : '') : '');
+      + (u.deal_ban_until ? `<br><span class="status-pill status-rejected" title="${escapeHtml(u.deal_ban_reason || 'Force cancels in a row (automatic)')}">Deals paused till ${new Date(u.deal_ban_until).toLocaleDateString('en-IN', {day:'numeric',month:'short'})}</span>`
+          + (userCan('users.suspend') && !currentUser?.isSuperadmin ? ` <button class="btn-sm" style="margin-top:4px" onclick="adminLiftDealBan('${u.id}')">Lift</button>` : '') : '')
+      + (u.consecutive_cancels ? `<br><small style="color:var(--text-muted)">${u.consecutive_cancels} force cancel${u.consecutive_cancels === 1 ? '' : 's'} in a row</small>` : '');
 
     // Role-assignment, role-removal, and account deletion are all
     // superadmin-only server-side — hide them from other staff (admin/
@@ -4076,6 +4081,7 @@ function renderAdminUsersTable() {
         </select>
         ${(u.roles && u.roles.length) && u.id !== currentUser.id
           ? `<button class="btn-sm" style="margin-top:4px" onclick="adminRemoveRoleConfirm('${u.id}')">Remove Role</button>` : ''}
+        ${u.id !== currentUser.id ? `<button class="btn-sm" style="margin-top:4px" onclick="adminRestrictionsOpen('${u.id}')">Restrictions</button>` : ''}
         <button class="btn-sm btn-sm-red" onclick="adminDeleteUserConfirm('${u.id}')" style="margin-top:4px">Delete</button>`
       : '';
 

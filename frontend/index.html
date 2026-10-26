@@ -27,7 +27,7 @@
 <link rel="stylesheet" href="/home.css?v=20261023k">
 <link rel="stylesheet" href="/how-it-works.css?v=20261023e">
 <link rel="stylesheet" href="/browse-categories.css?v=20261023a">
-<link rel="stylesheet" href="/deals.css?v=20261024b">
+<link rel="stylesheet" href="/deals.css?v=20261026a">
 
 <!-- Google tag (gtag.js). send_page_view is off because the app swaps pages
      with history.pushState and never reloads — GA's one automatic view would
@@ -1293,6 +1293,7 @@
       <div class="admin-search-bar">
         <i class="fas fa-search"></i>
         <input type="text" id="adminUserSearch" placeholder="Search name, email, phone or pincode..." oninput="adminUserFilterChanged()" autocomplete="off">
+        <label class="admin-restricted-filter"><input type="checkbox" id="adminUserRestrictedOnly" onchange="adminUserFilterChanged()"> Restricted only</label>
         <span id="adminUserCount" class="admin-search-count"></span>
       </div>
       <div id="adminPager-users" class="admin-pager"></div>
@@ -1785,11 +1786,9 @@
           <option value="48">48 months</option><option value="60">60 months</option>
         </select>
       </div>
-      <div class="form-group"><label for="dealLoanRate">Interest (estimate)</label>
-        <select id="dealLoanRate" onchange="calcDealLoan()">
-          <option value="12" selected>12% p.a.</option><option value="10">10% p.a.</option>
-          <option value="14">14% p.a.</option><option value="16">16% p.a.</option>
-        </select>
+      <div class="form-group"><label>Interest (estimate)</label>
+        <!-- Fixed range, not chosen by the buyer (deals/rules.py LOAN_RATE_MIN/MAX). -->
+        <div id="dealLoanRate" class="deal-loan-rate-fixed">10–16% p.a.</div>
       </div>
     </div>
     <div class="deal-loan-result">
@@ -1797,7 +1796,7 @@
       <div><span>EMI / month</span><strong id="dealLoanEmi">₹0</strong></div>
       <div><span>Total repayable</span><strong id="dealLoanTotal">₹0</strong></div>
     </div>
-    <p class="deal-loan-assume" role="note"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><span>The interest rate, EMI and totals here are based on assumptions for now, so pick whatever suits you best. The NBFC you choose will contact you about the actual rate, EMI and other details, and confirms them in its Key Fact Statement before you sign anything.</span></p>
+    <div class="deal-loan-assume" role="note"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div><strong>Please note: these figures are estimates</strong><span>The interest rate is shown as a 10–16% range and the EMI and totals are worked out on it. The NBFC you choose will contact you about the actual rate, EMI and other details, and confirms them in its Key Fact Statement before you sign anything.</span></div></div>
     <div class="form-group"><label for="dealLoanName">Full name</label><input type="text" id="dealLoanName" placeholder="As per Aadhaar" autocomplete="off"></div>
     <div class="form-row">
       <div class="form-group"><label for="dealLoanPhone">Phone</label><input type="tel" id="dealLoanPhone" inputmode="tel" maxlength="17" autocomplete="off"></div>
@@ -1885,9 +1884,9 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="/geo.js?v=20261022c"></script>
 <script src="/api-client.js?v=20261020c"></script>
-<script src="/app.js?v=20261025a"></script>
+<script src="/app.js?v=20261026a"></script>
 <!-- DealLock: offers, deals, loan, handover, admin Deals. After app.js (uses its helpers). -->
-<script src="/deals.js?v=20261025a"></script>
+<script src="/deals.js?v=20261026a"></script>
 <!-- Homepage How It Works scroll road (needs the #howItWorks markup above). -->
 <script src="/how-it-works.js?v=20261023d"></script>
 <script src="/browse-categories.js?v=20261023a"></script>

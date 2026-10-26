@@ -593,3 +593,16 @@ label.deal-btn { position: relative; overflow: hidden; }
 .deal-offer-mode-row strong { display: block; font-size: 14px; }
 .deal-offer-mode-row small { display: block; font-size: 12.5px; color: var(--text-muted); line-height: 1.45; margin-top: 2px; font-weight: 500; }
 .deal-offer-mode-off { font-size: 12.5px; color: #92400E; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: var(--radius-sm); padding: 7px 9px; margin: 8px 0 0; line-height: 1.45; }
+
+/* Loan form: fixed rate range, and a stronger "estimates" notice */
+.deal-loan-rate-fixed { padding: 11px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); font-size: 14px; font-weight: 700; color: var(--text); }
+.deal-loan-assume {
+  display: flex; gap: 12px; align-items: flex-start;
+  background: #FEF3C7; color: #78350F; border: 2px solid #F59E0B; border-left-width: 6px;
+  border-radius: var(--radius-sm); padding: 12px 14px; margin: 0 0 16px; font-size: 13.5px; line-height: 1.5;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.18);
+}
+.deal-loan-assume > i { font-size: 22px; color: #D97706; margin-top: 1px; flex: 0 0 auto; }
+.deal-loan-assume strong { display: block; font-size: 14.5px; font-weight: 800; color: #78350F; margin-bottom: 3px; }
+.deal-loan-assume span { display: block; }
+.admin-restricted-filter { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; color: var(--text-muted); cursor: pointer; }
