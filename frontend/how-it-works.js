@@ -21,23 +21,21 @@
   /* Step text: Buying = dealbriz.com "How DealBriz Works"; Selling = "How Selling Works" titles. */
   const FLOWS = {
     buy: {
-      sub: 'Buying or selling locally has never been simpler.',
       finish: 'Deal done',
       steps: [
-        ['search', 'Browse',   'Find second-hand products near your location with smart search and filters.'],
-        ['chat',   'Connect',  'Chat directly with the seller through our secure in-app messaging.'],
-        ['emi',    'Choose',   'Buy directly or choose EMI financing if eligible for that product.'],
-        ['done',   'Complete', 'Arrange pickup or delivery and finish your transaction safely.'],
+        ['search', 'Explore and connect',   'Browse pre-owned products listed by sellers across India. Found something you like? Chat with the seller directly to ask questions and know more.'],
+        ['chat',   'Meet and inspect',       'Meet the seller in person and inspect the product thoroughly. Make sure it is exactly what you are looking for before you move ahead.'],
+        ['lock',   'Lock the deal',          'Agree on the final price and lock the deal. If you want financing, DealBriz connects you with our trusted NBFC partners.'],
+        ['emi',    'Pay your way',           'The seller receives their payment, and you can choose to pay in easy monthly EMIs. Your deal is done.'],
       ],
     },
     sell: {
-      sub: 'From photo to sold, and what it costs you: nothing.',
       finish: 'Sold',
       steps: [
-        ['camera', 'List it',                'Pick a category, add up to 5 photos, set your price and mark it negotiable.'],
-        ['pin',    'Buyers nearby find you', 'Your pincode shows the listing to people in your area first.'],
-        ['lock',   'Talk on your terms',     'Buyers reach you in in-app chat. Your number stays hidden unless you share it.'],
-        ['tag',    'Close the sale',         'Agree on a price, meet somewhere public and hand it over. Then mark it sold.'],
+        ['camera', 'Post your ad',           'List your product on DealBriz in a few simple steps and make it visible to buyers across India.'],
+        ['chat',   'Chat and negotiate',     'Get messages from interested buyers. Answer their questions and negotiate the best price, all through DealBriz chat.'],
+        ['lock',   'Meet and lock the deal', 'Meet the buyer in person, let them inspect the product and lock the deal once you both agree.'],
+        ['tag',    'Hand over and get paid',  'Hand over the product to the buyer and receive the full payment, even when the buyer chooses to pay through EMI.'],
       ],
     },
   };
@@ -50,7 +48,6 @@
     if (!root || root.dataset.ready) return;
     root.dataset.ready = '1';
 
-    const sub     = root.querySelector('[data-how-sub]');
     const toggles = [...root.querySelectorAll('[data-flow]')];
     const track   = root.querySelector('.dbz-how__track');
     const road    = root.querySelector('.dbz-how__road');
@@ -68,7 +65,7 @@
         <rect x="21" y="3.5" width="8" height="15" rx="2.5" fill="#0B1A33"/>
         <rect x="5" y="4" width="6" height="14" rx="2" fill="#0B1A33" opacity=".75"/>
         <rect x="12.5" y="5" width="7" height="12" rx="2" fill="#fff" opacity=".25"/>
-        <rect x="33" y="3" width="3" height="5" rx="1.2" fill="#F5B942"/><rect x="33" y="14" width="3" height="5" rx="1.2" fill="#F5B942"/>
+        <rect x="33" y="3" width="3" height="5" rx="1.2" fill="#F97316"/><rect x="33" y="14" width="3" height="5" rx="1.2" fill="#F97316"/>
         <rect x="0" y="3" width="2.5" height="5" rx="1" fill="#E5484D"/><rect x="0" y="14" width="2.5" height="5" rx="1" fill="#E5484D"/>
       </g></g></g>`;
     const P = (c) => road.querySelector(c);
@@ -84,7 +81,6 @@
     function render() {
       const f = FLOWS[flow];
       root.dataset.activeFlow = flow;
-      sub.textContent = f.sub;
       finish.innerHTML = `${svg('flag')}<span>${f.finish}</span>`;
       list.innerHTML = f.steps.map(([ic, title, text], i) => `
         <li class="dbz-step">

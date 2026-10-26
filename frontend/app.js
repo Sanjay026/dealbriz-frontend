@@ -765,6 +765,7 @@ function showPage(page, fromPopstate = false, fromHistory = false) {
   // The home page uses a light navbar (the rest of the app keeps the dark one),
   // so scope it with a body class rather than restyling .navbar globally.
   document.body.classList.toggle('on-home', page === 'home');
+  document.body.classList.toggle('on-buy', page === 'buy');
   // Hides the support bubble in the admin panel, where it would just
   // overlap the dense staff UI.
   document.body.classList.toggle('on-admin', page === 'admin');
@@ -894,8 +895,16 @@ function setCatDirect(cat) {
   applyBuyFilters();
 }
 
+function syncBuySearch(fromId) {
+  const v = document.getElementById(fromId)?.value || '';
+  const ids = ['buySearchInput', 'buySearchInputMobile'];
+  ids.forEach(id => { if (id !== fromId) { const el = document.getElementById(id); if (el) el.value = v; } });
+}
+
 function triggerBuySearch() {
-  const q = (document.getElementById('buySearchInput')?.value || '').trim();
+  syncBuySearch('buySearchInput');
+  syncBuySearch('buySearchInputMobile');
+  const q = (document.getElementById('buySearchInput')?.value || document.getElementById('buySearchInputMobile')?.value || '').trim();
   if (q) window.dbTrackEvent?.('search', { search_term: q });
   applyBuyFilters();
 }
@@ -905,7 +914,7 @@ function toggleFilters() {
 }
 
 function getBuyFilterParams() {
-  const q = (document.getElementById('buySearchInput')?.value || '').trim();
+  const q = (document.getElementById('buySearchInput')?.value || document.getElementById('buySearchInputMobile')?.value || '').trim();
   const minPrice = parseFloat(document.getElementById('priceMin')?.value);
   const maxPrice = parseFloat(document.getElementById('priceMax')?.value);
   const pincode = (document.getElementById('pincodeFilter')?.value || '').trim();
@@ -3430,7 +3439,7 @@ function initialsAvatar(name, size = 200) {
     .map(w => w[0] || '').join('').toUpperCase() || '?';
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` +
-    `<rect width="100%" height="100%" fill="#2563EB"/>` +
+    `<rect width="100%" height="100%" fill="#1A56DB"/>` +
     `<text x="50%" y="50%" dy=".35em" text-anchor="middle" fill="#fff" ` +
     `font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" ` +
     `font-size="${Math.round(size * 0.4)}" font-weight="700">${initials}</text></svg>`;
@@ -5440,6 +5449,10 @@ async function refreshHomeMap(recenter = false) {
     total = res.total || 0;
   } catch {
     if (requestId === homeMapRequestId && chip) chip.textContent = 'Could not load listings';
+    // Still pan the map to the selected area even if the API is unreachable
+    if (recenter && homeMap) {
+      homeMap.setView([selectedArea.lat, selectedArea.lng], 12);
+    }
     return;
   }
   // A slower request from a previous area must not overwrite the new one.
@@ -5818,7 +5831,7 @@ async function saveAdminTerms(key = 'terms') {
 // construct a second chart on a canvas that already has one attached.
 const adminCharts = {};
 
-const ADMIN_CHART_COLORS = ['#2563EB', '#17C3B2', '#E7B24B', '#8B5CF6', '#EF4444', '#10B981', '#F97316', '#0EA5E9', '#EC4899', '#64748B'];
+const ADMIN_CHART_COLORS = ['#1A56DB', '#17C3B2', '#E7B24B', '#8B5CF6', '#EF4444', '#10B981', '#F97316', '#0EA5E9', '#EC4899', '#64748B'];
 
 function adminChartToggle(canvasId, emptyId, isEmpty) {
   document.getElementById(canvasId).classList.toggle('hidden', isEmpty);

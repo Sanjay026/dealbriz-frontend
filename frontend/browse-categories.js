@@ -26,6 +26,27 @@
       <rect x="402" y="110" width="10" height="14" rx="3" fill="${R}"/>
       ${wheel(104, 160, 28)}${wheel(328, 160, 28)}`],
 
+    scooters: ['0 0 420 220', `${shadow(211, 210, 170)}
+      ${wheel(92, 170, 40)}${wheel(330, 170, 40)}
+      <path d="M180 80L160 160" stroke="${G}" stroke-width="10" stroke-linecap="round"/>
+      <rect x="140" y="60" width="80" height="40" rx="12" fill="#fff"/>
+      <path d="M220 80h80l20 40v50h-20" stroke="${G}" stroke-width="8" fill="none" stroke-linejoin="round"/>
+      <path d="M300 130h20v20h-20z" fill="${R}"/>
+      <path d="M120 100Q140 56 180 60" stroke="#9aa1b1" stroke-width="8" fill="none" stroke-linecap="round"/>
+      <path d="M130 70L160 50" stroke="${D}" stroke-width="6" stroke-linecap="round"/>
+      <circle cx="140" cy="80" r="12" fill="${Y}" stroke="#fff" stroke-width="4"/>`],
+
+    commercial: ['0 0 420 220', `${shadow(210, 208, 190)}
+      <rect x="20" y="68" width="240" height="120" rx="14" fill="#fff"/>
+      <rect x="260" y="108" width="130" height="80" rx="10" fill="${S}"/>
+      <path d="M260 128h100l28 34v26h-128" stroke="${G}" stroke-width="6" fill="none"/>
+      ${wheel(80, 196, 26)}${wheel(200, 196, 26)}${wheel(346, 196, 26)}
+      <rect x="34" y="82" width="60" height="40" rx="6" fill="${GL}"/>
+      <rect x="110" y="82" width="60" height="40" rx="6" fill="${GL}"/>
+      <path d="M314 128l20 18" stroke="${GL}" stroke-width="5" stroke-linecap="round"/>
+      <rect x="370" y="148" width="16" height="14" rx="4" fill="${R}"/>
+      <rect x="22" y="84" width="12" height="10" rx="3" fill="${Y}"/>`],
+
     bikes: ['0 0 420 220', `${shadow(211, 210, 170)}
       ${wheel(92, 164, 46)}${wheel(330, 164, 46)}
       <path d="M330 164L240 140" stroke="${G}" stroke-width="10" stroke-linecap="round"/>
@@ -114,6 +135,23 @@
       <path d="M261 170v46M238 193h46" stroke="${S}" stroke-width="4"/>
       <rect x="148" y="278" width="84" height="10" rx="4" fill="${S}"/>`],
 
+    antique: ['0 0 340 300', `${shadow(170, 288, 120)}
+      <rect x="110" y="40" width="120" height="160" rx="12" fill="#fff"/>
+      <rect x="120" y="52" width="100" height="136" rx="8" fill="${S}"/>
+      <path d="M170 52V188" stroke="${L}" stroke-width="3"/>
+      <circle cx="170" cy="120" r="40" fill="${GL}" opacity=".6"/>
+      <circle cx="170" cy="120" r="28" fill="#fff" opacity=".3"/>
+      <path d="M158 108Q170 90 182 108" stroke="${Y}" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <path d="M158 132Q170 150 182 132" stroke="${Y}" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <rect x="146" y="200" width="48" height="70" rx="6" fill="#fff"/>
+      <rect x="152" y="208" width="36" height="54" rx="4" fill="${S}"/>
+      <circle cx="170" cy="235" r="12" fill="${GL}" opacity=".5"/>
+      <rect x="78" y="226" width="52" height="52" rx="26" fill="#fff"/>
+      <circle cx="104" cy="252" r="18" fill="${Y}" opacity=".7"/>
+      <rect x="210" y="216" width="62" height="62" rx="8" fill="#fff"/>
+      <rect x="218" y="224" width="46" height="46" rx="4" fill="${S}"/>
+      <path d="M232 238L252 258M252 238L232 258" stroke="${GL}" stroke-width="4" stroke-linecap="round"/>`],
+
     others: ['0 0 360 300', `${shadow(180, 288, 130)}
       <path d="M72 202h132v78H72z" fill="#fff"/>
       <path d="M204 202l48-26v78l-48 26z" fill="${S}"/>
@@ -189,7 +227,7 @@
     if (active === tile) return;
     active = lastTile = tile;
     const name = tile.dataset.name;
-    panel.style.setProperty('--panel-bg', tile.style.getPropertyValue('--tile-bg'));
+    /* panel always uses blue gradient */
     nameEl.textContent = name;
     ctaLabel.textContent = `Browse ${name}`;
     art.innerHTML = svgFor(tile.dataset.slug);

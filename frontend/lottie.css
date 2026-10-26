@@ -1,0 +1,83 @@
+/* =========================================================
+   DealBriz — Lottie Motion Graphics Positioning
+   All containers are absolute + pointer-events:none to avoid
+   breaking existing interactions.
+   ========================================================= */
+
+/* ---------- HERO ---------- */
+.lottie-hero-bg {
+  position: absolute; inset: 0; z-index: 0;
+  pointer-events: none; opacity: 0.4;
+  overflow: hidden;
+}
+.lottie-hero-bg svg { width: 100%; height: 100%; }
+
+#homePage .hb-hero h1 { position: relative; }
+.lottie-hero-sparkle {
+  position: absolute; width: 70px; height: 70px;
+  right: -35px; top: -15px;
+  pointer-events: none; z-index: 1;
+}
+.lottie-hero-sparkle svg { width: 100%; height: 100%; }
+
+@media (max-width: 760px) {
+  .lottie-hero-bg { display: none; }
+  .lottie-hero-sparkle { width: 50px; height: 50px; right: -20px; top: -10px; }
+}
+
+/* ---------- CATEGORY TILES ---------- */
+.lottie-tile-anim {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.lottie-tile-anim svg { width: 65%; height: 65%; }
+
+.dbz-tile:hover .lottie-tile-anim,
+.dbz-tile:focus-visible .lottie-tile-anim { opacity: 1; }
+.dbz-tile:hover .dbz-tile__icon > svg,
+.dbz-tile:focus-visible .dbz-tile__icon > svg {
+  opacity: 0 !important; transition: opacity 0.3s ease;
+}
+
+/* ---------- HOW IT WORKS ---------- */
+.dbz-step__node { position: relative; overflow: visible; }
+.lottie-step-burst {
+  position: absolute; width: 80px; height: 80px;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  pointer-events: none; z-index: 2;
+}
+.lottie-step-burst svg { width: 100%; height: 100%; }
+
+.dbz-step__node--glow {
+  box-shadow: 0 0 0 10px rgba(245, 185, 66, 0.25), 0 0 20px rgba(245, 185, 66, 0.12) !important;
+  transition: box-shadow 0.5s ease !important;
+}
+
+.lottie-finish-celebration {
+  position: absolute; width: 220px; height: 220px;
+  top: -90px; left: 50%; transform: translateX(-50%);
+  pointer-events: none; z-index: 2;
+}
+.lottie-finish-celebration svg { width: 100%; height: 100%; }
+
+/* ---------- STATS ---------- */
+.hb-stat { position: relative; }
+.lottie-stat-pulse {
+  position: absolute; width: 70px; height: 70px;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  pointer-events: none; opacity: 0.5; z-index: 0;
+}
+.lottie-stat-pulse svg { width: 100%; height: 100%; }
+.hb-stat strong { position: relative; z-index: 1; }
+
+/* ---------- REDUCED MOTION ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .lottie-hero-bg,
+  .lottie-hero-sparkle,
+  .lottie-tile-anim,
+  .lottie-step-burst,
+  .lottie-finish-celebration,
+  .lottie-stat-pulse { display: none !important; }
+}

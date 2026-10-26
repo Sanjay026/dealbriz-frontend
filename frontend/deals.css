@@ -459,7 +459,7 @@ label.deal-btn { position: relative; overflow: hidden; }
 .ld-badge-verified { background: #D1FAE5; color: #065F46; }
 .my-listing-card .ld-badge { margin: 4px 0; }
 .admin-deals-switch { display: flex; justify-content: flex-end; padding: 0 16px 8px; }
-.admin-deals-switch .btn-sm.active { background: var(--primary, #1D4ED8); color: #fff; }
+.admin-deals-switch .btn-sm.active { background: var(--primary, #1346B8); color: #fff; }
 .ld-queue-note { padding: 0 16px; }
 .ld-state { font-size: 12px; }
 .ld-state-verified { color: #065F46; }
@@ -480,7 +480,7 @@ label.deal-btn { position: relative; overflow: hidden; }
 .deal-ask-icon {
   width: 52px; height: 52px; border-radius: 50%; margin: 0 auto 10px;
   display: flex; align-items: center; justify-content: center; font-size: 22px;
-  background: var(--accent-light, #EEF2FF); color: var(--accent, #2563EB);
+  background: var(--accent-light, #EEF2FF); color: var(--accent, #1A56DB);
 }
 .deal-ask-warn .deal-ask-icon { background: #FEF3C7; color: #B45309; }
 .deal-ask-danger .deal-ask-icon { background: #FEE2E2; color: #DC2626; }
