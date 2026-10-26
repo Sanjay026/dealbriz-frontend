@@ -93,10 +93,21 @@
 /* ------------------------------------------------------------- HERO */
 #homePage .hb-hero {
   background: linear-gradient(180deg, #FFFFFF 0%, #F7F9FE 45%, #EEF3FD 100%);
-  padding: 56px 0 68px;
+  padding: 56px 0 88px;
   overflow: hidden;
   position: relative;
   isolation: isolate;
+}
+#homePage .hb-hero::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 60px;
+  background: linear-gradient(to bottom, rgba(238, 243, 253, 0) 0%, #F8FAFF 100%);
+  pointer-events: none;
+  z-index: 2;
 }
 #homePage .hb-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 44px; align-items: center; }
 
