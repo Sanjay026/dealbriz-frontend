@@ -649,7 +649,7 @@ const MODAL_HIDE = {
   product: () => {
     const m = document.getElementById('productModal');
     m.classList.add('hidden');
-    m.classList.remove('pdp-modal');
+    m.classList.remove('pdp-modal', 'staff-sheet');
   },
   chat: () => {
     const m = document.getElementById('chatModal');
@@ -1260,6 +1260,7 @@ async function openListing(id) {
     `<div style="text-align:center;padding:80px 20px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
   document.getElementById('productModal').classList.remove('hidden');
   document.getElementById('productModal').classList.add('pdp-modal');
+  document.getElementById('productModal').classList.remove('staff-sheet');
   document.body.style.overflow = 'hidden';
   pushModal('product');
 
@@ -2190,6 +2191,8 @@ function renderNotifications() {
       <span class="notif-body">
         <strong>${escapeHtml(n.title)}</strong>
         ${n.body ? `<small>${escapeHtml(n.body)}</small>` : ''}
+        ${/paused|restriction was changed/i.test(n.title || '') && currentUser?.dealBanUntil && new Date(currentUser.dealBanUntil) > new Date()
+          ? `<small class="notif-countdown"><i class="fas fa-hourglass-half"></i> <span data-countdown="${escapeHtml(currentUser.dealBanUntil)}">${typeof dlTimeLeft === 'function' ? escapeHtml(dlTimeLeft(currentUser.dealBanUntil)) : ''}</span></small>` : ''}
         <em>${escapeHtml(formatTimeAgo(n.created_at))}</em>
       </span>
     </button>
@@ -2478,9 +2481,10 @@ async function handleSellSubmit() {
   if (!isEdit && currentUser.dealBanUntil && new Date(currentUser.dealBanUntil) > new Date()) {
     const until = new Date(currentUser.dealBanUntil).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
     const limit = (typeof dealRulesCache !== 'undefined' && dealRulesCache && dealRulesCache.cancel_limit) || 3;
+    const left = typeof dlTimeLeft === 'function' ? ` (${dlTimeLeft(currentUser.dealBanUntil)})` : '';
     showAuthError(errEl, currentUser.dealBanReason
-      ? `DealBriz has paused new listings on your account until ${until}. Reason: ${currentUser.dealBanReason}`
-      : `You force-cancelled ${limit} deals in a row, so you can't post new listings until ${until}.`);
+      ? `DealBriz has paused new listings on your account until ${until}${left}. Reason: ${currentUser.dealBanReason}`
+      : `You force-cancelled ${limit} deals in a row, so you can't post new listings until ${until}${left}.`);
     return;
   }
   errEl.classList.add('hidden');
@@ -3179,7 +3183,7 @@ function forgotResendCountdown(seconds) {
   let left = seconds;
   const tick = () => {
     btn.disabled = left > 0;
-    btn.textContent = left > 0 ? `Send the code again in ${left}s` : 'Send the code again';
+    btn.textContent = left > 0 ? `Resend code in 0:${String(left).padStart(2, '0')}` : 'Resend code';
     if (left <= 0 && forgotState.timer) { clearInterval(forgotState.timer); forgotState.timer = null; }
     left -= 1;
   };
@@ -4071,8 +4075,8 @@ function renderAdminUsersTable() {
       : (u.is_admin ? '<span class="status-pill status-pending">admin (legacy)</span>' : '—'))
       + (u.lender ? `<br><small><i class="fas fa-building-columns"></i> ${escapeHtml(u.lender.name || 'Lender')}</small>` : '')
       // DealLock: paused after 3 force-cancelled deals in a row.
-      + (u.deal_ban_until ? `<br><span class="status-pill status-rejected" title="${escapeHtml(u.deal_ban_reason || 'Force cancels in a row (automatic)')}">Deals paused till ${new Date(u.deal_ban_until).toLocaleDateString('en-IN', {day:'numeric',month:'short'})}</span>`
-          + (userCan('users.suspend') && !currentUser?.isSuperadmin ? ` <button class="btn-sm" style="margin-top:4px" onclick="adminLiftDealBan('${u.id}')">Lift</button>` : '') : '')
+      + (u.deal_ban_until ? `<br><span class="status-pill status-rejected" title="${escapeHtml(u.deal_ban_reason || 'Force cancels in a row (automatic)')}">Paused till ${new Date(u.deal_ban_until).toLocaleString('en-IN', {day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span>`
+          + `<br><small class="restrict-countdown" data-countdown="${escapeHtml(u.deal_ban_until)}">${typeof dlTimeLeft === 'function' ? escapeHtml(dlTimeLeft(u.deal_ban_until)) : ''}</small>` : '')
       + (u.consecutive_cancels ? `<br><small style="color:var(--text-muted)">${u.consecutive_cancels} force cancel${u.consecutive_cancels === 1 ? '' : 's'} in a row</small>` : '');
 
     // Role-assignment, role-removal, and account deletion are all
@@ -4090,7 +4094,7 @@ function renderAdminUsersTable() {
         </select>
         ${(u.roles && u.roles.length) && u.id !== currentUser.id
           ? `<button class="btn-sm" style="margin-top:4px" onclick="adminRemoveRoleConfirm('${u.id}')">Remove Role</button>` : ''}
-        ${u.id !== currentUser.id ? `<button class="btn-sm" style="margin-top:4px" onclick="adminRestrictionsOpen('${u.id}')">Restrictions</button>` : ''}
+        <button class="btn-sm" style="margin-top:4px" onclick="adminRestrictionsOpen('${u.id}')">Restrictions</button>
         <button class="btn-sm btn-sm-red" onclick="adminDeleteUserConfirm('${u.id}')" style="margin-top:4px">Delete</button>`
       : '';
 

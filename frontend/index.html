@@ -26,14 +26,14 @@
      browser will happily keep an old style.css after a deploy and the page
      renders with stale CSS while the HTML and JS are new. Bump this string
      on any release that changes CSS or JS. -->
-<link rel="stylesheet" href="/style.css?v=20261022a">
+<link rel="stylesheet" href="/style.css?v=20261027a">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-<link rel="stylesheet" href="/home.css?v=20261023k">
-<link rel="stylesheet" href="/how-it-works.css?v=20261023e">
+<link rel="stylesheet" href="/home.css?v=20261027a">
+<link rel="stylesheet" href="/how-it-works.css?v=20261027a">
 <link rel="stylesheet" href="/lottie.css?v=20261026a">
-<link rel="stylesheet" href="/browse-categories.css?v=20261023a">
-<link rel="stylesheet" href="/deals.css?v=20261024a">
+<link rel="stylesheet" href="/browse-categories.css?v=20261027a">
+<link rel="stylesheet" href="/deals.css?v=20261027a">
 
 <!-- SEO Meta & Schema -->
 <script src="/seo.js?v=20261024a"></script>
@@ -64,7 +64,7 @@
       <p class="auth-sub">Sign in to continue</p>
       <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="off"></div>
       <div class="form-group"><label>Password</label><div class="password-wrap"><input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••"><button type="button" class="pw-toggle" onclick="togglePassword('loginPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
-      <a href="#" class="forgot-link">Forgot password?</a>
+      <a href="#" class="forgot-link" onclick="openForgotPassword(); return false;">Forgot password?</a>
       <p id="loginError" class="auth-error hidden"></p>
       <button class="btn-primary full-width" data-enter-submit onclick="handleLogin()">Sign In</button>
     </div>
@@ -93,6 +93,27 @@
       </div>
       <p id="signupError" class="auth-error hidden"></p>
       <button class="btn-primary full-width" data-enter-submit onclick="handleSignup()">Create Account</button>
+    </div>
+    <!-- Forgot password: a 6-digit code is emailed (POST /api/auth/forgot-password),
+         then code + new password (POST /api/auth/reset-password). app.js. -->
+    <div id="forgotForm" class="auth-form hidden" data-enter-flow>
+      <h2>Reset your password</h2>
+      <p class="auth-sub" id="forgotSub">Enter the email you signed up with. We’ll email you a 6-digit code.</p>
+      <div id="forgotStep1">
+        <div class="form-group"><label for="forgotEmail">Email</label><input type="email" id="forgotEmail" placeholder="you@example.com" autocomplete="email"></div>
+      </div>
+      <div id="forgotStep2" class="hidden">
+        <div class="form-group"><label for="forgotCode">6-digit code</label><input type="text" id="forgotCode" class="forgot-code-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" oninput="this.value=this.value.replace(/\D/g,'').slice(0,6)">
+          <div class="forgot-resend-row"><span>Didn’t get it?</span> <button type="button" id="forgotResend" class="forgot-link-btn forgot-resend" onclick="forgotSendCode(true)" disabled>Resend code</button></div></div>
+        <div class="form-group"><label for="forgotNewPassword">New password</label><div class="password-wrap"><input type="password" id="forgotNewPassword" autocomplete="new-password" placeholder="Min 8 characters"><button type="button" class="pw-toggle" onclick="togglePassword('forgotNewPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
+        <div class="form-group"><label for="forgotConfirmPassword">Confirm new password</label><div class="password-wrap"><input type="password" id="forgotConfirmPassword" autocomplete="new-password" placeholder="Re-enter new password"><button type="button" class="pw-toggle" onclick="togglePassword('forgotConfirmPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
+      </div>
+      <p id="forgotInfo" class="forgot-info hidden"></p>
+      <p id="forgotError" class="auth-error hidden"></p>
+      <button id="forgotSubmit" class="btn-primary full-width" data-enter-submit onclick="forgotPrimary()">Send code</button>
+      <div class="forgot-actions">
+        <button type="button" class="forgot-link-btn" onclick="switchTab('login')">Back to sign in</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1397,6 +1418,7 @@
       <div class="admin-search-bar">
         <i class="fas fa-search"></i>
         <input type="text" id="adminUserSearch" placeholder="Search name, email, phone or pincode..." oninput="adminUserFilterChanged()" autocomplete="off">
+        <label class="admin-restricted-filter"><input type="checkbox" id="adminUserRestrictedOnly" onchange="adminUserFilterChanged()"> Restricted only</label>
         <span id="adminUserCount" class="admin-search-count"></span>
       </div>
       <div id="adminPager-users" class="admin-pager"></div>
@@ -1840,6 +1862,14 @@
       <label for="dealOfferNote">Note <span class="deal-optional">optional</span></label>
       <textarea id="dealOfferNote" rows="2" maxlength="500" placeholder="e.g. Price includes new tyres"></textarea>
     </div>
+    <!-- DealLock (with EMI) or a normal offer (deals.js dlOfferModeChanged) -->
+    <div id="dealOfferWrap" class="deal-offer-mode">
+      <label class="deal-offer-mode-row" for="dealOfferDeallock">
+        <input type="checkbox" id="dealOfferDeallock" onchange="dlOfferModeChanged()">
+        <span><strong id="dealOfferModeTitle">Buy with EMI (DealLock)</strong><small id="dealOfferModeHint"></small></span>
+      </label>
+      <p id="dealOfferModeOff" class="deal-offer-mode-off hidden"></p>
+    </div>
     <p id="dealOfferInfo" class="deal-small"></p>
     <p id="dealOfferError" class="auth-error hidden"></p>
     <button id="dealOfferSubmit" class="btn-primary full-width" onclick="submitOfferComposer()">Send offer</button>
@@ -1881,11 +1911,9 @@
           <option value="48">48 months</option><option value="60">60 months</option>
         </select>
       </div>
-      <div class="form-group"><label for="dealLoanRate">Interest (estimate)</label>
-        <select id="dealLoanRate" onchange="calcDealLoan()">
-          <option value="12" selected>12% p.a.</option><option value="10">10% p.a.</option>
-          <option value="14">14% p.a.</option><option value="16">16% p.a.</option>
-        </select>
+      <div class="form-group"><label>Interest (estimate)</label>
+        <!-- Fixed range, not chosen by the buyer (deals/rules.py LOAN_RATE_MIN/MAX). -->
+        <div id="dealLoanRate" class="deal-loan-rate-fixed">10–16% p.a.</div>
       </div>
     </div>
     <div class="deal-loan-result">
@@ -1893,7 +1921,7 @@
       <div><span>EMI / month</span><strong id="dealLoanEmi">₹0</strong></div>
       <div><span>Total repayable</span><strong id="dealLoanTotal">₹0</strong></div>
     </div>
-    <p class="deal-loan-assume" role="note"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><span>The interest rate, EMI and totals here are based on assumptions for now, so pick whatever suits you best. The NBFC you choose will contact you about the actual rate, EMI and other details, and confirms them in its Key Fact Statement before you sign anything.</span></p>
+    <div class="deal-loan-assume" role="note"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><div><strong>Please note: these figures are estimates</strong><span>The interest rate is shown as a 10–16% range and the EMI and totals are worked out on it. The NBFC you choose will contact you about the actual rate, EMI and other details, and confirms them in its Key Fact Statement before you sign anything.</span></div></div>
     <div class="form-group"><label for="dealLoanName">Full name</label><input type="text" id="dealLoanName" placeholder="As per Aadhaar" autocomplete="off"></div>
     <div class="form-row">
       <div class="form-group"><label for="dealLoanPhone">Phone</label><input type="tel" id="dealLoanPhone" inputmode="tel" maxlength="17" autocomplete="off"></div>
@@ -1981,12 +2009,12 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="/geo.js?v=20261022c"></script>
 <script src="/api-client.js?v=20261020c"></script>
-<script src="/app.js?v=20261023e"></script>
+<script src="/app.js?v=20261027a"></script>
 <!-- DealLock: offers, deals, loan, handover, admin Deals. After app.js (uses its helpers). -->
-<script src="/deals.js?v=20261024a"></script>
+<script src="/deals.js?v=20261027a"></script>
 <!-- Homepage How It Works scroll road (needs the #howItWorks markup above). -->
-<script src="/how-it-works.js?v=20261023d"></script>
-<script src="/browse-categories.js?v=20261023a"></script>
+<script src="/how-it-works.js?v=20261027a"></script>
+<script src="/browse-categories.js?v=20261027a"></script>
 <!-- Lottie motion graphics -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie_light.min.js" defer></script>
 <script src="/lottie-init.js?v=20261026a" defer></script>

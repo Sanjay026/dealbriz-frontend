@@ -687,7 +687,7 @@ function chatDealBarHtml(t) {
   }
   if (t.cannot_send_offer_reason) {
     const icon = t.my_deal_ban_until ? 'fa-ban' : 'fa-circle-info';
-    return `<div class="deal-bar deal-bar-info${t.my_deal_ban_until ? ' deal-bar-ban' : ''}"><i class="fas ${icon}"></i> ${dlEsc(t.cannot_send_offer_reason)}</div>`;
+    return `<div class="deal-bar deal-bar-info${t.my_deal_ban_until ? ' deal-bar-ban' : ''}"><i class="fas ${icon}"></i> <span>${dlEsc(t.cannot_send_offer_reason)}${t.my_deal_ban_until ? ` <strong data-countdown="${dlEsc(t.my_deal_ban_until)}">${dlEsc(dlTimeLeft(t.my_deal_ban_until))}</strong>` : ''}</span></div>`;
   }
   return '';
 }
@@ -1553,15 +1553,57 @@ const DEAL_EVENT_TEXT = {
   dispute_resolved: (e) => `Support resolved the problem${e.data.note ? `: ${dlEsc(e.data.note)}` : ''}`,
 };
 
+/* Fewer timeline lines: within a run of document events, all the uploads
+   become one line and all the verifications another ("Buyer's PAN card and
+   Aadhaar card verified"), at the time of the last one. A sent-back
+   document keeps its own line (with the reason) and ends the run. */
+function dlMergeDocEvents(events) {
+  const out = [];
+  let run = null;   // { uploaded: item, approved: item }
+  for (const e of events) {
+    const t = e.event_type;
+    if (t === 'document_uploaded' || t === 'document_approved') {
+      run = run || {};
+      const key = t === 'document_uploaded' ? 'uploaded' : 'approved';
+      if (run[key]) {
+        run[key].docs.push(e.data && e.data.doc_type);
+        run[key].created_at = e.created_at;
+      } else {
+        run[key] = { ...e, docs: [e.data && e.data.doc_type] };
+        out.push(run[key]);
+      }
+      continue;
+    }
+    run = null;
+    out.push(e);
+  }
+  return out;
+}
+
+function dlDocListText(types) {
+  const labels = types.map(t => DOC_LABEL(t));
+  const m = labels.every(l => /^(\w+’s|\w+'s) /.test(l)) && labels.map(l => l.split(' ')[0]);
+  let prefix = '';
+  let names = labels;
+  if (m && m.every(x => x === m[0])) {
+    prefix = m[0] + ' ';
+    names = labels.map(l => l.slice(prefix.length));
+  }
+  const joined = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+  return prefix + joined;
+}
+
 function dealTimelineHtml(d, { staff = false } = {}) {
-  const events = (d.events || []).filter(e => staff || DEAL_EVENT_TEXT[e.event_type]);
+  const events = dlMergeDocEvents((d.events || []).filter(e => staff || DEAL_EVENT_TEXT[e.event_type]));
   if (!events.length) return '';
   return `
     <div class="deal-section">
       <h4>Timeline</h4>
       <ol class="deal-timeline">
         ${events.map(e => `
-          <li><span>${(DEAL_EVENT_TEXT[e.event_type] || (() => dlEsc(e.event_type.replace(/_/g, ' '))))(e)}</span>
+          <li><span>${e.docs && e.docs.length > 1
+            ? `${dlEsc(dlDocListText(e.docs))} ${e.event_type === 'document_uploaded' ? 'uploaded' : 'verified'}`
+            : (DEAL_EVENT_TEXT[e.event_type] || (() => dlEsc(e.event_type.replace(/_/g, ' '))))(e)}</span>
               <time>${dlEsc(dlWhen(e.created_at))}</time></li>`).join('')}
       </ol>
     </div>`;
@@ -2048,7 +2090,7 @@ async function renderMyDeals() {
     return;
   }
   const banner = currentUser.dealBanUntil && new Date(currentUser.dealBanUntil) > new Date()
-    ? `<div class="deal-ban-banner"><i class="fas fa-ban"></i> New listings and deals are paused until ${dlEsc(dlWhen(currentUser.dealBanUntil))}, ${currentUser.dealBanReason ? `by DealBriz. Reason: ${dlEsc(currentUser.dealBanReason)}.` : `because ${((dealRulesCache || {}).cancel_limit) || 3} deals were force-cancelled in a row.`} Your current deals carry on as normal.</div>`
+    ? `<div class="deal-ban-banner"><i class="fas fa-ban"></i> <span>New listings and deals are paused until ${dlEsc(dlWhen(currentUser.dealBanUntil))} (<strong data-countdown="${dlEsc(currentUser.dealBanUntil)}">${dlEsc(dlTimeLeft(currentUser.dealBanUntil))}</strong>), ${currentUser.dealBanReason ? `by DealBriz. Reason: ${dlEsc(currentUser.dealBanReason)}.` : `because ${((dealRulesCache || {}).cancel_limit) || 3} deals were force-cancelled in a row.`} Your current deals carry on as normal.</span></div>`
     : '';
   if (!deals.length) {
     el.innerHTML = banner + (myDealsTab === 'live'
@@ -2247,6 +2289,11 @@ function adminDealNeedsAction(d) {
 function dlOpenAdminModal(html) {
   const content = document.getElementById('productModalContent');
   content.innerHTML = html;
+  // Staff sheets (deal, loan, restrictions...) fill a phone or tablet screen
+  // edge to edge, with square corners (deals.css #productModal.staff-sheet).
+  const overlay = document.getElementById('productModal');
+  overlay.classList.add('staff-sheet');
+  overlay.classList.remove('pdp-modal');
   if (!modalStack.includes('product')) {
     document.getElementById('productModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -2313,11 +2360,12 @@ async function adminViewDeal(dealId) {
       <button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="adminDealResolve('${dlEsc(d.id)}')">Resolve</button>`;
   }
 
-  // The buyer chooses the lender on the loan form; staff who manage deals
-  // can change it at any point while the deal is live.
-  const lenderPick = can && LIVE_DEAL.includes(d.status)
+  // The buyer chooses the lender on the loan form. Once the application was
+  // emailed to that lender, staff who manage deals can move it to another
+  // one (e.g. the chosen lender can't take it).
+  const lenderPick = can && ['loan_in_progress', 'ready_to_pay'].includes(d.status) && d.lender_email
     ? `<div class="admin-detail-section"><h4>Change lender</h4>
-        <p style="font-size:11.5px;color:var(--text-muted);margin:0 0 8px;line-height:1.5">Active lenders that fund ${dlEsc((LOAN_TYPE_LABEL[d.loan_type] || d.loan_type).toLowerCase())}s. The loan application moves with the deal${['loan_in_progress', 'ready_to_pay'].includes(d.status) ? ', and the new lender is emailed the application and documents' : ''}.</p>
+        <p style="font-size:11.5px;color:var(--text-muted);margin:0 0 8px;line-height:1.5">If ${dlEsc(d.lender || 'the buyer’s chosen lender')} can’t take this loan, move it to another active lender that funds ${dlEsc((LOAN_TYPE_LABEL[d.loan_type] || d.loan_type).toLowerCase())}s. The loan application moves with the deal, and the new lender is emailed the application and documents.</p>
         <div style="display:flex;gap:6px;flex-wrap:wrap"><select id="adminDealFinancer" style="flex:1;min-width:160px"><option value="">Loading...</option></select>
         <button class="btn-sm btn-sm-blue" onclick="adminDealSetFinancer('${dlEsc(d.id)}')">Save</button></div></div>`
     : '';
@@ -2335,7 +2383,6 @@ async function adminViewDeal(dealId) {
 
       ${(d.documents || []).length || d.status === 'docs_pending' ? `<div class="admin-detail-section"><h4>Documents</h4>${dlDocsReviewHtml(d, 'admin')}</div>` : ''}
       ${dlLenderEmailHtml(d, 'admin')}
-      ${lenderPick}
 
       <div class="admin-detail-section"><h4>Deal</h4>
         ${r('Agreed price', dlRupees(d.agreed_price))}
@@ -2366,6 +2413,7 @@ async function adminViewDeal(dealId) {
         ${loan.kfs_url ? r('KFS', `<a href="${dlEsc(loan.kfs_url)}" target="_blank" rel="noopener noreferrer">Open</a>`) : ''}
         <button class="btn-sm btn-sm-blue" style="margin-top:8px" onclick="adminViewEmiApplication('${dlEsc(loan.application_id)}')">Open EMI application</button>
       </div>` : ''}
+      ${lenderPick}
 
       ${['ready_to_pay', 'paid', 'disputed', 'completed'].includes(d.status) ? `<div class="admin-detail-section"><h4>Handover</h4>
         ${r('Down payment', d.down_payment_at ? dlRupees(d.down_payment) : 'Not recorded')}
@@ -2538,6 +2586,7 @@ function adminRestrictionsOpen(uid) {
   const local = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
   const start = active ? new Date(u.deal_ban_until) : new Date(Date.now() + (rules.ban_days || 7) * 86400000);
   const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email;
+  const self = currentUser && u.id === currentUser.id;
   dlOpenAdminModal(`
     <div class="pm-body" style="padding-top:20px">
       <h2 class="pm-title" style="margin-bottom:4px">Restrictions</h2>
@@ -2545,9 +2594,20 @@ function adminRestrictionsOpen(uid) {
       <div class="admin-detail-section"><h4>Now</h4>
         <div class="admin-detail-row"><span>New listings, offers and deals</span><strong>${active
           ? `<span class="status-pill status-rejected">Paused till ${dlEsc(fmtDateTime(u.deal_ban_until))}</span>` : '<span class="status-pill status-approved">Allowed</span>'}</strong></div>
+        ${active ? `<div class="admin-detail-row"><span>Time left</span><strong data-countdown="${dlEsc(u.deal_ban_until)}">${dlEsc(dlTimeLeft(u.deal_ban_until))}</strong></div>` : ''}
         ${active ? `<div class="admin-detail-row"><span>Why</span><strong>${u.deal_ban_reason ? dlEsc(u.deal_ban_reason) : `${rules.cancel_limit} force cancels in a row (automatic)`}</strong></div>` : ''}
         <div class="admin-detail-row"><span>Force cancels in a row</span><strong>${u.consecutive_cancels || 0} of ${rules.cancel_limit}</strong></div>
       </div>
+      ${self ? `<div class="admin-detail-section"><h4>Your own account</h4>
+        <p class="deal-small">You can lift a restriction on your own account and set its cancel count, but not restrict it.</p>
+        <label style="font-size:12px;font-weight:600;display:block;margin:0 0 4px" for="restrictCancels">Force cancels in a row</label>
+        <select id="restrictCancels" style="width:100%">${Array.from({ length: rules.cancel_limit }, (_, i) =>
+          `<option value="${i}" ${i === Math.min(u.consecutive_cancels || 0, rules.cancel_limit - 1) ? 'selected' : ''}>${i}</option>`).join('')}</select>
+        <p id="restrictError" class="auth-error hidden"></p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          ${active ? `<button class="btn-sm btn-sm-blue" onclick="adminRestrictionSave('${dlEsc(uid)}', 'lift')">Lift now</button>` : ''}
+          <button class="btn-sm" onclick="adminRestrictionSave('${dlEsc(uid)}', 'cancels')">Save cancel count only</button>
+        </div></div>` : `
       <div class="admin-detail-section"><h4>${active ? 'Change the end, or lift it' : 'Restrict this user'}</h4>
         <label style="font-size:12px;font-weight:600;display:block;margin:0 0 4px" for="restrictUntil">Paused until</label>
         <input id="restrictUntil" type="datetime-local" style="width:100%" value="${local(start)}" min="${local(new Date())}">
@@ -2563,9 +2623,29 @@ function adminRestrictionsOpen(uid) {
           ${active ? `<button class="btn-sm btn-sm-blue" onclick="adminRestrictionSave('${dlEsc(uid)}', 'lift')">Lift now</button>` : ''}
           <button class="btn-sm" onclick="adminRestrictionSave('${dlEsc(uid)}', 'cancels')">Save cancel count only</button>
         </div>
-      </div>
+      </div>`}
     </div>`);
 }
+
+/* "2d 04h 12m 30s left" until an ISO time; '' once it has passed. Every
+   element with data-countdown="<ISO>" is kept ticking (dlCountdownTick). */
+function dlTimeLeft(iso) {
+  const ms = new Date(iso) - Date.now();
+  if (!(ms > 0)) return 'Ended';
+  let s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400); s -= d * 86400;
+  const h = Math.floor(s / 3600); s -= h * 3600;
+  const m = Math.floor(s / 60); s -= m * 60;
+  const p = (n) => String(n).padStart(2, '0');
+  return d ? `${d}d ${p(h)}h ${p(m)}m ${p(s)}s left` : `${h}h ${p(m)}m ${p(s)}s left`;
+}
+function dlCountdownTick() {
+  document.querySelectorAll('[data-countdown]').forEach(el => {
+    const t = dlTimeLeft(el.dataset.countdown);
+    if (el.textContent !== t) el.textContent = t;
+  });
+}
+setInterval(dlCountdownTick, 1000);
 
 async function adminRestrictionSave(uid, action) {
   const err = document.getElementById('restrictError');
