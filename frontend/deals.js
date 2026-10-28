@@ -1393,7 +1393,7 @@ function dealDocRowHtml(d, item, canUpload, accept) {
   const busy = dealModalState && dealModalState.uploading === item.type;
   const right = `<span class="deal-doc-status deal-doc-${dlEsc(st)}">${dlEsc(DOC_STATUS_LABEL[st] || st)}</span>`;
   let actions = '';
-  if (canUpload && item.required && st !== 'approved') {
+  if (canUpload && item.required) {
     actions = busy
       ? `<span class="deal-small"><i class="fas fa-spinner fa-spin"></i> Uploading...</span>`
       : `<label class="deal-btn deal-btn-sm ${st === 'missing' || st === 'rejected' ? 'deal-btn-primary' : ''}">
@@ -1460,6 +1460,13 @@ async function dealUploadDoc(type, input) {
   const file = input.files && input.files[0];
   input.value = '';
   if (!file || !dealModalState) return;
+  const row = (dealModalState.deal.documents || []).find(x => x.type === type);
+  if (row && row.status === 'approved' && !(await dlAsk({
+    tone: 'warn', title: 'Replace a verified document?',
+    body: `<p><strong>${dlEsc(row.label)}</strong> is already verified. The new file is checked again. If it isn’t a valid card, this one is removed too and you’ll need to upload a correct one.</p>`,
+    ok: 'Replace document', cancel: 'Keep current',
+  }))) return;
+  if (!dealModalState) return;
   await dlRules();
   const id = dealModalState.deal.id;
   dealModalState.uploading = type;
@@ -1472,10 +1479,19 @@ async function dealUploadDoc(type, input) {
     const d = await dealsApi.uploadDoc(id, type, prep.file);
     if (!dealModalState || dealModalState.deal.id !== id) return;
     dealModalState.deal = d;
-    showToast('Uploaded. It will be checked soon.', 'success');
+    const now = (d.documents || []).find(x => x.type === type);
+    showToast(now && now.status === 'approved' ? 'Uploaded and verified.' : 'Uploaded. It will be checked soon.', 'success');
   } catch (err) {
     error = dlUploadErrorText(err);
     showToast(error, 'error');
+    // A refused card also takes out the one it replaced: show the row as it
+    // is now. Its reject reason then says what was wrong, so no second copy.
+    const d = await dealsApi.get(id).catch(() => null);
+    if (d && dealModalState && dealModalState.deal.id === id) {
+      dealModalState.deal = d;
+      const now = (d.documents || []).find(x => x.type === type);
+      if (now && now.status === 'rejected' && now.document && now.document.reject_reason) error = null;
+    }
   }
   if (dealModalState && dealModalState.deal.id === id) dealModalState.uploadErrors = { ...(dealModalState.uploadErrors || {}), [type]: error };
   if (dealModalState && dealModalState.deal.id === id) {
