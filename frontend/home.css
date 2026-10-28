@@ -648,13 +648,11 @@ body.show-footer .site-footer { display: block; }
 .site-footer { background: var(--hb-ink); color: #fff; font-family: var(--hb-font); padding: 66px 0 0; }
 .site-footer .hb-wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
 .site-footer .sf-grid { display: grid; gap: 40px; padding-bottom: 46px; }
-.site-footer .sf-brand { display: flex; align-items: center; gap: 12px; }
-.site-footer .sf-brand .brand-icon {
-  width: 40px; height: 40px; border-radius: 11px; background: var(--hb-blue);
-  display: grid; place-items: center; color: var(--hb-amber); font-size: 17px;
-}
-.site-footer .sf-brand-text { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; }
+.site-footer .sf-brand { display: flex; align-items: center; gap: 10px; }
+.site-footer .sf-brand img { width: 36px; height: 36px; }
+.site-footer .sf-brand-text { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #fff; }
 .site-footer .sf-brand-text span { color: var(--hb-blue); }
+.site-footer .sf-brand-dot { font-style: normal; color: var(--hb-amber); }
 .site-footer .sf-about { color: #94A3B8; font-size: 14.5px; line-height: 1.65; margin: 20px 0 0; max-width: 34ch; }
 .site-footer .sf-loc { display: flex; align-items: flex-start; gap: 9px; color: #94A3B8; font-size: 13.5px; margin: 18px 0 0; }
 .site-footer .sf-loc i { color: var(--hb-amber); margin-top: 3px; }

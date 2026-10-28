@@ -59,11 +59,41 @@ function pagePath(page) {
   return page === 'home' ? '/' : '/' + page;
 }
 
+function slugify(text) {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+}
+
+function itemPath(id, title) {
+  const slug = title ? slugify(title) : '';
+  return slug ? '/item/' + slug + '_' + id : '/item/' + id;
+}
+
+function categoryPath(cat) {
+  return '/category/' + encodeURIComponent(cat);
+}
+
+function itemIdFromUrl() {
+  const path = (location.pathname || '/').replace(/^\/+|\/+$/g, '');
+  if (!path.startsWith('item/')) return null;
+  const seg = path.slice(5);
+  const uIdx = seg.lastIndexOf('_');
+  return uIdx > 0 ? seg.slice(uIdx + 1) : seg;
+}
+
+function categoryFromUrl() {
+  const path = (location.pathname || '/').replace(/^\/+|\/+$/g, '');
+  if (!path.startsWith('category/')) return null;
+  return decodeURIComponent(path.slice(9));
+}
+
 /* The page named by the current URL, from either form. */
 function pageFromLocation() {
   const hash = (location.hash || '').replace('#', '').trim();
   if (hash) return hash;
-  return (location.pathname || '/').replace(/^\/+|\/+$/g, '').trim() || 'home';
+  const path = (location.pathname || '/').replace(/^\/+|\/+$/g, '').trim();
+  if (path.startsWith('item/')) return '_item';
+  if (path.startsWith('category/')) return '_category';
+  return path || 'home';
 }
 
 /* Pages that a URL is allowed to open directly on load.
@@ -73,6 +103,7 @@ function pageFromLocation() {
 const REFRESHABLE_PAGES = [
   'home', 'buy', 'sell', 'help', 'contact', 'blog', 'partners',
   'profile', 'mylistings', 'myads', 'mychats', 'mydeals', 'reportProblem', 'legal',
+  'emi-status', '_item', '_category',
 ];
 
 /* Pages that only make sense signed in. Hitting refresh on one while logged
@@ -86,13 +117,13 @@ const AUTH_ONLY_PAGES = ['profile', 'mylistings', 'myads', 'mychats', 'mydeals']
 function showInitialPageShell(hash) {
   const key = (hash || '').trim();
   const target = DOC_PAGE_TITLES[key] ? 'legal'
+               : key === '_item' || key === '_category' ? 'buy'
                : (REFRESHABLE_PAGES.includes(key) || key === 'admin' ? key : 'home');
   if (target === 'home') return;                       // already visible
   const el = document.getElementById(target + 'Page');
   if (!el) return;
   document.getElementById('homePage')?.classList.add('hidden');
   el.classList.remove('hidden');
-  // on-home drives the light navbar; leaving it set would style the wrong page
   document.body.classList.remove('on-home');
 }
 
@@ -119,14 +150,32 @@ function restoreFromHash(hash) {
     return;
   }
 
+  if (key === '_item') {
+    const itemId = itemIdFromUrl();
+    if (itemId) {
+      history.replaceState({ view: 'page', page: 'buy' }, '', location.pathname);
+      showPage('buy', true);
+      setTimeout(() => openListing(itemId), 100);
+      return;
+    }
+  }
+
+  if (key === '_category') {
+    const cat = categoryFromUrl();
+    if (cat) {
+      history.replaceState({ view: 'page', page: 'buy', category: cat }, '', location.pathname);
+      showPage('buy', true);
+      setTimeout(() => setCatDirect(cat), 50);
+      return;
+    }
+  }
+
   if (key && REFRESHABLE_PAGES.includes(key)) {
     if (AUTH_ONLY_PAGES.includes(key) && !currentUser) {
       history.replaceState({ view: 'page', page: 'home' }, '', pagePath('home'));
       showPage('home', true);
       return;
     }
-    // fromPopstate=true: the entry for this page is the one the browser
-    // already has, so showPage must not push a second one.
     history.replaceState({ view: 'page', page: key }, '', pagePath(key));
     showPage(key, true);
     return;
@@ -859,6 +908,7 @@ function initBuyPage() {
 
 function browseCategory(cat) {
   showPage('buy');
+  history.replaceState({ view: 'page', page: 'buy', category: cat }, '', categoryPath(cat));
   setTimeout(() => setCatDirect(cat), 50);
 }
 
@@ -1262,7 +1312,8 @@ async function openListing(id) {
   document.getElementById('productModal').classList.add('pdp-modal');
   document.getElementById('productModal').classList.remove('staff-sheet');
   document.body.style.overflow = 'hidden';
-  pushModal('product');
+  modalStack.push('product');
+  history.pushState({ view: 'modal', modal: 'product', itemId: id }, '', '/item/' + id);
 
   const p = await getListingById(id);
   if (!p) {
@@ -1272,6 +1323,7 @@ async function openListing(id) {
   }
   currentProduct = p;
   currentGalleryIndex = 0;
+  history.replaceState({ view: 'modal', modal: 'product', itemId: id }, '', itemPath(id, p.title));
   db.incrementProductViews(id).catch(() => {});
   // No seller name or contact details: GA stays free of personal data.
   window.dbTrackEvent?.('view_item', {
@@ -3743,7 +3795,23 @@ async function saveAvatarCrop() {
 /* ===== ADMIN ===== */
 /* fromUrl: restoring /admin after a reload, so the browser already has the
    history entry and showPage must not push another. */
+let adminHtmlLoaded = false;
+async function loadAdminHtml() {
+  if (adminHtmlLoaded) return;
+  try {
+    const resp = await fetch('/admin.html');
+    if (!resp.ok) throw new Error(resp.status);
+    const html = await resp.text();
+    document.getElementById('adminPage').innerHTML = html;
+    adminHtmlLoaded = true;
+  } catch {
+    document.getElementById('adminPage').innerHTML =
+      '<div style="text-align:center;padding:80px 20px;color:var(--danger)"><i class="fas fa-exclamation-triangle"></i> Failed to load admin panel.</div>';
+  }
+}
+
 async function openAdminPanel(fromUrl = false) {
+  await loadAdminHtml();
   showPage('admin', fromUrl === true);
   if (currentUser?.hasPanel) {
     document.getElementById('adminLoginBox').classList.add('hidden');
@@ -4650,9 +4718,11 @@ function setupGlobalListeners() {
     }
     const state = e.state;
     if (state && state.view === 'page') {
-      // A legal entry carries which document it was, so Back between About
-      // and Terms reloads the right one instead of whichever was last shown.
       if (state.page === 'legal' && state.doc) openLegalPage(state.doc);
+      else if (state.page === 'buy' && state.category) {
+        showPage('buy', true);
+        setTimeout(() => setCatDirect(state.category), 50);
+      }
       else showPage(state.page, true);
     } else {
       showPage('home', true);
