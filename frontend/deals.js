@@ -1393,7 +1393,12 @@ function dealDocRowHtml(d, item, canUpload, accept) {
   const busy = dealModalState && dealModalState.uploading === item.type;
   const right = `<span class="deal-doc-status deal-doc-${dlEsc(st)}">${dlEsc(DOC_STATUS_LABEL[st] || st)}</span>`;
   let actions = '';
-  if (canUpload && item.required) {
+  let aadhaarPick = '';
+  if (canUpload && item.required && item.type === 'buyer_aadhaar') {
+    aadhaarPick = busy
+      ? `<div class="deal-small"><i class="fas fa-spinner fa-spin"></i> Joining both sides and uploading...</div>`
+      : dlAadhaarPickHtml(d, st);
+  } else if (canUpload && item.required) {
     actions = busy
       ? `<span class="deal-small"><i class="fas fa-spinner fa-spin"></i> Uploading...</span>`
       : `<label class="deal-btn deal-btn-sm ${st === 'missing' || st === 'rejected' ? 'deal-btn-primary' : ''}">
@@ -1405,10 +1410,11 @@ function dealDocRowHtml(d, item, canUpload, accept) {
     <li class="deal-doc deal-doc-row-${dlEsc(st)}${item.required ? '' : ' is-extra'}">
       <div class="deal-doc-main">
         <div class="deal-doc-name">${dlEsc(item.label)}${item.required ? '' : ' <small>(not needed now)</small>'}</div>
-        ${st !== 'approved' && canUpload ? `<div class="deal-doc-hint">${dlEsc(item.hint)}</div>` : ''}
+        ${st !== 'approved' && canUpload ? `<div class="deal-doc-hint">${dlEsc(item.type === 'buyer_aadhaar' && item.required ? 'Add a photo of the front and of the back. They are joined into one image and uploaded together.' : item.hint)}</div>` : ''}
         ${doc && doc.file_name && st !== 'rejected' ? `<div class="deal-doc-hint"><i class="fas fa-paperclip"></i> ${dlEsc(doc.file_name)}</div>` : ''}
         ${st === 'rejected' && doc && doc.reject_reason ? `<div class="deal-doc-reason"><i class="fas fa-circle-exclamation"></i> ${dlEsc(doc.reject_reason)}</div>` : ''}
         ${canUpload && dealModalState && (dealModalState.uploadErrors || {})[item.type] ? `<div class="deal-doc-reason"><i class="fas fa-circle-exclamation"></i> ${dlEsc(dealModalState.uploadErrors[item.type])}</div>` : ''}
+        ${aadhaarPick}
       </div>
       <div class="deal-doc-side">${right}<div class="deal-doc-actions">${actions}</div></div>
     </li>`;
@@ -1431,7 +1437,7 @@ function dealDocsHtml(d) {
 
   const rules = dealRulesCache || {};
   const accept = dlDocAccept();
-  const privacy = `<p class="deal-small"><i class="fas fa-lock"></i> Private: once uploaded, only DealBriz’s superadmin and the lender can open them. A photo or a PDF, up to ${rules.doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
+  const privacy = `<p class="deal-small"><i class="fas fa-lock"></i> Private: once uploaded, only DealBriz admins and the lender can open them. A photo or a PDF, up to ${rules.doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
 
   if (role === 'seller') {
     const docs = all.filter(x => x.party === 'seller');
@@ -1460,24 +1466,35 @@ async function dealUploadDoc(type, input) {
   const file = input.files && input.files[0];
   input.value = '';
   if (!file || !dealModalState) return;
+  if (type === 'buyer_aadhaar') dlAadhaarReset();   // the PDF replaces any half-picked photos
+  return dealUploadDocFile(type, file);
+}
+
+/* Uploads one file for a buyer document. Resolves true when the server
+   accepted it. `ready`: the file is already prepared (the joined Aadhaar
+   image), so it isn't shrunk again. */
+async function dealUploadDocFile(type, file, ready = false) {
+  if (!file || !dealModalState) return false;
   const row = (dealModalState.deal.documents || []).find(x => x.type === type);
   if (row && row.status === 'approved' && !(await dlAsk({
     tone: 'warn', title: 'Replace a verified document?',
     body: `<p><strong>${dlEsc(row.label)}</strong> is already verified. The new file is checked again. If it isn’t a valid card, this one is removed too and you’ll need to upload a correct one.</p>`,
     ok: 'Replace document', cancel: 'Keep current',
-  }))) return;
-  if (!dealModalState) return;
+  }))) return false;
+  if (!dealModalState) return false;
   await dlRules();
   const id = dealModalState.deal.id;
   dealModalState.uploading = type;
   dealModalState.uploadErrors = { ...(dealModalState.uploadErrors || {}), [type]: null };
   renderDealModal();
   let error = null;
+  let ok = false;
   try {
-    const prep = await dlPrepareDocFile(file);
+    const prep = ready ? { file } : await dlPrepareDocFile(file);
     if (prep.error) throw new Error(prep.error);
     const d = await dealsApi.uploadDoc(id, type, prep.file);
-    if (!dealModalState || dealModalState.deal.id !== id) return;
+    ok = true;
+    if (!dealModalState || dealModalState.deal.id !== id) return ok;
     dealModalState.deal = d;
     const now = (d.documents || []).find(x => x.type === type);
     showToast(now && now.status === 'approved' ? 'Uploaded and verified.' : 'Uploaded. It will be checked soon.', 'success');
@@ -1498,6 +1515,115 @@ async function dealUploadDoc(type, input) {
     dealModalState.uploading = null;
     renderDealModal();
   }
+  return ok;
+}
+
+/* ---------- Aadhaar: front and back ----------
+   An Aadhaar card has the number, name and photo on the front and the
+   address on the back; the lender needs both. The server keeps one file per
+   document, so the two photos are stacked into one JPEG (front on top) and
+   uploaded as the Aadhaar. Stacked, not side by side, so each side keeps its
+   full width and the number stays readable for the automatic check.
+   The e-Aadhaar PDF already has both sides and goes up as it is. */
+let dlAadhaarParts = { dealId: null, front: null, back: null };
+
+function dlAadhaarReset() {
+  ['front', 'back'].forEach(k => { if (dlAadhaarParts[k]) URL.revokeObjectURL(dlAadhaarParts[k].url); });
+  dlAadhaarParts = { dealId: null, front: null, back: null };
+}
+
+function dlAadhaarPickHtml(d, st) {
+  if (dlAadhaarParts.dealId && dlAadhaarParts.dealId !== d.id) dlAadhaarReset();
+  const side = (key, label) => {
+    const part = dlAadhaarParts[key];
+    return `
+      <label class="deal-aadhaar-side${part ? ' is-set' : ''}" data-side="${key}">
+        ${part ? `<img src="${dlEsc(part.url)}" alt="">` : `<i class="fas ${key === 'front' ? 'fa-id-card' : 'fa-address-card'}"></i>`}
+        <span>${label}</span>
+        <small>${part ? '<i class="fas fa-check"></i> Added · change' : 'Add photo'}</small>
+        <input type="file" accept="image/*" class="deal-file" onchange="dealPickAadhaarSide('${key}', this)">
+      </label>`;
+  };
+  const one = dlAadhaarParts.front || dlAadhaarParts.back;
+  const both = dlAadhaarParts.front && dlAadhaarParts.back;
+  return `
+    <div class="deal-aadhaar-pick">${side('front', 'Front side')}${side('back', 'Back side')}</div>
+    ${one && !both ? `<div class="deal-doc-hint"><i class="fas fa-circle-info"></i> Now add the ${dlAadhaarParts.front ? 'back' : 'front'} side. Both upload together.</div>` : ''}
+    <label class="deal-aadhaar-pdf">
+      <i class="fas fa-file-pdf"></i> ${st === 'missing' ? 'Or upload the e-Aadhaar PDF' : 'Or replace it with the e-Aadhaar PDF'}
+      <input type="file" accept="application/pdf,.pdf" class="deal-file" onchange="dealUploadDoc('buyer_aadhaar', this)">
+    </label>`;
+}
+
+async function dealPickAadhaarSide(key, input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file || !dealModalState) return;
+  const id = dealModalState.deal.id;
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+  if (isPdf) {          // a PDF picked here is the full e-Aadhaar
+    dlAadhaarReset();
+    return dealUploadDocFile('buyer_aadhaar', file);
+  }
+  if (dlAadhaarParts.dealId !== id) dlAadhaarReset();
+  dlAadhaarParts.dealId = id;
+  if (dlAadhaarParts[key]) URL.revokeObjectURL(dlAadhaarParts[key].url);
+  dlAadhaarParts[key] = { file, url: URL.createObjectURL(file) };
+  dealModalState.uploadErrors = { ...(dealModalState.uploadErrors || {}), buyer_aadhaar: null };
+  if (!(dlAadhaarParts.front && dlAadhaarParts.back)) { renderDealModal(); return; }
+
+  await dlRules();
+  const joined = await dlJoinAadhaar(dlAadhaarParts.front.file, dlAadhaarParts.back.file);
+  if (!dealModalState || dealModalState.deal.id !== id) return;
+  if (joined.error) {
+    dealModalState.uploadErrors = { ...(dealModalState.uploadErrors || {}), buyer_aadhaar: joined.error };
+    showToast(joined.error, 'error');
+    renderDealModal();
+    return;
+  }
+  const ok = await dealUploadDocFile('buyer_aadhaar', joined.file, true);
+  // Kept after a refusal, so the buyer can retake just the side that was
+  // unclear instead of both.
+  if (ok) { dlAadhaarReset(); if (dealModalState) renderDealModal(); }
+  else if (dealModalState) renderDealModal();
+}
+
+/* Front on top of back, one JPEG, same width for both. Resolves to
+   { file } or { error }. */
+async function dlJoinAadhaar(front, back) {
+  const rules = dealRulesCache || {};
+  const maxBytes = (rules.doc_max_mb || 8) * 1024 * 1024;
+  const load = async (f) => { try { return await createImageBitmap(f); } catch { return null; } };
+  const a = await load(front);
+  const b = await load(back);
+  if (!a || !b) {
+    [a, b].forEach(x => x && x.close && x.close());
+    const heic = [front, back].some(f => /hei[cf]/i.test(f.type || '') || /\.hei[cf]$/i.test(f.name || ''));
+    return { error: heic
+      ? 'One photo is in HEIC format, which this browser can’t convert. Take a screenshot of it, or set the camera to “Most compatible” (JPG), and add that.'
+      : 'One of the photos could not be opened. Add a JPG or PNG photo of each side.' };
+  }
+  const gap = 24;
+  const ratio = a.height / a.width + b.height / b.width;
+  // Same width for both, at most 1600 px, and at most 3200 px tall in all.
+  const w = Math.max(400, Math.round(Math.min(1600, Math.max(a.width, b.width), (3200 - gap) / ratio)));
+  const ha = Math.round(a.height * w / a.width);
+  const hb = Math.round(b.height * w / b.width);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = ha + gap + hb;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(a, 0, 0, w, ha);
+  ctx.drawImage(b, 0, ha + gap, w, hb);
+  a.close && a.close(); b.close && b.close();
+  let blob = null;
+  for (const q of [0.85, 0.7, 0.55]) {
+    blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', q));
+    if (blob && blob.size <= maxBytes) break;
+  }
+  if (!blob) return { error: 'The photos could not be joined. Please try again.' };
+  if (blob.size > maxBytes) return { error: `The two photos are too big together. Files can be up to ${rules.doc_max_mb || 8} MB.` };
+  return { file: new File([blob], 'aadhaar-front-back.jpg', { type: 'image/jpeg' }) };
 }
 
 /* Opens a private document. The window is opened straight away (inside
@@ -2188,7 +2314,7 @@ function dlDocsReviewHtml(d, ctx) {
     ${group('seller', all.filter(x => x.party === 'seller'))}
     ${group('buyer', all.filter(x => x.party === 'buyer'))}
     ${canReview ? '<p class="deal-small">Check each file: the RC is for this vehicle and in the seller’s name, the insurance is valid, the buyer’s PAN and Aadhaar card are the buyer’s own and the names match. The seller’s documents belong to the listing and are checked once for every deal on it. When the listing’s documents and the buyer’s are all verified, the deal locks.</p>'
-      : (canView ? '' : '<p class="deal-small"><i class="fas fa-lock"></i> Only a superadmin or the deal’s lender can open and verify these files.</p>')}`;
+      : (canView ? '' : '<p class="deal-small"><i class="fas fa-lock"></i> Only a DealBriz admin or the deal’s lender can open and verify these files.</p>')}`;
 }
 
 /* A seller document seen from a deal: it lives on the listing. */
@@ -2233,7 +2359,7 @@ let adminDealsFilter = '';
 
 async function renderAdminDeals() {
   const ldBtn = document.getElementById('adminListingDocsBtn');
-  if (ldBtn) ldBtn.classList.toggle('hidden', !(currentUser && currentUser.isSuperadmin));
+  if (ldBtn) ldBtn.classList.toggle('hidden', !(currentUser && (currentUser.isSuperadmin || userCan('deals.manage'))));
   if (ldQueue.open && document.getElementById('adminListingDocs') && !document.getElementById('adminListingDocs').classList.contains('hidden')) {
     ldShowQueue(ldQueue.adminState);
   }
@@ -2346,7 +2472,7 @@ async function adminViewDeal(dealId) {
   } else if (d.status === 'docs_pending') {
     action = d.can_review_docs
       ? `<p class="deal-small">Check the documents below: the seller's (on the listing) and the buyer's. When every one is verified the deal locks, the listing is reserved and the buyer can apply for the loan.</p>`
-      : `<p class="deal-small">Waiting for the seller's listing documents and the buyer's documents to be checked by a superadmin or the lender.</p>`;
+      : `<p class="deal-small">Waiting for the seller's listing documents and the buyer's documents to be checked by a DealBriz admin or the lender.</p>`;
   } else if (d.status === 'loan_in_progress') {
     if (!loan) {
       action = `<p class="deal-small">Waiting for the buyer to apply.</p>`;
@@ -3420,7 +3546,7 @@ function sellDocsReset() {
   if (body) body.innerHTML = '';
 }
 
-const SELL_DOCS_PRIVACY = () => `<p class="deal-small"><i class="fas fa-lock"></i> Private: never shown on the ad. Only DealBriz’s superadmin and the lender can open them. A photo or a PDF, up to ${(dealRulesCache || {}).doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
+const SELL_DOCS_PRIVACY = () => `<p class="deal-small"><i class="fas fa-lock"></i> Private: never shown on the ad. Only DealBriz admins and the lender can open them. A photo or a PDF, up to ${(dealRulesCache || {}).doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
 
 async function sellDocsRender() {
   await dlRules();
@@ -3759,7 +3885,7 @@ function ldRenderReview(v, ctx) {
         ${v.frozen ? '<p class="deal-small"><i class="fas fa-lock"></i> A deal on this listing is locked: these documents can’t change now.</p>' : ''}
         ${docs.length ? `<ul class="deal-doc-list deal-doc-review">${rows}</ul>` : '<p class="deal-small">Nothing uploaded yet.</p>'}
         ${v.can_review ? '<p class="deal-small">Check each file: the RC is for this vehicle and in the seller’s name, and the insurance policy is valid for this vehicle. Your decision counts for every deal on this listing.</p>'
-          : '<p class="deal-small"><i class="fas fa-lock"></i> Only a superadmin or a lender that funds this kind of loan can open and check these files.</p>'}
+          : '<p class="deal-small"><i class="fas fa-lock"></i> Only a DealBriz admin or a lender that funds this kind of loan can open and check these files.</p>'}
       </div>
     </div>`);
 }

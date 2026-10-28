@@ -561,6 +561,26 @@
           </div>
         </div>
 
+        <div class="setting-row">
+          <div class="setting-main">
+            <div class="setting-title">
+              EMI Status page
+              <span id="emiStatusBadge" class="setting-badge"></span>
+            </div>
+            <div class="setting-desc">
+              Shows or hides <strong>EMI Status</strong> in the user menu, where buyers track their EMI
+              applications. <strong>Off</strong> hides the link and the page for everyone. Applications
+              are not touched, and staff still see them under EMI Applications.
+            </div>
+          </div>
+          <div class="setting-action">
+            <label class="switch">
+              <input type="checkbox" id="emiStatusToggle" onchange="toggleEmiStatusFeature(this.checked)">
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+        </div>
+
         <div id="settingsError" class="auth-error hidden"></div>
         <p class="admin-terms-note" style="margin-top:16px">
           <i class="fas fa-circle-info"></i> Existing EMI applications are never deleted by this switch.

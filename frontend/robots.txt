@@ -13,3 +13,4 @@ Disallow: /emi-status
 Disallow: /api/
 
 Sitemap: https://dealbriz.com/sitemap.xml
+Sitemap: https://dealbriz.com/sitemap-items.xml

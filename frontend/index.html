@@ -20,16 +20,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=20261027a">
+<link rel="stylesheet" href="/style.css?v=20261029a">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="/home.css?v=20261027a">
 <link rel="stylesheet" href="/how-it-works.css?v=20261027a">
 <link rel="stylesheet" href="/lottie.css?v=20261026a">
 <link rel="stylesheet" href="/browse-categories.css?v=20261027a">
-<link rel="stylesheet" href="/deals.css?v=20261027a">
+<link rel="stylesheet" href="/deals.css?v=20261029a">
 
-<script src="/seo.js?v=20261024a"></script>
+<script src="/seo.js?v=20261029a"></script>
 
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-M2WVWHBX5H"></script>
 <script>
@@ -86,10 +86,13 @@
         <div class="form-group"><label for="forgotEmail">Email</label><input type="email" id="forgotEmail" placeholder="you@example.com" autocomplete="email"></div>
       </div>
       <div id="forgotStep2" class="hidden">
-        <div class="form-group"><label for="forgotCode">6-digit code</label><input type="text" id="forgotCode" class="forgot-code-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" oninput="this.value=this.value.replace(/\D/g,'').slice(0,6)">
-          <div class="forgot-resend-row"><span>Didn’t get it?</span> <button type="button" id="forgotResend" class="forgot-link-btn forgot-resend" onclick="forgotSendCode(true)" disabled>Resend code</button></div></div>
+        <div class="form-group"><label for="forgotCode">6-digit code</label><input type="text" id="forgotCode" class="forgot-code-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" oninput="this.value=this.value.replace(/\D/g,'').slice(0,6); forgotCodeTyped()">
+          <div class="forgot-resend-row" id="forgotResendRow"><span>Didn’t get it?</span> <button type="button" id="forgotResend" class="forgot-link-btn forgot-resend" onclick="forgotSendCode(true)" disabled>Resend code</button></div>
+          <p id="forgotVerified" class="forgot-verified hidden"><i class="fas fa-circle-check"></i> Code verified</p></div>
+        <div id="forgotPwFields" class="hidden">
         <div class="form-group"><label for="forgotNewPassword">New password</label><div class="password-wrap"><input type="password" id="forgotNewPassword" autocomplete="new-password" placeholder="Min 8 characters"><button type="button" class="pw-toggle" onclick="togglePassword('forgotNewPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
         <div class="form-group"><label for="forgotConfirmPassword">Confirm new password</label><div class="password-wrap"><input type="password" id="forgotConfirmPassword" autocomplete="new-password" placeholder="Re-enter new password"><button type="button" class="pw-toggle" onclick="togglePassword('forgotConfirmPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
+        </div>
       </div>
       <p id="forgotInfo" class="forgot-info hidden"></p>
       <p id="forgotError" class="auth-error hidden"></p>
@@ -128,6 +131,9 @@
           <div class="chat-product-title" id="chatProductTitle"></div>
         </div>
       </div>
+      <button class="chat-close-btn" onclick="closeChatModal()" title="Close chat" aria-label="Close chat">
+        <i class="fas fa-xmark"></i>
+      </button>
     </div>
     <div class="chat-messages" id="chatMessages">
       <div class="chat-notice"><i class="fas fa-shield-alt"></i> All chats are monitored for your safety. Never share OTPs or payment outside DealBriz.</div>
@@ -218,7 +224,7 @@
 <nav class="navbar">
   <div class="nav-container">
     <a href="/" class="nav-brand" onclick="showPage('home'); return false;">
-      <img class="brand-logo" src="logo-full.png" alt="DealBriz" height="38">
+      <img class="brand-logo" src="/logo-full.png" alt="DealBriz" height="38">
     </a>
     <div class="nav-desktop">
       <button class="nav-loc" onclick="openLocationPicker()">
@@ -274,11 +280,11 @@
         </div>
         <hr>
         <a href="/profile" onclick="showPage('profile'); return false;"><i class="fas fa-user-circle"></i> My Profile</a>
+        <a href="/mydeals" onclick="showPage('mydeals'); return false;"><i class="fas fa-handshake"></i> My Deals</a>
         <a href="/mylistings" onclick="showPage('mylistings'); return false;"><i class="fas fa-list"></i> My Listings</a>
         <a href="/myads" onclick="showPage('myads'); return false;"><i class="fas fa-heart"></i> Saved Items</a>
-        <a href="/emi-status" class="emi-feature" onclick="showPage('emi-status'); return false;"><i class="fas fa-file-invoice-dollar"></i> EMI Status</a>
+        <a href="/emi-status" class="emi-feature emi-status-link" onclick="showPage('emi-status'); return false;"><i class="fas fa-file-invoice-dollar"></i> EMI Status</a>
         <a href="/mychats" onclick="showPage('mychats'); return false;"><i class="fas fa-comments"></i> My Chats</a>
-        <a href="/mydeals" onclick="showPage('mydeals'); return false;"><i class="fas fa-handshake"></i> My Deals</a>
         <div id="userMenuAdminLink" class="hidden">
           <hr>
           <a href="/admin" onclick="openAdminPanel(); return false;" class="staff-link"><i class="fas fa-shield-alt"></i> Admin Panel</a>
@@ -1167,8 +1173,8 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="/geo.js?v=20261022c"></script>
 <script src="/api-client.js?v=20261020c"></script>
-<script src="/app.js?v=20261027a"></script>
-<script src="/deals.js?v=20261027a"></script>
+<script src="/app.js?v=20261029a"></script>
+<script src="/deals.js?v=20261029a"></script>
 <script src="/how-it-works.js?v=20261027a"></script>
 <script src="/browse-categories.js?v=20261027a"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie_light.min.js" defer></script>
@@ -1318,7 +1324,7 @@
     <div class="sf-grid">
       <div>
         <div class="sf-brand">
-          <img src="logo.png" alt="DealBriz" width="36" height="36">
+          <img src="/logo.png" alt="DealBriz" width="36" height="36">
           <span class="sf-brand-text">deal<span>briz</span></span>
         </div>
         <p class="sf-about">India's trusted marketplace for second-hand products with flexible EMI options.</p>

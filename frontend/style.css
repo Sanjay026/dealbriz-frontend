@@ -722,6 +722,11 @@ body.on-home .nav-dot { box-shadow: 0 0 0 2px #fff; }
 .chat-view-listing:hover { background: var(--accent, #1A56DB); color: #fff; border-color: transparent; }
 @media (max-width: 480px) { .chat-view-listing { font-size: 11px; padding: 4px 9px; } }
 .modal-close-inline { background: none; border: none; font-size: 18px; color: var(--text); padding: 4px; }
+/* Close (X) at the right of the chat header, next to the back arrow on the left. */
+.chat-close-btn { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--card-bg, #fff); color: var(--text); font-size: 16px; display: inline-flex; align-items: center;
+  justify-content: center; cursor: pointer; transition: background .15s, color .15s; }
+.chat-close-btn:hover { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
 .chat-seller-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--accent); font-weight: 700; flex-shrink: 0; overflow: hidden; }
 .chat-seller-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .chat-seller-name { font-size: 14px; font-weight: 700; }
@@ -804,6 +809,8 @@ body.on-home .nav-dot { box-shadow: 0 0 0 2px #fff; }
 .forgot-link-btn:disabled { color: var(--text-muted); cursor: default; }
 .forgot-actions .forgot-link-btn:last-child { margin-left: auto; }
 .forgot-resend-row { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+.forgot-verified { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 13px; font-weight: 600; color: #047857; }
+.forgot-code-input[readonly] { background: #ECFDF5; border-color: #6EE7B7; color: #065F46; }
 .forgot-resend { font-variant-numeric: tabular-nums; }
 .auth-error { background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; font-size: 13px; padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 14px; }
 .btn-primary { background: var(--accent); color: white; border: none; padding: 13px 20px; border-radius: var(--radius-sm); font-size: 15px; font-weight: 700; transition: 0.2s; }
@@ -2010,6 +2017,7 @@ body.admin-sidebar-open .admin-sidebar-scrim { opacity: 1; pointer-events: auto;
    an application we cannot honour.
    ============================================================ */
 body.emi-off .emi-feature { display: none !important; }
+body.emi-status-off .emi-status-link { display: none !important; }
 
 /* ===== Admin: feature switches ===== */
 .setting-row {

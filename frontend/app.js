@@ -59,13 +59,24 @@ function pagePath(page) {
   return page === 'home' ? '/' : '/' + page;
 }
 
+/* Must match slugify()/item_path() in backend seo/routes.py, which builds
+   the same URL for link previews and the sitemap. */
 function slugify(text) {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+  return String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    .slice(0, 70).replace(/-+$/, '');
 }
 
-function itemPath(id, title) {
-  const slug = title ? slugify(title) : '';
-  return slug ? '/item/' + slug + '_' + id : '/item/' + id;
+/* "Mandi, Himachal Pradesh" -> "Mandi"; nothing when only a pincode is known. */
+function listingPlace(location) {
+  const first = String(location || '').split(',')[0].trim();
+  return /^\d+$/.test(first) ? '' : first;
+}
+
+/* /item/ford-figo-aspire-2017-mandi-<id>: readable, shareable, and the id
+   at the end is all the app needs to open it. */
+function itemPath(id, title, location) {
+  const slug = slugify(`${title || ''} ${listingPlace(location)}`);
+  return slug ? '/item/' + slug + '-' + id : '/item/' + id;
 }
 
 function categoryPath(cat) {
@@ -73,9 +84,15 @@ function categoryPath(cat) {
 }
 
 function itemIdFromUrl() {
+  // Links shared before listings had their own URL: /<anything>#listing-<id>
+  const hash = (location.hash || '').replace('#', '');
+  if (hash.startsWith('listing-')) return hash.slice(8) || null;
   const path = (location.pathname || '/').replace(/^\/+|\/+$/g, '');
   if (!path.startsWith('item/')) return null;
   const seg = path.slice(5);
+  const uuid = seg.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i);
+  if (uuid) return uuid[1].toLowerCase();
+  // Older links: /item/<slug>_<id>
   const uIdx = seg.lastIndexOf('_');
   return uIdx > 0 ? seg.slice(uIdx + 1) : seg;
 }
@@ -89,6 +106,7 @@ function categoryFromUrl() {
 /* The page named by the current URL, from either form. */
 function pageFromLocation() {
   const hash = (location.hash || '').replace('#', '').trim();
+  if (hash.startsWith('listing-')) return '_item';
   if (hash) return hash;
   const path = (location.pathname || '/').replace(/^\/+|\/+$/g, '').trim();
   if (path.startsWith('item/')) return '_item';
@@ -153,7 +171,9 @@ function restoreFromHash(hash) {
   if (key === '_item') {
     const itemId = itemIdFromUrl();
     if (itemId) {
-      history.replaceState({ view: 'page', page: 'buy' }, '', location.pathname);
+      // The page underneath is /buy, so closing the listing lands there
+      // instead of on a listing URL with the listing gone.
+      history.replaceState({ view: 'page', page: 'buy' }, '', pagePath('buy'));
       showPage('buy', true);
       setTimeout(() => openListing(itemId), 100);
       return;
@@ -513,7 +533,13 @@ function applyAdminPermissions() {
    Loaded once at boot. EMI defaults to OFF so that a failed or slow
    settings request can never briefly advertise financing we can't
    actually provide — the safe state is the restrictive one. */
-let siteSettings = { emi_enabled: false };
+let siteSettings = { emi_enabled: false, emi_status_enabled: true };
+
+/* The EMI Status page (the buyer's list of EMI applications) has its own
+   superadmin switch, separate from advertising EMI. */
+function emiStatusEnabled() {
+  return siteSettings.emi_status_enabled !== false;
+}
 
 function emiEnabled() {
   return siteSettings.emi_enabled === true;
@@ -535,6 +561,13 @@ function emiVisibleHere() {
 
 function applyFeatureFlags() {
   document.body.classList.toggle('emi-off', !emiVisibleHere());
+  document.body.classList.toggle('emi-status-off', !emiStatusEnabled());
+  // Someone already on the page when it is switched off is sent home.
+  if (!emiStatusEnabled() && typeof currentPage !== 'undefined' && currentPage === 'emi-status') showPage('home');
+}
+
+function readSiteSettings(s) {
+  return { emi_enabled: s?.emi_enabled === true, emi_status_enabled: s?.emi_status_enabled !== false };
 }
 
 /* Called on boot and after an area change. Cheap (one request) and it
@@ -557,10 +590,10 @@ async function refreshEmiCoverage() {
 async function loadSiteSettings() {
   try {
     const s = await db.getSiteSettings();
-    siteSettings = { emi_enabled: s?.emi_enabled === true };
+    siteSettings = readSiteSettings(s);
   } catch {
     // Keep the safe default rather than assuming EMI is available.
-    siteSettings = { emi_enabled: false };
+    siteSettings = { emi_enabled: false, emi_status_enabled: true };
   }
   applyFeatureFlags();
 }
@@ -699,6 +732,8 @@ const MODAL_HIDE = {
     const m = document.getElementById('productModal');
     m.classList.add('hidden');
     m.classList.remove('pdp-modal', 'staff-sheet');
+    // The tab title and share tags go back to the page underneath.
+    window.updateSEO?.(currentPage);
   },
   chat: () => {
     const m = document.getElementById('chatModal');
@@ -849,7 +884,12 @@ function showPage(page, fromPopstate = false, fromHistory = false) {
   if (page === 'emi-status' && !emiVisibleHere()) {
     showToast('EMI is not available yet.', 'info');
     page = 'home';
+  } else if (page === 'emi-status' && !emiStatusEnabled()) {
+    showToast('EMI Status is turned off right now.', 'info');
+    page = 'home';
   }
+  // Tab title, description and share tags follow the page (seo.js).
+  window.updateSEO?.(page);
 
   const target = document.getElementById(page + 'Page');
   if (target) {
@@ -1305,6 +1345,39 @@ async function categoryDetailRows(p) {
   }).filter(Boolean);
 }
 
+/* Title, description, canonical URL and share tags for an open listing.
+   The server puts the same tags in the HTML of /item/ URLs for WhatsApp and
+   other link previews, which never run this script; this keeps them right
+   when a listing is opened inside the app and for crawlers that do run it. */
+function setListingSeo(p) {
+  try {
+    const url = 'https://dealbriz.com' + itemPath(p.id, p.title, p.location);
+    const place = listingPlace(p.location);
+    const price = '₹' + Number(p.price || 0).toLocaleString('en-IN');
+    const title = `${p.title} – ${price}${place ? ' in ' + place : ''} | DealBriz`;
+    let desc = String(p.description || '').replace(/\s+/g, ' ').trim();
+    if (!desc) desc = `${p.title} for ${price}${place ? ' in ' + place : ''}. Buy it safely on DealBriz.`;
+    if (desc.length > 160) desc = desc.slice(0, 157).replace(/\s+\S*$/, '') + '…';
+    let image = (p.images || [])[0] || '/og-image.png';
+    if (!/^https?:\/\//.test(image)) image = 'https://dealbriz.com' + (image.startsWith('/') ? '' : '/') + image;
+    document.title = title;
+    const set = (sel, attr, key, val) => {
+      let el = document.head.querySelector(sel);
+      if (!el) { el = document.createElement(attr === 'link' ? 'link' : 'meta'); document.head.appendChild(el); }
+      if (attr === 'link') { el.setAttribute('rel', key); el.setAttribute('href', val); }
+      else { el.setAttribute(attr, key); el.setAttribute('content', val); }
+    };
+    set('meta[name="description"]', 'name', 'description', desc);
+    set('link[rel="canonical"]', 'link', 'canonical', url);
+    const live = p.status === 'active' || p.status === 'reserved';
+    set('meta[name="robots"]', 'name', 'robots', live ? 'index, follow, max-image-preview:large' : 'noindex, follow');
+    [['og:type', 'product'], ['og:title', title], ['og:description', desc], ['og:url', url], ['og:image', image]]
+      .forEach(([k, v]) => set(`meta[property="${k}"]`, 'property', k, v));
+    [['twitter:card', 'summary_large_image'], ['twitter:title', title], ['twitter:description', desc], ['twitter:image', image]]
+      .forEach(([k, v]) => set(`meta[name="${k}"]`, 'name', k, v));
+  } catch { /* never block opening the listing */ }
+}
+
 async function openListing(id) {
   document.getElementById('productModalContent').innerHTML =
     `<div style="text-align:center;padding:80px 20px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
@@ -1323,7 +1396,8 @@ async function openListing(id) {
   }
   currentProduct = p;
   currentGalleryIndex = 0;
-  history.replaceState({ view: 'modal', modal: 'product', itemId: id }, '', itemPath(id, p.title));
+  history.replaceState({ view: 'modal', modal: 'product', itemId: id }, '', itemPath(id, p.title, p.location));
+  setListingSeo(p);
   db.incrementProductViews(id).catch(() => {});
   // No seller name or contact details: GA stays free of personal data.
   window.dbTrackEvent?.('view_item', {
@@ -1539,8 +1613,9 @@ async function loadSimilarProducts(p) {
 }
 
 async function shareListing(id) {
-  const url = `${location.origin}${location.pathname}#listing-${id}`;
-  const title = currentProduct ? currentProduct.title : 'DealBriz listing';
+  const p = currentProduct && currentProduct.id === id ? currentProduct : null;
+  const url = location.origin + itemPath(id, p?.title, p?.location);
+  const title = p ? p.title : 'DealBriz listing';
   try {
     if (navigator.share) { await navigator.share({ title, url }); return; }
     await navigator.clipboard.writeText(url);
@@ -3194,15 +3269,73 @@ function switchTab(tab) {
    Step 1: the account email -> a 6-digit code is emailed (POST
    /auth/forgot-password). The answer is the same whether or not the account
    exists, so the form can't be used to find out who has one.
-   Step 2: the code and the new password (POST /auth/reset-password). Every
-   device is then signed out and the user signs in with the new password. */
-let forgotState = { step: 1, email: '', timer: null };
+   Step 2: the code. It is checked as soon as it is entered (6 digits or
+   Enter, POST /auth/verify-reset-code), so a typo shows up here and not
+   after the user has also typed a new password twice.
+   Step 3: the new password (POST /auth/reset-password, with the same code).
+   Every device is then signed out and the user signs in again. */
+let forgotState = { step: 1, email: '', timer: null, verifying: false };
+
+/* Shows step 2 (code) or step 3 (new password) of the reset form. */
+function forgotShowStep(step) {
+  forgotState.step = step;
+  const verified = step === 3;
+  const code = document.getElementById('forgotCode');
+  if (code) code.readOnly = verified;
+  document.getElementById('forgotPwFields')?.classList.toggle('hidden', !verified);
+  document.getElementById('forgotVerified')?.classList.toggle('hidden', !verified);
+  document.getElementById('forgotResendRow')?.classList.toggle('hidden', verified);
+  const sub = document.getElementById('forgotSub');
+  if (sub && step >= 2) {
+    sub.textContent = verified
+      ? 'Code verified. Choose a new password.'
+      : `Enter the 6-digit code sent to ${forgotState.email}.`;
+  }
+  const submit = document.getElementById('forgotSubmit');
+  if (submit) { submit.textContent = verified ? 'Set new password' : 'Verify code'; submit.disabled = false; }
+}
+
+/* Checks the code the moment all 6 digits are in. */
+function forgotCodeTyped() {
+  const code = document.getElementById('forgotCode');
+  if (forgotState.step === 2 && code && code.value.length === 6) forgotVerifyCode();
+}
+
+async function forgotVerifyCode() {
+  if (forgotState.verifying || forgotState.step !== 2) return;
+  const errEl = document.getElementById('forgotError');
+  const codeEl = document.getElementById('forgotCode');
+  const code = (codeEl.value || '').replace(/\D/g, '');
+  if (code.length !== 6) { showAuthError(errEl, 'Enter the 6-digit code from the email.'); return; }
+  errEl.classList.add('hidden');
+  const btn = document.getElementById('forgotSubmit');
+  forgotState.verifying = true;
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  try {
+    await apiFetch('/auth/verify-reset-code', { method: 'POST', body: { email: forgotState.email, code } });
+    document.getElementById('forgotInfo')?.classList.add('hidden');
+    forgotShowStep(3);
+    setTimeout(() => document.getElementById('forgotNewPassword')?.focus(), 30);
+  } catch (err) {
+    forgotShowStep(2);
+    showAuthError(errEl, err.message || 'That code is not right. Check the email and try again.');
+    codeEl.focus(); codeEl.select();
+  } finally {
+    forgotState.verifying = false;
+  }
+}
 
 function forgotResetState() {
   if (forgotState.timer) clearInterval(forgotState.timer);
-  forgotState = { step: 1, email: '', timer: null };
+  forgotState = { step: 1, email: '', timer: null, verifying: false };
   document.getElementById('forgotStep1')?.classList.remove('hidden');
   document.getElementById('forgotStep2')?.classList.add('hidden');
+  document.getElementById('forgotPwFields')?.classList.add('hidden');
+  document.getElementById('forgotVerified')?.classList.add('hidden');
+  document.getElementById('forgotResendRow')?.classList.remove('hidden');
+  const codeEl = document.getElementById('forgotCode');
+  if (codeEl) codeEl.readOnly = false;
   document.getElementById('forgotResend')?.classList.add('hidden');
   const info = document.getElementById('forgotInfo');
   if (info) { info.textContent = ''; info.classList.add('hidden'); }
@@ -3225,6 +3358,7 @@ function openForgotPassword() {
 
 function forgotPrimary() {
   if (forgotState.step === 1) forgotSendCode(false);
+  else if (forgotState.step === 2) forgotVerifyCode();
   else forgotSubmitNewPassword();
 }
 
@@ -3255,16 +3389,14 @@ async function forgotSendCode(resend) {
   try {
     const res = await apiFetch('/auth/forgot-password', { method: 'POST', body: { email } });
     forgotState.email = email;
-    forgotState.step = 2;
     document.getElementById('forgotStep1').classList.add('hidden');
     document.getElementById('forgotStep2').classList.remove('hidden');
-    document.getElementById('forgotSub').textContent = `Enter the code sent to ${email} and choose a new password.`;
+    // A new code replaces the old one, so any earlier "verified" is void.
+    document.getElementById('forgotCode').value = '';
+    forgotShowStep(2);
     const info = document.getElementById('forgotInfo');
     info.textContent = res.message || 'If an account exists for that email, we’ve sent it a 6-digit code.';
     info.classList.remove('hidden');
-    const submit = document.getElementById('forgotSubmit');
-    submit.textContent = 'Set new password';
-    submit.disabled = false;
     forgotResendCountdown(res.resend_after_seconds || 60);
     if (resend) showToast('Code sent again.', 'success');
     setTimeout(() => document.getElementById('forgotCode')?.focus(), 30);
@@ -3294,6 +3426,13 @@ async function forgotSubmitNewPassword() {
     showToast('Password changed. Sign in with your new password.', 'success');
     setTimeout(() => document.getElementById('loginPassword')?.focus(), 30);
   } catch (err) {
+    // The code ran out or was used up between the check and now: back to
+    // the code step rather than leaving a dead form.
+    if (/code/i.test(err.message || '')) {
+      document.getElementById('forgotCode').value = '';
+      forgotShowStep(2);
+      document.getElementById('forgotCode').focus();
+    }
     showAuthError(errEl, err.message || 'Could not change the password.');
   } finally {
     btn.disabled = false;
@@ -3799,7 +3938,7 @@ let adminHtmlLoaded = false;
 async function loadAdminHtml() {
   if (adminHtmlLoaded) return;
   try {
-    const resp = await fetch('/admin.html');
+    const resp = await fetch('/admin.html?v=20261029a');
     if (!resp.ok) throw new Error(resp.status);
     const html = await resp.text();
     document.getElementById('adminPage').innerHTML = html;
@@ -6626,6 +6765,13 @@ async function renderAdminSettings() {
     badge.textContent = emiEnabled() ? 'Advertised site-wide' : 'Covered areas only';
     badge.className = `setting-badge ${emiEnabled() ? 'is-on' : 'is-off'}`;
   }
+  const stToggle = document.getElementById('emiStatusToggle');
+  const stBadge = document.getElementById('emiStatusBadge');
+  if (stToggle) stToggle.checked = emiStatusEnabled();
+  if (stBadge) {
+    stBadge.textContent = emiStatusEnabled() ? 'On' : 'Off';
+    stBadge.className = `setting-badge ${emiStatusEnabled() ? 'is-on' : 'is-off'}`;
+  }
   document.getElementById('settingsError')?.classList.add('hidden');
 }
 
@@ -6644,7 +6790,7 @@ async function toggleEmiFeature(enabled) {
 
   try {
     const updated = await db.updateSiteSetting('emi_enabled', enabled);
-    siteSettings = { emi_enabled: updated?.emi_enabled === true };
+    siteSettings = readSiteSettings(updated);
     applyFeatureFlags();
     renderAdminSettings();
     showToast(emiEnabled()
@@ -6653,6 +6799,22 @@ async function toggleEmiFeature(enabled) {
   } catch (err) {
     // Put the switch back where it was so it never shows a state the
     // server didn't accept.
+    toggle.checked = !enabled;
+    showAuthError(errEl, err.message || 'Could not change this setting.');
+  }
+}
+
+
+async function toggleEmiStatusFeature(enabled) {
+  const errEl = document.getElementById('settingsError');
+  const toggle = document.getElementById('emiStatusToggle');
+  try {
+    const updated = await db.updateSiteSetting('emi_status_enabled', enabled);
+    siteSettings = readSiteSettings(updated);
+    applyFeatureFlags();
+    renderAdminSettings();
+    showToast(emiStatusEnabled() ? 'EMI Status page is on.' : 'EMI Status page is off.', 'success');
+  } catch (err) {
     toggle.checked = !enabled;
     showAuthError(errEl, err.message || 'Could not change this setting.');
   }

@@ -144,8 +144,11 @@
   }
 
   window.updateSEO = updateSEO;
-  // Initialize on load
-  if(document.readyState === 'loading'){
+  // Initialize on load. Not on a listing URL: the server already put that
+  // listing's tags in the page, and the app sets them again once it opens.
+  if(/^\/item\//.test(location.pathname)){
+    // leave the listing's tags alone
+  } else if(document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', function(){ updateSEO('home'); });
   } else {
     updateSEO('home');
