@@ -226,12 +226,10 @@
 /* Hero search pill */
 #homePage .hb-hero-search {
   display: flex; align-items: center; margin-top: 30px;
-  background: #fff; border: 1px solid var(--hb-line); border-radius: 999px;
-  box-shadow: 0 6px 22px rgba(15,23,42,0.06); max-width: 640px;
-  /* No overflow:hidden — it was clipping the search suggestions dropdown,
-     which is absolutely positioned below this box. The pill shape is kept
-     by rounding the children instead. A raised z-index stops the stats row
-     below from painting over the dropdown. */
+  background: rgba(255,255,255,0.55); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.6); border-radius: 999px;
+  box-shadow: 0 8px 32px rgba(15,23,42,0.10), inset 0 1px 0 rgba(255,255,255,0.7);
+  max-width: 640px;
   position: relative; z-index: 20;
 }
 #homePage .hb-hero-search > :first-child { border-radius: 999px 0 0 999px; }
@@ -240,13 +238,14 @@
   display: flex; align-items: center; gap: 8px; padding: 0 18px;
   height: 60px; background: none; border: none; cursor: pointer;
   font-family: var(--hb-font); font-size: 15px; font-weight: 600; color: var(--hb-text);
-  white-space: nowrap; border-right: 1px solid var(--hb-line);
+  white-space: nowrap; border-right: 1px solid rgba(15,23,42,0.12);
 }
 #homePage .hb-hero-loc i.fa-location-dot { color: var(--hb-blue); }
 #homePage .hb-hero-loc i.fa-chevron-down { font-size: 10px; color: var(--hb-muted); }
 #homePage .hb-hero-search input {
   flex: 1; height: 60px; border: none; outline: none; padding: 0 18px;
   font-size: 15px; font-family: var(--hb-font); color: var(--hb-text); min-width: 0;
+  background: transparent;
 }
 #homePage .hb-hero-search input::placeholder { color: #94A3B8; }
 #homePage .hb-hero-search button.hb-go {
@@ -652,7 +651,6 @@ body.show-footer .site-footer { display: block; }
 .site-footer .sf-brand img { width: 36px; height: 36px; }
 .site-footer .sf-brand-text { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #fff; }
 .site-footer .sf-brand-text span { color: var(--hb-blue); }
-.site-footer .sf-brand-dot { font-style: normal; color: var(--hb-amber); }
 .site-footer .sf-about { color: #94A3B8; font-size: 14.5px; line-height: 1.65; margin: 20px 0 0; max-width: 34ch; }
 .site-footer .sf-loc { display: flex; align-items: flex-start; gap: 9px; color: #94A3B8; font-size: 13.5px; margin: 18px 0 0; }
 .site-footer .sf-loc i { color: var(--hb-amber); margin-top: 3px; }
