@@ -128,38 +128,40 @@ def build_product_query(args):
         else_=2
     ) if near else None
 
+    # Nearness is always the top-level sort when the buyer has an area
+    # selected — nearby listings surface first regardless of sort mode.
+    # The chosen sort (price / newest / recommended) orders within each
+    # distance band.
+
     if sort in ("price_asc", "price_desc"):
-        order = [Product.price.asc() if sort == "price_asc" else Product.price.desc()]
+        order = []
+        if near_rank is not None:
+            order.append(near_rank)
+        order.append(Product.price.asc() if sort == "price_asc" else Product.price.desc())
+        order += [Product.created_at.desc(), Product.id]
+        return q.order_by(*order)
+
+    if sort == "newest":
+        order = []
         if near_rank is not None:
             order.append(near_rank)
         order += [Product.created_at.desc(), Product.id]
         return q.order_by(*order)
 
-    if sort == "newest":
-        return q.order_by(Product.created_at.desc(), Product.id)
-
     # --- recommended ---
-    # Promoted listings sort above everything else, but ONLY within the
-    # results the buyer's filters already selected — paying to be seen must
-    # not put a fridge in front of someone searching for a phone.
     order = [case((Product.featured_until > datetime.utcnow(), 0), else_=1)]
 
-    # Relevance next when searching: a listing whose TITLE matches should
-    # outrank one that merely mentions the term in its description.
+    if near_rank is not None:
+        order.append(near_rank)
+
     if search:
         primary = normalise(search)
         if len(primary) >= 2:
             order.append(case(
-                (_squash(Product.title).like(f"{primary}%"), 0),   # title starts with it
-                (_squash(Product.title).like(f"%{primary}%"), 1),  # title contains it
-                else_=2                                            # matched elsewhere
+                (_squash(Product.title).like(f"{primary}%"), 0),
+                (_squash(Product.title).like(f"%{primary}%"), 1),
+                else_=2
             ))
-
-    # "near" ranks results without excluding anything: listings in the
-    # buyer's district come first, then the wider postal circle, then
-    # everywhere else. Done in SQL so it survives pagination.
-    if near_rank is not None:
-        order.append(near_rank)
 
     order += [Product.created_at.desc(), Product.id]
     return q.order_by(*order)

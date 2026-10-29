@@ -48,12 +48,10 @@ button { cursor: pointer; }
 .navbar {
   position: fixed; top: 0; left: 50%; transform: translateX(-50%);
   width: 100%; max-width: var(--max-w); z-index: 1000;
-  background: rgba(10, 18, 36, 0.45);
-  backdrop-filter: blur(20px) saturate(1.6);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  background: #fff;
   height: var(--nav-h);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  box-shadow: 0 4px 24px rgba(6,11,24,0.25);
+  border-bottom: 1px solid #E2E8F0;
+  box-shadow: 0 1px 12px rgba(15,23,42,0.06);
 }
 .nav-container {
   height: 100%; display: flex; align-items: center;
@@ -63,21 +61,22 @@ button { cursor: pointer; }
 .brand-logo { height: 38px; width: auto; display: block; object-fit: contain; }
 .nav-actions { display: flex; align-items: center; gap: 8px; position: relative; }
 .nav-icon-btn {
-  background: rgba(255,255,255,0.1); border: none; color: white;
+  background: #F1F5F9; border: none; color: #334155;
   width: 36px; height: 36px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; font-size: 16px;
 }
+.nav-icon-btn:hover { background: #E2E8F0; }
 
 /* Signed-out state. A pill with the word "Sign in" rather than a lone person
    icon, which a visitor with no account reads as "my account" and skips. */
 .nav-signin-btn {
-  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18); color: #fff;
+  background: #F1F5F9; border: 1px solid #E2E8F0; color: #334155;
   height: 36px; padding: 0 16px; border-radius: 999px;
   display: flex; align-items: center; gap: 8px;
   font-size: 13.5px; font-weight: 600; font-family: inherit; cursor: pointer; white-space: nowrap;
   transition: background .15s ease, border-color .15s ease;
 }
-.nav-signin-btn:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.35); }
+.nav-signin-btn:hover { background: #E2E8F0; border-color: #CBD5E1; }
 body.on-home .nav-signin-btn { background: var(--hb-panel, #F1F5F9); border-color: #E2E8F0; color: var(--hb-text, #0F172A); }
 body.on-home .nav-signin-btn:hover { background: #E2E8F0; }
 /* Below ~520px the label would push the navbar into wrapping, so it drops
@@ -165,9 +164,8 @@ body.on-home .nav-chat-glow:hover {
   background: var(--red);
   /* Ring in the navbar colour so the dot stays legible against both the
      dark navbar and the white home-page one. */
-  box-shadow: 0 0 0 2px var(--navy);
+  box-shadow: 0 0 0 2px #fff;
 }
-body.on-home .nav-dot { box-shadow: 0 0 0 2px #fff; }
 
 .notif-panel {
   position: absolute; top: 44px; right: 0;
@@ -305,9 +303,13 @@ body.on-home .nav-dot { box-shadow: 0 0 0 2px #fff; }
 /* ===== BUY PAGE ===== */
 .buy-header {
   position: sticky; top: var(--nav-h); z-index: 100;
-  background: white; padding: 10px 12px;
-  display: flex; align-items: center; gap: 8px;
+  background: white; padding: 8px 12px;
+  display: flex; align-items: center; gap: 10px;
   border-bottom: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.buy-header .cat-scroll {
+  border-bottom: none; padding: 0; background: transparent;
+  flex: 1; min-width: 0; justify-content: flex-end;
 }
 .back-btn { background: none; border: none; font-size: 18px; color: var(--text); padding: 4px 8px; flex-shrink: 0; }
 /* No overflow:hidden here — it clipped the suggestions dropdown, which is
@@ -1176,10 +1178,9 @@ body.admin-sidebar-open .admin-sidebar-scrim { opacity: 1; pointer-events: auto;
   .footer-links { grid-template-columns: repeat(4, 1fr); gap: 28px; margin-bottom: 28px; }
 
   /* Buy page */
-  .buy-header { padding: 14px 40px; }
+  .buy-header { padding: 10px 40px; }
   .buy-search-wrap { max-width: 560px; }
   @media (min-width: 1080px) { .buy-search-mobile { display: none; } }
-  .cat-scroll { padding: 12px 40px; }
   .filter-bar { padding: 10px 40px; }
   .filter-panel { padding: 16px 40px; }
   .filter-panel-inner { max-width: 1280px; margin: 0 auto; grid-template-columns: repeat(4, 1fr); }

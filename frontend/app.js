@@ -1016,8 +1016,6 @@ function getBuyFilterParams() {
     minPrice: Number.isFinite(minPrice) ? minPrice : undefined,
     maxPrice: Number.isFinite(maxPrice) ? maxPrice : undefined,
     pincode: pincode || undefined,
-    // Ranks nearby listings first without hiding anything else. Under
-    // Newest / Price it only breaks ties: the order the buyer picked wins.
     near: selectedArea ? selectedArea.prefix : undefined,
     emiOnly, sort
   };
@@ -1104,10 +1102,7 @@ async function fetchBuyPage() {
   buyListings = items;
 
   if (countEl) {
-    // "near X first" is only true under Recommended. Newest and Price are
-    // strict orders, where nearness only breaks ties.
-    const sortNow = document.getElementById('buySortSelect')?.value || 'recommended';
-    const near = selectedArea && sortNow === 'recommended' ? ` · near ${escapeHtml(selectedArea.name)} first` : '';
+    const near = selectedArea ? ` · near ${escapeHtml(selectedArea.name)} first` : '';
     countEl.innerHTML = `${Number(data.total).toLocaleString('en-IN')} listing${data.total !== 1 ? 's' : ''} found` +
       (near ? `<span class="buy-near-note">${near}</span>` : '');
   }
