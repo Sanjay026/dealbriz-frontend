@@ -4,3 +4,10 @@ node_modules/
 .git/
 .DS_Store
 *.log
+
+# Backup copies (app.js.bak18...) and checksum files from deploys were
+# copied into the image and downloadable from the site.
+**/*.bak*
+**/*.md5
+**/*.orig
+**/*.swp

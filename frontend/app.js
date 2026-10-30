@@ -20,8 +20,11 @@ let pendingAction = null;      // store what to do after login
 let buyPageNum = 1;
 let buyTotalPages = 0;
 let buyTotalCount = 0;      // count of the CURRENT filtered result set
-const BUY_PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100, 250, 500];
-let buyPerPage = 30; // clamped to the same 10–500 range as the admin tables' pager
+// The API serves at most 100 listings a page (buy/routes.py MAX_PER_PAGE),
+// so bulk copying the whole marketplace takes many requests.
+const BUY_PAGE_SIZE_OPTIONS = [10, 20, 30, 50, 100];
+const BUY_PAGE_SIZE_MAX = 100;
+let buyPerPage = 30; // clamped to 10–100 (BUY_PAGE_SIZE_MAX), what the API serves
 let homeListingsCount = 0;  // site-wide active total, for the homepage stat only
 let buyFetchToken = 0; // guards against out-of-order responses when filters change quickly
 
@@ -1016,6 +1019,8 @@ function getBuyFilterParams() {
     minPrice: Number.isFinite(minPrice) ? minPrice : undefined,
     maxPrice: Number.isFinite(maxPrice) ? maxPrice : undefined,
     pincode: pincode || undefined,
+    // Ranks nearby listings first without hiding anything else. Under
+    // Newest / Price it only breaks ties: the order the buyer picked wins.
     near: selectedArea ? selectedArea.prefix : undefined,
     emiOnly, sort
   };
@@ -1102,7 +1107,10 @@ async function fetchBuyPage() {
   buyListings = items;
 
   if (countEl) {
-    const near = selectedArea ? ` · near ${escapeHtml(selectedArea.name)} first` : '';
+    // "near X first" is only true under Recommended. Newest and Price are
+    // strict orders, where nearness only breaks ties.
+    const sortNow = document.getElementById('buySortSelect')?.value || 'recommended';
+    const near = selectedArea && sortNow === 'recommended' ? ` · near ${escapeHtml(selectedArea.name)} first` : '';
     countEl.innerHTML = `${Number(data.total).toLocaleString('en-IN')} listing${data.total !== 1 ? 's' : ''} found` +
       (near ? `<span class="buy-near-note">${near}</span>` : '');
   }
@@ -1128,7 +1136,7 @@ function buyGoToPage(page) {
 }
 
 function buySetPageSize(rawValue) {
-  buyPerPage = Math.min(ADMIN_PAGE_SIZE_MAX, Math.max(ADMIN_PAGE_SIZE_MIN, parseInt(rawValue, 10) || 30));
+  buyPerPage = Math.min(BUY_PAGE_SIZE_MAX, Math.max(ADMIN_PAGE_SIZE_MIN, parseInt(rawValue, 10) || 30));
   buyPageNum = 1; // the old page number is meaningless against a different page size
   fetchBuyPage();
 }
@@ -1243,10 +1251,10 @@ function goHowItWorks() {
 
 function createListingCard(p) {
   const saved = savedItems.has(p.id);
-  const condLabel = CONDITION_LABEL[p.condition] || p.condition;
+  const condLabel = escapeHtml(CONDITION_LABEL[p.condition] || p.condition || '');
   const deal = dealInfo(p);
   const imgHtml = p.images.length
-    ? `<img src="${p.images[0]}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=pcard-ph>${getCatEmoji(p.category)}</div>'">`
+    ? `<img src="${safeUrl(p.images[0])}" alt="${escapeHtml(p.title)}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=pcard-ph>${getCatEmoji(p.category)}</div>'">`
     : `<div class="pcard-ph">${getCatEmoji(p.category)}</div>`;
   const daysLabel = p.daysAgo === 0 ? 'Today' : p.daysAgo === 1 ? '1 day ago' : `${p.daysAgo} days ago`;
 
@@ -1265,7 +1273,7 @@ function createListingCard(p) {
       </div>
       <div class="pcard-body">
         <div class="pcard-tags">
-          <span class="pcard-cond cond-${p.condition}">${condLabel.toUpperCase()}</span>
+          <span class="pcard-cond cond-${escapeHtml(p.condition)}">${condLabel.toUpperCase()}</span>
           ${p.negotiable ? '<span class="pcard-negotiable">Negotiable</span>' : ''}
         </div>
         <div class="pcard-title">${escapeHtml(p.title)}</div>
@@ -1407,7 +1415,7 @@ async function openListing(id) {
     }],
   });
 
-  const condLabel = CONDITION_LABEL[p.condition] || p.condition;
+  const condLabel = CONDITION_LABEL[p.condition] || p.condition || '';
   const deal = dealInfo(p);
   const daysLabel = p.daysAgo === 0 ? 'Today' : p.daysAgo === 1 ? 'Yesterday' : `${p.daysAgo} days ago`;
   const isOwnListing = currentUser && currentUser.id === p.sellerId;
@@ -1434,7 +1442,7 @@ async function openListing(id) {
 
   const sellerInitial = p.sellerName ? p.sellerName.charAt(0).toUpperCase() : 'S';
   const sellerAvatarHtml = p.sellerAvatar
-    ? `<img src="${p.sellerAvatar}" alt="${escapeHtml(p.sellerName)}">` : sellerInitial;
+    ? `<img src="${safeUrl(p.sellerAvatar)}" alt="${escapeHtml(p.sellerName)}">` : escapeHtml(sellerInitial);
 
   document.getElementById('productModalContent').innerHTML = `
     <div class="pdp-crumbs">
@@ -1442,7 +1450,7 @@ async function openListing(id) {
       <i class="fas fa-chevron-right"></i>
       <a href="#" onclick="closeProductModal(); showPage('buy'); return false;">Marketplace</a>
       <i class="fas fa-chevron-right"></i>
-      <a href="#" onclick="closeProductModal(); browseCategory('${p.category}'); return false;">${catLabel}</a>
+      <a href="#" onclick="closeProductModal(); browseCategory(${jsArg(p.category)}); return false;">${escapeHtml(catLabel)}</a>
       <i class="fas fa-chevron-right"></i>
       <span>${escapeHtml(p.title)}</span>
     </div>
@@ -1470,7 +1478,7 @@ async function openListing(id) {
           <div class="pdp-thumbs" id="pdpThumbs">
             ${p.images.map((src, i) => `
               <button class="pdp-thumb ${i === 0 ? 'is-active' : ''}" onclick="galleryGoTo(${i})">
-                <img src="${src}" alt="View ${i + 1}" loading="lazy">
+                <img src="${safeUrl(src)}" alt="View ${i + 1}" loading="lazy">
               </button>`).join('')}
           </div>` : ''}
 
@@ -1505,7 +1513,7 @@ async function openListing(id) {
 
       <div class="pdp-right">
         <div class="pdp-pills">
-          <span class="pdp-pill cond-${p.condition}">${condLabel} Condition</span>
+          <span class="pdp-pill cond-${escapeHtml(p.condition)}">${escapeHtml(condLabel)} Condition</span>
           ${deal && deal.isGoodDeal ? '<span class="pdp-pill pdp-pill-deal">Good Deal</span>' : ''}
           ${p.negotiable ? '<span class="pdp-pill pdp-pill-neutral">Negotiable</span>' : ''}
           ${p.dealStage === 'reserved' ? '<span class="pdp-pill pdp-pill-reserved"><i class="fas fa-lock"></i> Reserved</span>'
@@ -1522,7 +1530,7 @@ async function openListing(id) {
 
         <div class="pdp-loc">
           <i class="fas fa-location-dot"></i>
-          ${p.landmark || p.location || '—'}${p.pincode ? ` <span class="pdp-pin">${p.pincode}</span>` : ''}
+          ${escapeHtml(p.landmark || p.location || '—')}${p.pincode ? ` <span class="pdp-pin">${escapeHtml(p.pincode)}</span>` : ''}
         </div>
 
         ${isOwnListing ? `
@@ -1542,7 +1550,7 @@ async function openListing(id) {
             <button class="pdp-icon-btn" onclick="shareListing('${p.id}')" aria-label="Share"><i class="fas fa-share-nodes"></i></button>
           </div>
           ${p.showPhone === 'yes' && p.sellerPhone ? `
-            <button class="pdp-btn pdp-btn-ghost pdp-btn-wide" onclick="callSeller('${p.sellerPhone}')"><i class="fas fa-phone"></i> Call Seller</button>` : ''}`}
+            <button class="pdp-btn pdp-btn-ghost pdp-btn-wide" onclick="callSeller(${jsArg(p.sellerPhone)})"><i class="fas fa-phone"></i> Call Seller</button>` : ''}`}
 
         <div class="pdp-seller">
           <div class="pdp-seller-top">
@@ -1601,7 +1609,7 @@ async function loadSimilarProducts(p) {
     wrap.innerHTML = `
       <div class="pdp-similar-head">
         <h3>Similar Products</h3>
-        <button class="pdp-viewall" onclick="closeProductModal(); browseCategory('${p.category}')">View All <i class="fas fa-arrow-right"></i></button>
+        <button class="pdp-viewall" onclick="closeProductModal(); browseCategory(${jsArg(p.category)})">View All <i class="fas fa-arrow-right"></i></button>
       </div>
       <div class="pdp-similar-grid">${similar.map(createListingCard).join('')}</div>`;
   } catch { /* similar products are a nicety — silence is better than an error box */ }
@@ -1624,7 +1632,7 @@ function renderGalleryImage(p) {
   }
   // Clicking opens the lightbox: the gallery box crops with object-fit:cover,
   // so anything near the edge of a tall or wide photo is cut off here.
-  return `<img src="${p.images[currentGalleryIndex]}" alt="${escapeHtml(p.title)}" class="pdp-zoomable" onclick="openLightbox(currentGalleryIndex)" title="Click to view full image" onerror="this.parentElement.innerHTML='<div class=pm-img-placeholder>${getCatEmoji(p.category)}</div>'">`;
+  return `<img src="${safeUrl(p.images[currentGalleryIndex])}" alt="${escapeHtml(p.title)}" class="pdp-zoomable" onclick="openLightbox(currentGalleryIndex)" title="Click to view full image" onerror="this.parentElement.innerHTML='<div class=pm-img-placeholder>${getCatEmoji(p.category)}</div>'">`;
 }
 
 
@@ -1895,7 +1903,7 @@ async function showChatPartyInfo() {
       : null;
 
     document.getElementById('partyInfoAvatar').src =
-      u.avatar_url || initialsAvatar(name, 96);
+      safeUrl(u.avatar_url) ? u.avatar_url : initialsAvatar(name, 96);
     document.getElementById('partyInfoName').textContent = name;
     document.getElementById('partyInfoMeta').textContent =
       joined ? `Member since ${joined}` : 'DealBriz member';
@@ -1951,8 +1959,8 @@ async function openChatWindow({ listingId, otherPartyId, otherPartyName, otherPa
   document.getElementById('chatSellerName').textContent = otherPartyName || 'User';
   document.getElementById('chatProductTitle').textContent = productTitle || 'Listing';
   document.getElementById('chatSellerAvatar').innerHTML = otherPartyAvatar
-    ? `<img src="${otherPartyAvatar}" alt="${otherPartyName}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
-    : initial;
+    ? `<img src="${safeUrl(otherPartyAvatar)}" alt="${escapeHtml(otherPartyName || '')}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+    : escapeHtml(initial);
 
   // Whether *this* user owns the listing decides both the suggested
   // openers and the wording of the safety notice: telling a seller not to
@@ -2128,11 +2136,11 @@ function renderChatListItems() {
     const timeAgo = formatTimeAgo(c.created_at);
     const productTitle = c.products?.title || 'Listing';
     return `
-      <div class="chat-list-item" onclick="openConversation('${c.product_id}','${c.otherUserId}')">
-        <div class="chat-list-avatar">${avatar ? `<img src="${avatar}" alt="${name}">` : initial}</div>
+      <div class="chat-list-item" onclick="openConversation(${jsArg(c.product_id)},${jsArg(c.otherUserId)})">
+        <div class="chat-list-avatar">${avatar ? `<img src="${safeUrl(avatar)}" alt="${escapeHtml(name)}">` : escapeHtml(initial)}</div>
         <div class="chat-list-info">
-          <div class="chat-list-name">${name}</div>
-          <div class="chat-list-product">${productTitle}</div>
+          <div class="chat-list-name">${escapeHtml(name)}</div>
+          <div class="chat-list-product">${escapeHtml(productTitle)}</div>
           <div class="chat-list-last">${escapeHtml(c.body)}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
@@ -2537,7 +2545,7 @@ function renderPhotoGrid() {
   const grid = document.getElementById('photoGrid');
   const previews = sellPhotos.map((p, i) => `
     <div class="photo-preview">
-      <img src="${p.url}" alt="Photo ${i+1}">
+      <img src="${safeUrl(p.url)}" alt="Photo ${i+1}">
       <button class="photo-remove" onclick="removePhoto(${i})"><i class="fas fa-times"></i></button>
     </div>`).join('');
   const addBtn = sellPhotos.length < 5
@@ -2767,15 +2775,15 @@ async function renderMyListings() {
   el.innerHTML = myListingsCache.map(p => `
     <div class="my-listing-card">
       <div class="my-listing-img">
-        ${p.images.length ? `<img src="${p.images[0]}" alt="${escapeHtml(p.title)}">` : getCatEmoji(p.category)}
+        ${p.images.length ? `<img src="${safeUrl(p.images[0])}" alt="${escapeHtml(p.title)}">` : getCatEmoji(p.category)}
       </div>
       <div class="my-listing-info">
-        <div class="listing-status-pill status-${p.status}">${p.status.charAt(0).toUpperCase()+p.status.slice(1)}</div>
+        <div class="listing-status-pill status-${escapeHtml(p.status)}">${escapeHtml(p.status.charAt(0).toUpperCase()+p.status.slice(1))}</div>
         ${p.dealStage === 'pending' ? `<div class="featured-note"><i class="fas fa-handshake"></i> Deal in progress: waiting for confirmation or documents</div>` : ''}
         ${typeof ldBadgeHtml === 'function' && (p.emiEligible || ['checking', 'verified'].includes(p.docsState)) ? ldBadgeHtml(p.docsState) : ''}
         <div class="my-listing-title">${escapeHtml(p.title)}</div>
         <div class="my-listing-price">₹${formatNum(p.price)}</div>
-        <div class="my-listing-meta">${p.pincode} · ${p.views} views</div>
+        <div class="my-listing-meta">${escapeHtml(p.pincode)} · ${Number(p.views) || 0} views</div>
         ${p.isFeatured ? `<div class="featured-note"><i class="fas fa-bolt"></i> Showing at top until ${new Date(p.featuredUntil).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div>` : ''}
         <div class="my-listing-actions">
           <button class="btn-sm btn-sm-blue" onclick="openListing('${p.id}')">View</button>
@@ -3091,17 +3099,17 @@ async function renderEmiStatusPage() {
   const cls = EMI_STATUS_CLASS;
   list.innerHTML = apps.map(a => `
     <div class="emi-app-card">
-      <div class="emi-app-img"><img src="${a.product_image_snapshot||''}" alt="" onerror="this.src=''"></div>
+      <div class="emi-app-img"><img src="${safeUrl(a.product_image_snapshot)}" alt="" onerror="this.src=''"></div>
       <div class="emi-app-info">
-        <div class="emi-app-title">${a.product_title_snapshot}</div>
+        <div class="emi-app-title">${escapeHtml(a.product_title_snapshot || '')}</div>
         <div class="emi-app-meta">
           <span><i class="fas fa-calendar"></i> ${new Date(a.applied_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span>
-          <span><i class="fas fa-clock"></i> ${a.tenure_months} mo</span>
-          <span><i class="fas fa-percent"></i> ${a.interest_rate}%</span>
+          <span><i class="fas fa-clock"></i> ${Number(a.tenure_months) || 0} mo</span>
+          <span><i class="fas fa-percent"></i> ${Number(a.interest_rate) || 0}%</span>
         </div>
       </div>
       <div class="emi-app-status">
-        <span class="status-pill ${cls[a.status]||'status-pending'}">${labels[a.status]||'Pending'}</span>
+        <span class="status-pill ${cls[a.status]||'status-pending'}">${escapeHtml(labels[a.status]||'Pending')}</span>
         <div class="emi-app-amount">₹${formatNum(a.monthly_emi)}/mo</div>
       </div>
     </div>`).join('');
@@ -3632,7 +3640,7 @@ function initialsAvatar(name, size = 200) {
     `<rect width="100%" height="100%" fill="#1A56DB"/>` +
     `<text x="50%" y="50%" dy=".35em" text-anchor="middle" fill="#fff" ` +
     `font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" ` +
-    `font-size="${Math.round(size * 0.4)}" font-weight="700">${initials}</text></svg>`;
+    `font-size="${Math.round(size * 0.4)}" font-weight="700">${escapeHtml(initials)}</text></svg>`;
   return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
 }
 
@@ -4061,13 +4069,13 @@ function renderAdminTable() {
 
     return `
     <tr${a.is_archived?' style="opacity:.6"':''}>
-      <td><div class="admin-product-cell"><img src="${a.product_image_snapshot||''}" alt="" onerror="this.style.display='none'"><span>${a.product_title_snapshot}${a.deal_id?' <span class="deal-tag">DealLock</span>':''}</span></div></td>
-      <td>${a.profiles?`${a.profiles.first_name} ${a.profiles.last_name}`:a.applicant_name}<br><small>${a.applicant_phone}</small></td>
+      <td><div class="admin-product-cell"><img src="${safeUrl(a.product_image_snapshot)}" alt="" onerror="this.style.display='none'"><span>${escapeHtml(a.product_title_snapshot || '')}${a.deal_id?' <span class="deal-tag">DealLock</span>':''}</span></div></td>
+      <td>${escapeHtml(a.profiles?`${a.profiles.first_name} ${a.profiles.last_name}`:(a.applicant_name || ''))}<br><small>${escapeHtml(a.applicant_phone || '')}</small></td>
       <td>₹${formatNum(a.loan_amount)}</td>
-      <td>₹${formatNum(a.monthly_emi)}<br><small>${a.tenure_months}mo@${a.interest_rate}%</small></td>
+      <td>₹${formatNum(a.monthly_emi)}<br><small>${Number(a.tenure_months) || 0}mo@${Number(a.interest_rate) || 0}%</small></td>
       <td>${new Date(a.applied_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</td>
       <td>
-        <span class="status-pill ${EMI_STATUS_CLASS[a.status]||'status-pending'}">${EMI_STATUS_LABELS[a.status]||a.status}</span>
+        <span class="status-pill ${EMI_STATUS_CLASS[a.status]||'status-pending'}">${escapeHtml(EMI_STATUS_LABELS[a.status]||a.status)}</span>
         ${a.is_archived?'<br><small style="color:var(--text-muted)">Archived</small>':''}
       </td>
       <td>
@@ -4273,13 +4281,13 @@ function renderAdminUsersTable() {
 
   tbody.innerHTML = users.map(u => {
     const rolesBadges = ((u.roles && u.roles.length)
-      ? u.roles.map(r => `<span class="status-pill status-approved">${r}</span>`).join(' ')
+      ? u.roles.map(r => `<span class="status-pill status-approved">${escapeHtml(r)}</span>`).join(' ')
       : (u.is_admin ? '<span class="status-pill status-pending">admin (legacy)</span>' : '—'))
       + (u.lender ? `<br><small><i class="fas fa-building-columns"></i> ${escapeHtml(u.lender.name || 'Lender')}</small>` : '')
       // DealLock: paused after 3 force-cancelled deals in a row.
       + (u.deal_ban_until ? `<br><span class="status-pill status-rejected" title="${escapeHtml(u.deal_ban_reason || 'Force cancels in a row (automatic)')}">Paused till ${new Date(u.deal_ban_until).toLocaleString('en-IN', {day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span>`
           + `<br><small class="restrict-countdown" data-countdown="${escapeHtml(u.deal_ban_until)}">${typeof dlTimeLeft === 'function' ? escapeHtml(dlTimeLeft(u.deal_ban_until)) : ''}</small>` : '')
-      + (u.consecutive_cancels ? `<br><small style="color:var(--text-muted)">${u.consecutive_cancels} force cancel${u.consecutive_cancels === 1 ? '' : 's'} in a row</small>` : '');
+      + (u.consecutive_cancels ? `<br><small style="color:var(--text-muted)">${Number(u.consecutive_cancels) || 0} force cancel${u.consecutive_cancels === 1 ? '' : 's'} in a row</small>` : '');
 
     // Role-assignment, role-removal, and account deletion are all
     // superadmin-only server-side — hide them from other staff (admin/
@@ -4304,7 +4312,7 @@ function renderAdminUsersTable() {
     <tr>
       <td>${escapeHtml(u.first_name)} ${escapeHtml(u.last_name)}</td>
       <td>${escapeHtml(u.email)}</td>
-      <td>${u.phone || '—'}</td>
+      <td>${escapeHtml(u.phone || '—')}</td>
       <td>${adminUserPlaceHtml(u)}</td>
       <td>${rolesBadges}</td>
       <td>${new Date(u.created_at).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'})}</td>
@@ -4426,12 +4434,12 @@ function renderAdminProductsTable() {
 
   tbody.innerHTML = products.map(p => `
     <tr>
-      <td><div class="admin-product-cell"><img src="${p.ai_image_url || ''}" alt="" onerror="this.style.display='none'"><span>${escapeHtml(p.title)}</span></div></td>
-      <td>${p.category}</td>
+      <td><div class="admin-product-cell"><img src="${safeUrl(p.ai_image_url)}" alt="" onerror="this.style.display='none'"><span>${escapeHtml(p.title)}</span></div></td>
+      <td>${escapeHtml(p.category)}</td>
       <td>₹${formatNum(p.price)}</td>
-      <td>${p.seller_name || '—'}</td>
-      <td><span class="status-pill ${statusCls[p.status] || 'status-pending'}">${p.status}</span></td>
-      <td>${p.views}</td>
+      <td>${escapeHtml(p.seller_name || '—')}</td>
+      <td><span class="status-pill ${statusCls[p.status] || 'status-pending'}">${escapeHtml(p.status)}</span></td>
+      <td>${Number(p.views) || 0}</td>
       <td>
         <button class="btn-sm btn-sm-blue" onclick="adminViewProduct('${p.id}')">View</button>
         <button class="btn-sm" onclick="editListing('${p.id}', true)">Edit</button>
@@ -4475,10 +4483,10 @@ async function adminViewProduct(pid) {
   const s = p.seller;
 
   const sellerBlock = s ? `
-    <div class="admin-detail-row"><span>Name</span><strong>${s.name || '—'}</strong></div>
-    <div class="admin-detail-row"><span>Email</span><strong>${s.email || '—'}</strong></div>
-    <div class="admin-detail-row"><span>Phone</span><strong>${s.phone || '—'}</strong></div>
-    <div class="admin-detail-row"><span>Pincode</span><strong>${s.city || '—'}</strong></div>
+    <div class="admin-detail-row"><span>Name</span><strong>${escapeHtml(s.name || '—')}</strong></div>
+    <div class="admin-detail-row"><span>Email</span><strong>${escapeHtml(s.email || '—')}</strong></div>
+    <div class="admin-detail-row"><span>Phone</span><strong>${escapeHtml(s.phone || '—')}</strong></div>
+    <div class="admin-detail-row"><span>Pincode</span><strong>${escapeHtml(s.city || '—')}</strong></div>
     <div class="admin-detail-row"><span>Joined</span><strong>${s.joined ? new Date(s.joined).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—'}</strong></div>`
     : `<div class="admin-detail-row"><span>Seller</span><strong>Account deleted</strong></div>`;
 
@@ -4487,15 +4495,15 @@ async function adminViewProduct(pid) {
   const emiBlock = p.emiApplications.length
     ? p.emiApplications.map(a => `
         <div class="admin-detail-row">
-          <span>${a.applicant_name} · ${a.tenure_months}mo</span>
-          <strong>₹${formatNum(a.monthly_emi)}/mo <span class="status-pill ${emiPillCls[a.status] || 'status-pending'}">${(a.status || '').replace('_',' ')}</span></strong>
+          <span>${escapeHtml(a.applicant_name || '')} · ${Number(a.tenure_months) || 0}mo</span>
+          <strong>₹${formatNum(a.monthly_emi)}/mo <span class="status-pill ${emiPillCls[a.status] || 'status-pending'}">${escapeHtml((a.status || '').replace('_',' '))}</span></strong>
         </div>`).join('')
     : `<div class="admin-detail-row"><span>No EMI applications</span><strong>—</strong></div>`;
 
   const purchaseBlock = p.purchase ? `
     <div class="admin-detail-row"><span>Sold for</span><strong>₹${formatNum(p.purchase.total_amount)}</strong></div>
-    <div class="admin-detail-row"><span>Payment</span><strong>${(p.purchase.payment_method || '').replace('_',' ')}</strong></div>
-    <div class="admin-detail-row"><span>Buyer</span><strong>${p.purchase.buyer_name || 'Not recorded'}</strong></div>
+    <div class="admin-detail-row"><span>Payment</span><strong>${escapeHtml((p.purchase.payment_method || '').replace('_',' '))}</strong></div>
+    <div class="admin-detail-row"><span>Buyer</span><strong>${escapeHtml(p.purchase.buyer_name || 'Not recorded')}</strong></div>
     <div class="admin-detail-row"><span>Date</span><strong>${p.purchase.purchase_date ? new Date(p.purchase.purchase_date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—'}</strong></div>`
     : `<div class="admin-detail-row"><span>Not sold yet</span><strong>—</strong></div>`;
 
@@ -4507,18 +4515,18 @@ async function adminViewProduct(pid) {
     <div class="pm-body">
       <div class="staff-mod-bar">
         <span><i class="fas fa-shield-alt"></i> Admin view</span>
-        <span class="status-pill ${statusCls[p.status] || 'status-pending'}">${p.status}</span>
+        <span class="status-pill ${statusCls[p.status] || 'status-pending'}">${escapeHtml(p.status)}</span>
       </div>
       <div class="pm-price-row">
         <div class="pm-price">₹${formatNum(p.price)}</div>
       </div>
       <h2 class="pm-title">${escapeHtml(p.title)}</h2>
-      <div class="pm-meta">${p.category} · ${p.condition} · ${p.views} views</div>
+      <div class="pm-meta">${escapeHtml(p.category)} · ${escapeHtml(p.condition)} · ${Number(p.views) || 0} views</div>
       ${p.description ? `<p class="pm-desc">${escapeHtml(p.description)}</p>` : ''}
 
       <div class="admin-detail-section"><h4>Listing</h4>
-        <div class="admin-detail-row"><span>Brand / Model</span><strong>${p.brand || '—'} ${p.model || ''}</strong></div>
-        <div class="admin-detail-row"><span>Location</span><strong>${p.location || '—'} (${p.pincode || '—'})</strong></div>
+        <div class="admin-detail-row"><span>Brand / Model</span><strong>${escapeHtml(p.brand || '—')} ${escapeHtml(p.model || '')}</strong></div>
+        <div class="admin-detail-row"><span>Location</span><strong>${escapeHtml(p.location || '—')} (${escapeHtml(p.pincode || '—')})</strong></div>
         <div class="admin-detail-row"><span>Negotiable</span><strong>${p.negotiable ? 'Yes' : 'No'}</strong></div>
         <div class="admin-detail-row"><span>EMI eligible</span><strong>${p.emiEligible ? 'Yes' : 'No'}</strong></div>
         <div class="admin-detail-row"><span>Posted</span><strong>${p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—'}</strong></div>
@@ -4580,12 +4588,12 @@ function renderAdminPurchasesTable() {
 
   tbody.innerHTML = purchases.map(p => `
     <tr>
-      <td><div class="admin-product-cell"><img src="${p.product_image || ''}" alt="" onerror="this.style.display='none'"><span>${p.product_title}</span></div></td>
-      <td>${p.buyer_name || '—'}</td>
-      <td>${p.seller_name || '—'}</td>
+      <td><div class="admin-product-cell"><img src="${safeUrl(p.product_image)}" alt="" onerror="this.style.display='none'"><span>${escapeHtml(p.product_title || '')}</span></div></td>
+      <td>${escapeHtml(p.buyer_name || '—')}</td>
+      <td>${escapeHtml(p.seller_name || '—')}</td>
       <td>₹${formatNum(p.total_amount)}</td>
       <td>${p.payment_method === 'emi' ? '<span class="status-pill status-review">EMI</span>' : 'Full Payment'}</td>
-      <td><span class="status-pill ${statusCls[p.status] || 'status-pending'}">${p.status}</span></td>
+      <td><span class="status-pill ${statusCls[p.status] || 'status-pending'}">${escapeHtml(p.status)}</span></td>
       <td>${new Date(p.purchase_date).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'})}</td>
     </tr>`).join('');
 }
@@ -4618,15 +4626,15 @@ function renderAdminFinancersTable() {
   tbody.innerHTML = financers.map(f => `
     <tr>
       <td>${escapeHtml(f.name)}</td>
-      <td>${f.contact_email || '—'}<br><small>${f.contact_phone || ''}</small></td>
+      <td>${escapeHtml(f.contact_email || '—')}<br><small>${escapeHtml(f.contact_phone || '')}</small></td>
       <td>
-        ${[f.city, f.state].filter(Boolean).join(', ') || '—'}
-        ${f.pincode ? `<br><small>${f.pincode}</small>` : ''}
+        ${escapeHtml([f.city, f.state].filter(Boolean).join(', ') || '—')}
+        ${f.pincode ? `<br><small>${escapeHtml(f.pincode)}</small>` : ''}
         <br><small>${f.serves_all_india === false ? 'Local only' : 'All India'}</small>
       </td>
-      <td>${f.min_interest_rate}% – ${f.max_interest_rate}%</td>
+      <td>${escapeHtml(f.min_interest_rate)}% – ${escapeHtml(f.max_interest_rate)}%</td>
       <td>₹${formatNum(f.min_loan_amount)} – ₹${formatNum(f.max_loan_amount)}</td>
-      <td><span class="status-pill ${f.status === 'active' ? 'status-approved' : 'status-rejected'}">${f.status}</span>
+      <td><span class="status-pill ${f.status === 'active' ? 'status-approved' : 'status-rejected'}">${escapeHtml(f.status)}</span>
         <br><small>${(f.loan_types || ['vehicle', 'personal']).map(t => t === 'vehicle' ? 'Vehicle loans' : 'Personal loans').join(', ') || 'No loan types'}</small></td>
       <td>
         <button class="btn-sm btn-sm-blue" onclick="editFinancer(${f.financer_id})">Edit</button>
@@ -4955,13 +4963,13 @@ function renderAdminReportsTable() {
              ${suspended ? '<br><span class="status-pill status-rejected">Suspended</span>' : ''}
              ${repeatFlag}`}
       </td>
-      <td>${REPORT_REASON_LABELS[r.reason] || r.reason}</td>
+      <td>${escapeHtml(REPORT_REASON_LABELS[r.reason] || r.reason || '')}</td>
       <td><div class="report-details">${r.details ? escapeHtml(r.details) : '<em>No details given</em>'}</div></td>
-      <td>${r.reporter_name}${r.product_title ? `<br><small>on "${escapeHtml(r.product_title)}"</small>` : ''}</td>
+      <td>${escapeHtml(r.reporter_name || '')}${r.product_title ? `<br><small>on "${escapeHtml(r.product_title)}"</small>` : ''}</td>
       <td>${new Date(r.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</td>
       <td>
-        <span class="status-pill ${REPORT_STATUS_CLASS[r.status]||'status-pending'}">${REPORT_STATUS_LABELS[r.status]||r.status}</span>
-        ${r.reviewed_by_name ? `<br><small>by ${r.reviewed_by_name}</small>` : ''}
+        <span class="status-pill ${REPORT_STATUS_CLASS[r.status]||'status-pending'}">${escapeHtml(REPORT_STATUS_LABELS[r.status]||r.status)}</span>
+        ${r.reviewed_by_name ? `<br><small>by ${escapeHtml(r.reviewed_by_name)}</small>` : ''}
       </td>
       <td>
         <select class="status-dropdown" onchange="adminChangeReportStatus('${r.report_id}',this.value)">
@@ -5028,6 +5036,26 @@ function escapeHtml(str) {
   ));
 }
 
+/* An address for src="" / href="": only web addresses, our own paths, and
+   the browser's own blob:/data:image previews, escaped for the attribute.
+   Anything else (javascript:, a quote that ends the attribute...) becomes
+   "". Listing photos, avatars and snapshots all come from users. */
+function safeUrl(url) {
+  const s = String(url == null ? '' : url).trim();
+  if (!s) return '';
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(s);
+  // data:image/svg+xml is our own initials avatar; an SVG shown through
+  // <img> can't run script.
+  if (scheme && !/^(https?|blob)$/i.test(scheme[1]) && !/^data:image\/(png|jpe?g|webp|gif|svg\+xml)[;,]/i.test(s)) return '';
+  return escapeHtml(s);
+}
+
+/* A value passed to a function inside onclick="...": a JS string literal,
+   then escaped for the attribute. '${x}' broke out on any quote in x. */
+function jsArg(v) {
+  return escapeHtml(JSON.stringify(String(v == null ? '' : v)));
+}
+
 
 /* ===== ADMIN: EMI APPLICATION DETAIL ===== */
 
@@ -5079,22 +5107,22 @@ async function adminViewEmiApplication(eid) {
     <div class="pm-body" style="padding-top:20px">
       <div class="staff-mod-bar">
         <span><i class="fas fa-file-invoice-dollar"></i> EMI Application</span>
-        <span class="status-pill ${EMI_STATUS_CLASS[a.status]||'status-pending'}">${EMI_STATUS_LABELS[a.status]||a.status}</span>
+        <span class="status-pill ${EMI_STATUS_CLASS[a.status]||'status-pending'}">${escapeHtml(EMI_STATUS_LABELS[a.status]||a.status)}</span>
       </div>
 
       <h2 class="pm-title" style="margin-bottom:4px">${escapeHtml(a.product_title_snapshot)}</h2>
-      <div class="pm-meta">Application ID: ${a.id}</div>
+      <div class="pm-meta">Application ID: ${escapeHtml(a.id)}</div>
 
       <div class="admin-detail-section"><h4>Outcome</h4>
         ${row('Disbursement Status', outcome)}
-        ${row('Current Stage', EMI_STATUS_LABELS[a.status] || a.status)}
+        ${row('Current Stage', escapeHtml(EMI_STATUS_LABELS[a.status] || a.status))}
         ${a.is_archived ? row('Archived', 'Yes') : ''}
       </div>
 
       <div class="admin-detail-section"><h4>Application Timeline</h4>
         ${row('Application Date', fmtDateTime(a.applied_at))}
         ${row('Decision Date', fmtDateTime(a.reviewed_at))}
-        ${row('Decided By', a.reviewed_by_name || '—')}
+        ${row('Decided By', escapeHtml(a.reviewed_by_name || '—'))}
         ${row('Disbursement Date', fmtDateTime(a.disbursed_at))}
         ${row('Closure Date', fmtDateTime(a.closed_at))}
         ${turnaround !== null ? row('Decision Turnaround', `${turnaround} day${turnaround===1?'':'s'}`) : ''}
@@ -5104,8 +5132,8 @@ async function adminViewEmiApplication(eid) {
         ${row('Item Price at Application', '₹' + formatNum(a.product_price_snapshot))}
         ${row('Down Payment', '₹' + formatNum(a.down_payment))}
         ${row('Principal (Loan Amount)', '₹' + formatNum(principal))}
-        ${row('Interest Rate', a.interest_rate + '% p.a.')}
-        ${row('Tenure', a.tenure_months + ' months')}
+        ${row('Interest Rate', escapeHtml(a.interest_rate) + '% p.a.')}
+        ${row('Tenure', escapeHtml(a.tenure_months) + ' months')}
         ${row('Monthly Instalment', '₹' + formatNum(a.monthly_emi))}
         ${row('Total Repayable', '₹' + formatNum(totalPayable))}
         ${row('Total Interest Cost', '₹' + formatNum(interestCost))}
@@ -5113,18 +5141,18 @@ async function adminViewEmiApplication(eid) {
 
       <div class="admin-detail-section"><h4>Applicant</h4>
         ${row('Name on Application', escapeHtml(a.applicant_name))}
-        ${row('Phone on Application', a.applicant_phone)}
+        ${row('Phone on Application', escapeHtml(a.applicant_phone || ''))}
         ${row('Declared Monthly Income', a.applicant_income ? '₹' + formatNum(a.applicant_income) : 'Not provided')}
-        ${ap ? row('Account Email', ap.email) : ''}
+        ${ap ? row('Account Email', escapeHtml(ap.email || '')) : ''}
         ${ap ? row('Account Status', ap.account_status === 'suspended'
               ? '<span class="status-pill status-rejected">Suspended</span>' : 'Active') : ''}
         ${ap ? row('Member Since', fmtDateTime(ap.joined)) : row('Account', 'Deleted')}
       </div>
 
       <div class="admin-detail-section"><h4>Linked Listing &amp; Sale</h4>
-        ${a.product ? row('Listing', escapeHtml(a.product.title) + ` (${a.product.status})`) : row('Listing', 'No longer available')}
+        ${a.product ? row('Listing', escapeHtml(a.product.title) + ` (${escapeHtml(a.product.status)})`) : row('Listing', 'No longer available')}
         ${a.product ? row('Seller', escapeHtml(a.product.seller_name || '—')) : ''}
-        ${a.purchase ? row('Sale Recorded', '₹' + formatNum(a.purchase.total_amount) + ' · ' + (a.purchase.payment_method||'').replace('_',' ')) : row('Sale Recorded', 'No')}
+        ${a.purchase ? row('Sale Recorded', '₹' + formatNum(a.purchase.total_amount) + ' · ' + escapeHtml((a.purchase.payment_method||'').replace('_',' '))) : row('Sale Recorded', 'No')}
       </div>
 
       ${typeof adminEmiDealSectionHtml === 'function' ? adminEmiDealSectionHtml(a) : ''}
@@ -5624,7 +5652,7 @@ function updateHomeUserMarker() {
 
 function homePopupHtml(p, dist) {
   const media = p.images && p.images[0]
-    ? `<div class="db-pop-media"><img src="${p.images[0]}" alt="" loading="lazy"
+    ? `<div class="db-pop-media"><img src="${safeUrl(p.images[0])}" alt="" loading="lazy"
          onerror="this.parentElement.innerHTML='<div class=pcard-ph>${getCatEmoji(p.category)}</div>'"></div>`
     : `<div class="db-pop-media"><div class="pcard-ph">${getCatEmoji(p.category)}</div></div>`;
   return `
@@ -6451,7 +6479,7 @@ async function initBlogPage() {
     return;
   }
   wrap.innerHTML = posts.map(p => `
-    <button class="blog-card" onclick="openBlogPost('${p.slug}')">
+    <button class="blog-card" onclick="openBlogPost(${jsArg(p.slug)})">
       <div class="blog-card-date">${p.published_at ? new Date(p.published_at).toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'}) : 'Draft'}</div>
       <h3>${escapeHtml(p.title)}</h3>
       ${p.excerpt ? `<p>${escapeHtml(p.excerpt)}</p>` : ''}
@@ -6915,7 +6943,7 @@ async function renderAdminEmiAreas() {
         <div class="admin-faq-main">
           <div class="admin-faq-q">
             ${escapeHtml(a.scope_value)}
-            <span class="emi-area-scope">${a.scope_type}</span>
+            <span class="emi-area-scope">${escapeHtml(a.scope_type)}</span>
             ${a.is_enabled
               ? '<span class="status-pill status-approved">Available</span>'
               : '<span class="status-pill status-rejected">Excluded</span>'}
