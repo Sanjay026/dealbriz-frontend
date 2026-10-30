@@ -782,6 +782,7 @@ function hideModal(id) {
   // restored. A throw here previously left the page permanently unscrollable
   // -- an unrecoverable state for the user, from a non-critical error. The
   // error still surfaces in the console and error-logger.
+  if (id === 'product') window.dbzTrack?.dwellStop();
   try {
     MODAL_HIDE[id]?.();
   } finally {
@@ -978,6 +979,7 @@ function setCat(el, cat) {
   el.classList.add('active');
   selectedCategory = cat;
   window.dbTrackEvent?.('select_category', { category: cat });
+  window.dbzTrack?.category(cat, 'buy');
   applyBuyFilters();
 }
 
@@ -985,6 +987,7 @@ function setCatDirect(cat) {
   selectedCategory = cat;
   document.querySelectorAll('.cat-pill').forEach(p => p.classList.toggle('active', p.dataset.cat === cat));
   window.dbTrackEvent?.('select_category', { category: cat });
+  window.dbzTrack?.category(cat, 'browse');
   applyBuyFilters();
 }
 
@@ -1259,7 +1262,7 @@ function createListingCard(p) {
   const daysLabel = p.daysAgo === 0 ? 'Today' : p.daysAgo === 1 ? '1 day ago' : `${p.daysAgo} days ago`;
 
   return `
-    <div class="pcard" onclick="openListing('${p.id}')">
+    <div class="pcard" data-pid="${escapeHtml(p.id)}" onclick="openListing('${p.id}')">
       <div class="pcard-media">
         ${imgHtml}
         <div class="pcard-flags">
@@ -1382,6 +1385,8 @@ function setListingSeo(p) {
 }
 
 async function openListing(id) {
+  // Analytics (track.js): a click, and from where (the event that opened it).
+  window.dbzTrack?.click(id, window.event);
   document.getElementById('productModalContent').innerHTML =
     `<div style="text-align:center;padding:80px 20px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
   document.getElementById('productModal').classList.remove('hidden');
@@ -1399,6 +1404,7 @@ async function openListing(id) {
   }
   currentProduct = p;
   currentGalleryIndex = 0;
+  window.dbzTrack?.dwellStart(id);   // time spent on this listing, until it closes
   history.replaceState({ view: 'modal', modal: 'product', itemId: id }, '', itemPath(id, p.title, p.location));
   setListingSeo(p);
   db.incrementProductViews(id).catch(() => {});
@@ -1420,7 +1426,7 @@ async function openListing(id) {
   const daysLabel = p.daysAgo === 0 ? 'Today' : p.daysAgo === 1 ? 'Yesterday' : `${p.daysAgo} days ago`;
   const isOwnListing = currentUser && currentUser.id === p.sellerId;
   const isStaff = currentUser && currentUser.isAdmin;
-  const catLabel = p.category.charAt(0).toUpperCase() + p.category.slice(1);
+  const catLabel = categoryLabel(p.category);
 
   // Two groups, rendered as two sections rather than one long list.
   //
@@ -2395,6 +2401,7 @@ async function editListing(id, viaAdmin = false) {
   resetSellForm();
 
   selectedSellCat = p.category;
+  renderSellCategories(p.category);
   document.querySelectorAll('.sell-cat-item').forEach(i => i.classList.toggle('selected', i.dataset.cat === p.category));
   // Awaited: renderSellAttributes fetches the field definitions, and without
   // awaiting it the code below could finish before the inputs exist.
@@ -3588,6 +3595,7 @@ async function handleLogout() {
   // Google: don't pick this account silently next time the box opens.
   try { window.google?.accounts?.id?.disableAutoSelect(); } catch {}
   currentUser = null; savedItems = new Set();
+  botHistory = [];   // the next person on this browser starts a fresh conversation
   updateUserUIAfterLogout();
   showToast('Logged out.', 'info');
   showPage('home');
@@ -4026,7 +4034,7 @@ let adminHtmlLoaded = false;
 async function loadAdminHtml() {
   if (adminHtmlLoaded) return;
   try {
-    const resp = await fetch('/admin.html?v=20261029a');
+    const resp = await fetch('/admin.html?v=20261030a');
     if (!resp.ok) throw new Error(resp.status);
     const html = await resp.text();
     document.getElementById('adminPage').innerHTML = html;
@@ -4219,6 +4227,8 @@ const ADMIN_SECTION_TITLES = {
   emiareas: 'EMI Coverage',
   deals: 'Deals',
   lender: 'Lender portal',
+  analytics: 'Analytics',
+  categories: 'Categories',
 };
 
 function adminSwitchSection(section) {
@@ -4280,7 +4290,230 @@ function adminLoadSection(section) {
   if (section === 'roles') run(renderAdminRoles);
   if (section === 'emiareas') run(renderAdminEmiAreas);
   if (section === 'dashboard') run(renderAdminDashboardCharts);
+  if (section === 'analytics') run(renderAdminAnalytics);
+  if (section === 'categories') run(renderAdminCategories);
+  if (section === 'products') run(fillAdminCategorySelect);
   return Promise.allSettled(jobs);
+}
+
+/* ===== ADMIN: ANALYTICS (GET /api/admin/analytics/*, data from track.js) ===== */
+
+function anNum(n) { return (Number(n) || 0).toLocaleString('en-IN'); }
+function anPct(p) { return p == null ? '—' : `${Number(p).toFixed(p >= 10 ? 1 : 2)}%`; }
+function anTime(sec) {
+  if (sec == null) return '—';
+  const s = Math.round(Number(sec));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60), r = s % 60;
+  return m < 60 ? `${m}m ${String(r).padStart(2, '0')}s` : `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+function anDays() { return document.getElementById('anDays')?.value || '30'; }
+
+async function renderAdminAnalytics() {
+  const cards = document.getElementById('anCards');
+  if (!cards) return;
+  const catSel = document.getElementById('anCategory');
+  if (catSel && catSel.options.length <= 1) {
+    catSel.insertAdjacentHTML('beforeend', siteCategories.map(c =>
+      `<option value="${escapeHtml(c.slug)}">${escapeHtml(c.label)}</option>`).join(''));
+  }
+  cards.innerHTML = `<div class="info-loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
+  let s;
+  try { s = await db.getAnalyticsSummary(anDays()); }
+  catch (err) { cards.innerHTML = `<div class="info-loading">${escapeHtml(err.message || 'Could not load analytics.')}</div>`; return; }
+  const t = s.totals || {};
+  const card = (v, label, icon) => `<div class="an-card"><i class="fas ${icon}"></i><strong>${v}</strong><span>${label}</span></div>`;
+  cards.innerHTML = [
+    card(anNum(t.impressions), 'Impressions', 'fa-eye'),
+    card(anNum(t.clicks), 'Clicks', 'fa-hand-pointer'),
+    card(anPct(t.ctr_pct), 'CTR', 'fa-percent'),
+    card(anTime(t.avg_dwell_seconds), 'Avg time on a listing', 'fa-stopwatch'),
+    card(anNum(t.unique_visitors), 'Unique visitors', 'fa-user'),
+    card(anNum(t.sessions), 'Sessions', 'fa-window-maximize'),
+  ].join('');
+
+  const daily = s.daily || [];
+  const empty = !daily.length;
+  document.getElementById('anDailyChart').classList.toggle('hidden', empty);
+  document.getElementById('anDailyEmpty').classList.toggle('hidden', !empty);
+  if (!empty) {
+    adminDrawChart('anDailyChart', {
+      type: 'line',
+      data: {
+        labels: daily.map(d => d.day),
+        datasets: [
+          { label: 'Impressions', data: daily.map(d => d.impressions), borderColor: ADMIN_CHART_COLORS[0], tension: .25 },
+          { label: 'Clicks', data: daily.map(d => d.clicks), borderColor: ADMIN_CHART_COLORS[1], tension: .25 },
+          { label: 'Visitors', data: daily.map(d => d.visitors), borderColor: ADMIN_CHART_COLORS[2], tension: .25 },
+        ],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } },
+                 scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+    });
+  }
+
+  const bars = (rows, label, value) => {
+    const max = Math.max(1, ...rows.map(value));
+    return rows.length ? rows.map(r => `
+      <div class="an-bar"><span>${escapeHtml(label(r))}</span>
+        <div class="an-bar-track"><div class="an-bar-fill" style="width:${Math.round(100 * value(r) / max)}%"></div></div>
+        <strong>${anNum(value(r))}</strong></div>`).join('') : '<div class="an-empty">No data yet.</div>';
+  };
+  const DEVICE = { mobile: 'Mobile', desktop: 'Desktop', tablet: 'Tablet', unknown: 'Unknown' };
+  document.getElementById('anDevices').innerHTML = bars(s.devices || [], d => DEVICE[d.device] || d.device, d => d.visitors);
+  const SOURCE = { buy: 'Buy page', home: 'Home page', similar: 'Similar products', map: 'Map', search: 'Search',
+                   chat: 'Chat', chat_ai: 'AI assistant', myads: 'Saved items', mylistings: 'My Listings', direct: 'Direct link' };
+  document.getElementById('anSources').innerHTML = bars(s.click_sources || [], r => SOURCE[r.source] || r.source, r => r.clicks);
+
+  const cats = s.categories || [];
+  document.getElementById('anCatsBody').innerHTML = cats.length ? cats.map(c => `
+    <tr><td>${escapeHtml(c.label || c.category)}</td><td>${anNum(c.explored)}</td><td>${anNum(c.explorers)}</td>
+      <td>${anNum(c.impressions)}</td><td>${anNum(c.clicks)}</td><td>${anPct(c.ctr_pct)}</td><td>${anTime(c.avg_dwell_seconds)}</td></tr>`).join('')
+    : `<tr><td colspan="7" class="an-empty">No category activity in this period yet.</td></tr>`;
+
+  await renderAdminAnalyticsProducts();
+}
+
+async function renderAdminAnalyticsProducts() {
+  const body = document.getElementById('anProductsBody');
+  if (!body) return;
+  let res;
+  try {
+    res = await db.getAnalyticsProducts(anDays(), {
+      sort: document.getElementById('anSort')?.value || 'clicks',
+      category: document.getElementById('anCategory')?.value || '',
+    });
+  } catch (err) { body.innerHTML = `<tr><td colspan="8">${escapeHtml(err.message || 'Could not load listings.')}</td></tr>`; return; }
+  const rows = res.products || [];
+  document.getElementById('anNoProducts').classList.toggle('hidden', rows.length > 0);
+  body.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.status ? `<a href="#" onclick="adminViewProduct(${jsArg(r.product_id)}); return false;">${escapeHtml(r.title)}</a>` : escapeHtml(r.title)}
+        ${r.status && r.status !== 'active' ? `<br><small style="color:var(--text-muted)">${escapeHtml(r.status)}</small>` : ''}</td>
+      <td>${escapeHtml(categoryLabel(r.category))}</td>
+      <td>${anNum(r.impressions)}</td><td>${anNum(r.clicks)}</td><td>${anPct(r.ctr_pct)}</td>
+      <td>${anNum(r.unique_visitors)}</td><td>${anTime(r.avg_dwell_seconds)}</td><td>${anTime(r.total_dwell_seconds || 0)}</td>
+    </tr>`).join('');
+}
+
+/* ===== ADMIN: CATEGORIES (/api/admin/categories) ===== */
+
+let adminCategoriesCache = [];
+let adminCategoryIcons = [];
+
+async function renderAdminCategories() {
+  const box = document.getElementById('adminCatsList');
+  if (!box) return;
+  box.innerHTML = `<div class="info-loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
+  let res;
+  try { res = await db.adminGetCategories(); }
+  catch (err) { box.innerHTML = `<div class="info-loading">${escapeHtml(err.message || 'Could not load categories.')}</div>`; return; }
+  adminCategoriesCache = res.categories || [];
+  adminCategoryIcons = res.icons || [];
+  const iconOptions = (sel) => adminCategoryIcons.map(i =>
+    `<option value="${escapeHtml(i)}" ${i === sel ? 'selected' : ''}>${escapeHtml(i.replace(/^fa-/, '').replace(/-/g, ' '))}</option>`).join('');
+  const newIcon = document.getElementById('catNewIcon');
+  if (newIcon && !newIcon.options.length) newIcon.innerHTML = iconOptions('fa-box-open');
+
+  const n = adminCategoriesCache.length;
+  box.innerHTML = adminCategoriesCache.map((c, i) => `
+    <div class="cat-row ${c.is_active ? '' : 'is-draft'}" data-slug="${escapeHtml(c.slug)}">
+      <div class="cat-order">
+        <button class="btn-sm" onclick="adminCatMove(${jsArg(c.slug)}, -1)" ${i === 0 ? 'disabled' : ''} aria-label="Move up"><i class="fas fa-arrow-up"></i></button>
+        <button class="btn-sm" onclick="adminCatMove(${jsArg(c.slug)}, 1)" ${i === n - 1 ? 'disabled' : ''} aria-label="Move down"><i class="fas fa-arrow-down"></i></button>
+      </div>
+      <div class="cat-preview"><i class="fas ${escapeHtml(c.icon)}"></i><span>${escapeHtml(c.emoji)}</span></div>
+      <div class="cat-fields">
+        <input type="text" class="cat-label" value="${escapeHtml(c.label)}" maxlength="60" aria-label="Name">
+        <select class="cat-icon" aria-label="Icon">${iconOptions(c.icon)}</select>
+        <input type="text" class="cat-emoji" value="${escapeHtml(c.emoji)}" maxlength="16" aria-label="Emoji">
+        <label class="admin-emi-toggle"><input type="checkbox" class="cat-active" ${c.is_active ? 'checked' : ''}> Shown</label>
+        <label class="admin-emi-toggle"><input type="checkbox" class="cat-vehicle" ${c.is_vehicle ? 'checked' : ''}> Vehicle</label>
+      </div>
+      <div class="cat-meta">
+        <code>${escapeHtml(c.slug)}</code>
+        <small>${anNum(c.listing_count)} live · ${anNum(c.listing_count_all)} total</small>
+      </div>
+      <div class="cat-actions">
+        <button class="btn-sm btn-sm-blue" onclick="adminCatSave(${jsArg(c.slug)})">Save</button>
+        ${c.listing_count_all ? '' : `<button class="btn-sm btn-sm-red" onclick="adminCatDelete(${jsArg(c.slug)})">Delete</button>`}
+      </div>
+    </div>`).join('');
+
+  const unknown = res.unknown_in_listings || [];
+  document.getElementById('adminCatsUnknown').innerHTML = unknown.length ? `
+    <p class="admin-terms-note cat-unknown"><i class="fas fa-triangle-exclamation"></i><span>
+      Listings use categories that aren't in this list: ${unknown.map(u => `<code>${escapeHtml(u.slug)}</code> (${anNum(u.listing_count_all)})`).join(', ')}.
+      Add a category with that key so they show properly, or edit those listings.</span></p>` : '';
+  fillAdminCategorySelect();
+}
+
+function adminCatError(msg) {
+  const el = document.getElementById('adminCatError');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.classList.toggle('hidden', !msg);
+}
+
+async function adminCatAfterChange(toast) {
+  adminCatError('');
+  if (toast) showToast(toast, 'success');
+  await renderAdminCategories();
+  await loadCategories();   // the site's own menus, tiles and footer
+}
+
+async function adminCatSave(slug) {
+  const row = document.querySelector(`.cat-row[data-slug="${CSS.escape(slug)}"]`);
+  if (!row) return;
+  const c = adminCategoriesCache.find(x => x.slug === slug) || {};
+  const fields = {
+    label: row.querySelector('.cat-label').value.trim(),
+    icon: row.querySelector('.cat-icon').value,
+    emoji: row.querySelector('.cat-emoji').value.trim(),
+    is_active: row.querySelector('.cat-active').checked,
+    is_vehicle: row.querySelector('.cat-vehicle').checked,
+  };
+  if (fields.is_vehicle !== !!c.is_vehicle && c.listing_count_all) {
+    const ok = confirm(fields.is_vehicle
+      ? `Mark "${fields.label}" as a vehicle category? Its ${c.listing_count_all} listing(s) will need RC and insurance for DealLock, and their loans become vehicle loans.`
+      : `Stop treating "${fields.label}" as vehicles? Its ${c.listing_count_all} listing(s) will no longer need RC and insurance, and new loans will be personal loans.`);
+    if (!ok) return;
+  }
+  try { await db.adminUpdateCategory(slug, fields); await adminCatAfterChange('Category saved.'); }
+  catch (err) { adminCatError(err.message || 'Could not save.'); }
+}
+
+async function adminCatMove(slug, dir) {
+  const order = adminCategoriesCache.map(c => c.slug);
+  const i = order.indexOf(slug), j = i + dir;
+  if (i < 0 || j < 0 || j >= order.length) return;
+  [order[i], order[j]] = [order[j], order[i]];
+  try { await db.adminReorderCategories(order); await adminCatAfterChange(); }
+  catch (err) { adminCatError(err.message || 'Could not reorder.'); }
+}
+
+async function adminCatAdd() {
+  const fields = {
+    slug: document.getElementById('catNewSlug').value.trim().toLowerCase(),
+    label: document.getElementById('catNewLabel').value.trim(),
+    icon: document.getElementById('catNewIcon').value,
+    emoji: document.getElementById('catNewEmoji').value.trim() || '📦',
+    is_vehicle: document.getElementById('catNewVehicle').checked,
+    is_active: true,
+  };
+  if (!fields.slug || !fields.label) { adminCatError('Enter a key and a name.'); return; }
+  try {
+    await db.adminCreateCategory(fields);
+    ['catNewSlug', 'catNewLabel'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('catNewVehicle').checked = false;
+    await adminCatAfterChange('Category added.');
+  } catch (err) { adminCatError(err.message || 'Could not add the category.'); }
+}
+
+async function adminCatDelete(slug) {
+  if (!confirm(`Delete the category "${categoryLabel(slug)}"? No listing uses it.`)) return;
+  try { await db.adminDeleteCategory(slug); await adminCatAfterChange('Category deleted.'); }
+  catch (err) { adminCatError(err.message || 'Could not delete.'); }
 }
 
 /* Admin panel "Refresh": fetches the open section (and the stat cards)
@@ -5294,25 +5527,86 @@ async function adminSaveEmiNotes(eid) {
 
 /* ===== HOME PAGE ===== */
 
-const HOME_CATEGORIES = ['cars','phones','bikes','electronics','furniture','appliances','fashion','property','others'];
 const HOME_EMI_RATE = 12; // % p.a. used by the on-page calculator
 
-/* Live listing counts per category. Each request asks for a single item and
-   reads the `total` from the pagination metadata, so we get real counts
-   without pulling every listing down. The tiles keep the number in
-   data-count; the category panel reads it when it opens. */
+/* ===== CATEGORIES =====
+   The list comes from GET /api/categories (Admin -> Categories): order,
+   names, icons, hidden ones left out, and live listing counts. Everything
+   that lists categories is drawn from it: the Buy page pills, the sell
+   form, the home tiles, the footer and the admin products filter. Until it
+   arrives (or if it fails) the built-in list below is shown, so the page
+   never has an empty menu. */
+let siteCategories = [
+  ['cars', 'Cars', 'fa-car-side', '🚗'], ['phones', 'Phones', 'fa-mobile-screen-button', '📱'],
+  ['bikes', 'Bikes', 'fa-motorcycle', '🏍️'], ['electronics', 'Electronics', 'fa-laptop', '💻'],
+  ['furniture', 'Furniture', 'fa-couch', '🛋️'], ['appliances', 'Appliances', 'fa-blender', '🧊'],
+  ['fashion', 'Fashion', 'fa-shirt', '👗'], ['property', 'Property', 'fa-building', '🏢'],
+  ['others', 'Others', 'fa-box-open', '📦'],
+].map(([slug, label, icon, emoji]) => ({ slug, label, icon, emoji, listing_count: null }));
+
+function categoryLabel(slug) {
+  const c = siteCategories.find(x => x.slug === slug);
+  if (c) return c.label;
+  return slug ? slug.charAt(0).toUpperCase() + slug.slice(1) : '';
+}
+
+async function loadCategories() {
+  try {
+    const list = await db.getCategories();
+    if (Array.isArray(list) && list.length) siteCategories = list;
+  } catch { /* keep the built-in list */ }
+  siteCategories.forEach(c => { CAT_EMOJI[c.slug] = c.emoji; CAT_ICON[c.slug] = c.icon; });
+  renderCategoryUI();
+}
+
+function renderCategoryUI() {
+  const pills = document.querySelector('#buyPage .cat-scroll');
+  if (pills) {
+    const on = selectedCategory || 'all';
+    pills.innerHTML = `<button class="cat-pill ${on === 'all' ? 'active' : ''}" data-cat="all" onclick="setCat(this,'all')">All</button>`
+      + siteCategories.map(c => `<button class="cat-pill ${on === c.slug ? 'active' : ''}" data-cat="${escapeHtml(c.slug)}" onclick="setCat(this, ${jsArg(c.slug)})"><i class="fas ${escapeHtml(c.icon)}"></i> ${escapeHtml(c.label)}</button>`).join('');
+  }
+  renderSellCategories();
+  const footLink = document.querySelector('.sf-col a[data-foot^="cat:"]');
+  if (footLink) {
+    const col = footLink.parentElement;
+    col.querySelectorAll('a[data-foot^="cat:"]').forEach(a => a.remove());
+    col.insertAdjacentHTML('beforeend', siteCategories.map(c =>
+      `<a href="/category/${encodeURIComponent(c.slug)}" data-foot="cat:${escapeHtml(c.slug)}" onclick="browseCategory(${jsArg(c.slug)}); return false;">${escapeHtml(c.label)}</a>`).join(''));
+  }
+  window.dbzCats?.rebuild?.(siteCategories.map(c => ({ slug: c.slug, name: c.label, count: c.listing_count })));
+  fillAdminCategorySelect();
+}
+
+/* The sell form's category grid. keepSlug: when editing a listing whose
+   category has since been hidden, it's shown too so the listing can keep it. */
+function renderSellCategories(keepSlug) {
+  const grid = document.getElementById('sellCatGrid');
+  if (!grid) return;
+  const list = siteCategories.slice();
+  if (keepSlug && !list.some(c => c.slug === keepSlug)) {
+    list.push({ slug: keepSlug, label: categoryLabel(keepSlug), icon: CAT_ICON[keepSlug] || 'fa-box-open' });
+  }
+  grid.innerHTML = list.map(c =>
+    `<div class="sell-cat-item${selectedSellCat === c.slug ? ' selected' : ''}" data-cat="${escapeHtml(c.slug)}" onclick="selectSellCat(this, ${jsArg(c.slug)})"><i class="fas ${escapeHtml(c.icon || 'fa-box-open')}"></i><span>${escapeHtml(c.label)}</span></div>`).join('');
+}
+
+/* Admin -> Products filter. Hidden categories are included for staff once
+   Admin -> Categories has loaded them (adminCategoriesCache). */
+function fillAdminCategorySelect() {
+  const sel = document.getElementById('adminProdCategory');
+  if (!sel) return;
+  const keep = sel.value || 'all';
+  const all = (typeof adminCategoriesCache !== 'undefined' && adminCategoriesCache.length) ? adminCategoriesCache : siteCategories;
+  sel.innerHTML = `<option value="all">All categories</option>` + all.map(c =>
+    `<option value="${escapeHtml(c.slug)}">${escapeHtml(c.label)}${c.is_active === false ? ' (hidden)' : ''}</option>`).join('');
+  sel.value = [...sel.options].some(o => o.value === keep) ? keep : 'all';
+}
+
+/* Home tiles' listing counts come with the category list now (one request
+   instead of one per category). */
 async function loadHomeCategoryCounts() {
-  await Promise.all(HOME_CATEGORIES.map(async cat => {
-    const tile = document.querySelector(`#homeCatGrid .dbz-tile[data-slug="${cat}"]`);
-    if (!tile) return;
-    try {
-      const { total } = await db.getProducts({ category: cat, page: 1, perPage: 1 });
-      tile.dataset.count = String(total);
-    } catch {
-      tile.dataset.count = '';
-    }
-  }));
-  window.dbzCats?.refresh();
+  await loadCategories();
 }
 
 function homeSearch() {
@@ -7249,7 +7543,12 @@ function addBotMessage(text, who, extras = {}) {
 
   const bubble = document.createElement('div');
   bubble.className = 'bot-bubble';
-  bubble.innerHTML = who === 'bot' ? renderSafeMarkup(text) : escapeHtml(text);
+  // Listing links the AI gives ("/item/honda-city-2015-mandi-<id>") become
+  // clickable. Matched on the already-escaped text and limited to that
+  // exact shape, so nothing else can turn into a link.
+  bubble.innerHTML = who === 'bot'
+    ? renderSafeMarkup(text).replace(/(^|[\s(>])(\/item\/[a-z0-9-]{1,200})(?=$|[\s).,<])/g, '$1<a href="$2">$2</a>')
+    : escapeHtml(text);
   row.appendChild(bubble);
 
   // "Did you mean" suggestions — offered as questions to tap, never
@@ -7292,6 +7591,10 @@ function showBotTyping() {
   return row;
 }
 
+// The conversation so far, sent with each question so the AI assistant can
+// follow up. Kept in memory only (gone on reload), last 6 turns.
+let botHistory = [];
+
 async function sendBotMessage(event) {
   if (event) event.preventDefault();
   const input = document.getElementById('botInput');
@@ -7308,12 +7611,14 @@ async function sendBotMessage(event) {
     // Send the selected area so "near me" resolves to somewhere real.
     const pincode = selectedArea?.pincode
       || (selectedArea?.prefix ? `${selectedArea.prefix}001` : null);
-    const res = await db.askChatbot(message, pincode);
+    const res = await db.askChatbot(message, pincode, botHistory.slice(-6));
     typing.remove();
     addBotMessage(res.reply, 'bot', {
       related: res.related,
       action: res.action,
     });
+    botHistory.push({ role: 'user', text: message }, { role: 'assistant', text: String(res.reply || '').slice(0, 600) });
+    botHistory = botHistory.slice(-6);
   } catch (err) {
     typing.remove();
     // Even a transport failure ends with a route to a human.

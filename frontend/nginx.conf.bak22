@@ -1,0 +1,200 @@
+# ---------------------------------------------------------------------
+# Domain canonicalisation
+#
+# dealbriz.com and dealbriz.in are SEPARATE registrable domains to a
+# browser. One session cookie cannot cover both, so a user who signs in on
+# .com and then visits .in would appear logged out. Everything therefore
+# redirects to one primary domain, and only that domain issues sessions.
+#
+# Set PRIMARY_HOST at build/run time; defaults to the .com.
+# ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# Real visitor IP and rate limits (http level: this file is included
+# inside nginx's http block as conf.d/default.conf).
+#
+# Behind the AWS load balancer every request arrives from the balancer's
+# private address, with the visitor's IP in X-Forwarded-For. Trusting only
+# private ranges, and reading the header right to left (recursive), gives
+# the first public address: the real visitor. A visitor can't fake it by
+# sending their own X-Forwarded-For, because the balancer appends the real
+# one after it. Without a balancer the visitor's own (public) address is
+# used and the header is ignored.
+# ---------------------------------------------------------------------
+set_real_ip_from 10.0.0.0/8;
+set_real_ip_from 172.16.0.0/12;
+set_real_ip_from 192.168.0.0/16;
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+
+server_tokens off;
+
+# Per visitor IP. Generous on purpose: many Indian mobile users share one
+# carrier IP. Excess requests get 429 instead of reaching Flask.
+#   auth     sign-in, sign-up and password-reset steps (guessing passwords)
+#   upload   photo uploads (filling S3)
+#   public   anonymous POSTs: error reports, problem reports, views
+#   ai       help-chat questions (each one can call the paid AI model)
+#   api      everything else under /api/ (floods, bulk scraping)
+limit_req_zone $binary_remote_addr zone=auth:10m   rate=10r/m;
+limit_req_zone $binary_remote_addr zone=upload:10m rate=30r/m;
+limit_req_zone $binary_remote_addr zone=public:10m rate=30r/m;
+limit_req_zone $binary_remote_addr zone=ai:10m     rate=10r/m;
+limit_req_zone $binary_remote_addr zone=api:20m    rate=20r/s;
+limit_req_status 429;
+limit_req_log_level warn;
+
+server {
+    listen 80;
+    server_name www.dealbriz.com dealbriz.in www.dealbriz.in;
+
+    # 301 so browsers and search engines remember it. $request_uri keeps the
+    # path and query string, so a shared listing link still lands correctly.
+    return 301 https://dealbriz.com$request_uri;
+}
+
+server {
+    listen 80 default_server;
+    server_name dealbriz.com _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Uploaded images can be large; listing photos are the main payload here.
+    client_max_body_size 12M;
+
+    # --- Security headers ---
+    # The list lives in security-headers.conf. It is included here AND in
+    # every location below that has its own add_header, because nginx drops
+    # the server-level ones in such a location (that's why every page used
+    # to come back without them).
+    include /etc/nginx/snippets/security-headers.conf;
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    # --- API and uploads proxy to the Flask container ---
+    # Serving both from one origin means the browser makes same-origin
+    # requests, so CORS stops being involved at all in production.
+    location /api/ {
+        limit_req zone=api burst=100 nodelay;
+        include /etc/nginx/snippets/proxy-backend.conf;
+        proxy_read_timeout 120s;
+    }
+
+    # Password guessing and code guessing. 10 a minute per IP with a burst
+    # of 10 is plenty for a person, and far too slow for a script. The
+    # backend also locks one account after 10 wrong passwords in a row.
+    location ~ ^/api/auth/(login|signup|google|forgot-password|verify-reset-code|reset-password|change-password)$ {
+        limit_req zone=auth burst=10 nodelay;
+        include /etc/nginx/snippets/proxy-backend.conf;
+        proxy_read_timeout 30s;
+    }
+
+    # Help-chat questions: 10 a minute per IP (burst 5). Each can call the
+    # paid AI model (chatbot/ai.py), which also needs up to ~40 s.
+    location = /api/chatbot {
+        limit_req zone=ai burst=5 nodelay;
+        include /etc/nginx/snippets/proxy-backend.conf;
+        proxy_read_timeout 60s;
+    }
+
+    # Photo uploads: a 10-photo listing goes through at once (burst 20).
+    location ~ ^/api/(sell/upload-image|profile/avatar)$ {
+        limit_req zone=upload burst=20 nodelay;
+        include /etc/nginx/snippets/proxy-backend.conf;
+        proxy_read_timeout 120s;
+    }
+
+    # Endpoints anyone can POST to without signing in.
+    location ~ ^/api/(logs/client|reports/problem|buy/[^/]+/view)$ {
+        limit_req zone=public burst=20 nodelay;
+        include /etc/nginx/snippets/proxy-backend.conf;
+        proxy_read_timeout 30s;
+    }
+
+    # Listing pages: /item/<title-place>-<id>. The backend returns the same
+    # index.html with that listing's title, photo and description in the
+    # <head>, so WhatsApp/Facebook previews and Google show the listing
+    # instead of the home page. If the backend is down or errors, nginx
+    # serves the plain index.html below and the app still opens the listing.
+    location ^~ /item/ {
+        limit_req zone=api burst=100 nodelay;
+        include /etc/nginx/snippets/proxy-backend.conf;
+        proxy_read_timeout 15s;
+        proxy_intercept_errors on;
+        error_page 500 502 503 504 = @spa;
+    }
+
+    # Every live listing, for Google (listed in robots.txt).
+    location = /sitemap-items.xml {
+        include /etc/nginx/snippets/proxy-backend.conf;
+    }
+
+    location @spa {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-store, must-revalidate";
+        try_files /index.html =404;
+    }
+
+    # Only used when STORAGE_BACKEND=local. In production uploads are S3
+    # URLs served via CloudFront and never touch this server.
+    location /uploads/ {
+        include /etc/nginx/snippets/proxy-backend.conf;
+        expires 7d;
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "public";
+    }
+
+    # Lets the ALB health-check the frontend without hitting the backend.
+    location = /healthz {
+        access_log off;
+        return 200 "ok\n";
+        add_header Content-Type text/plain;
+    }
+
+    # Backup copies and checksum files left in the folder (app.js.bak18,
+    # nginx.conf.bak18, *.md5...) were downloadable. The Dockerfile no
+    # longer copies them in; this refuses them if one ever slips through.
+    # Listed before the css/js and image rules so it wins.
+    location ~* \.(bak[0-9a-z_]*|md5|orig|swp|old)$ {
+        return 404;
+    }
+
+    # --- Static assets ---
+    # Long cache for fingerprint-free assets is risky, so keep it short:
+    # a stale app.js after a deploy is a confusing bug to chase.
+    location ~* \.(?:css|js)$ {
+        expires 1h;
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "public, must-revalidate";
+    }
+
+    location ~* \.(?:png|jpg|jpeg|gif|ico|svg|woff2?)$ {
+        expires 30d;
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "public";
+    }
+
+    # index.html itself must never be cached, or users keep loading an old
+    # page that references deleted asset files.
+    location = /index.html {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-store, must-revalidate";
+    }
+
+    # The admin panel's markup, fetched by app.js. Revalidated every time so
+    # a deploy never leaves staff on an old copy.
+    location = /admin.html {
+        include /etc/nginx/snippets/security-headers.conf;
+        add_header Cache-Control "no-cache, must-revalidate";
+    }
+
+    # SPA routing. URLs are now real paths (/buy, /about) rather than #hashes,
+    # so a refresh or a shared link hits nginx with a path that has no file
+    # behind it. This fallback serves index.html and lets the app resolve the
+    # route. /api/ and /uploads/ are matched by their own blocks above, so
+    # they never reach this and a missing upload still 404s properly.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

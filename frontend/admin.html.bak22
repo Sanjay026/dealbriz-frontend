@@ -1,0 +1,725 @@
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>Admin Panel</h2>
+  </div>
+  <div id="adminLoginBox" class="admin-login-wrap">
+    <div class="admin-login-card">
+      <div class="emi-icon"><i class="fas fa-user-shield"></i></div>
+      <h2>Admin Access</h2>
+      <p style="color:var(--text-muted);font-size:14px;margin-bottom:20px;text-align:center">Restricted to DealBriz staff only</p>
+      <div class="form-group"><label>Admin Email</label><input type="email" id="adminEmail" autocomplete="username"></div>
+      <div class="form-group"><label>Password</label><div class="password-wrap"><input type="password" id="adminPassword" autocomplete="current-password"><button type="button" class="pw-toggle" onclick="togglePassword('adminPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
+      <p id="adminLoginError" class="auth-error hidden"></p>
+      <button class="btn-primary full-width" onclick="handleAdminLogin()">Sign In as Admin</button>
+    </div>
+  </div>
+  <div id="adminDashboard" class="hidden">
+    <div class="admin-shell">
+
+      <!-- SIDEBAR -->
+      <aside class="admin-sidebar" id="adminSidebar">
+        <div class="admin-sidebar-brand">
+          <i class="fas fa-bridge"></i>
+          <span>DealBriz</span>
+        </div>
+
+        <div class="admin-sidebar-user">
+          <div class="admin-sidebar-avatar" id="adminSidebarAvatar">A</div>
+          <div>
+            <div class="admin-sidebar-name" id="adminSidebarName">Admin</div>
+            <div class="admin-sidebar-role" id="adminSidebarRole">Staff</div>
+          </div>
+        </div>
+
+        <nav class="admin-nav">
+          <div class="admin-nav-heading">Overview</div>
+          <button class="admin-nav-item active" data-section="dashboard" onclick="adminSwitchSection('dashboard')">
+            <i class="fas fa-chart-column"></i> <span>Dashboard</span>
+          </button>
+
+          <div class="admin-nav-heading">Operations</div>
+          <button class="admin-nav-item" data-section="emi" onclick="adminSwitchSection('emi')">
+            <i class="fas fa-file-invoice-dollar"></i> <span>EMI Applications</span>
+          </button>
+          <button class="admin-nav-item" data-section="deals" onclick="adminSwitchSection('deals')">
+            <i class="fas fa-handshake"></i> <span>Deals</span>
+          </button>
+          <button class="admin-nav-item" data-section="lender" onclick="adminSwitchSection('lender')">
+            <i class="fas fa-building-columns"></i> <span>Lender portal</span>
+          </button>
+          <button class="admin-nav-item" data-section="purchases" onclick="adminSwitchSection('purchases')">
+            <i class="fas fa-receipt"></i> <span>Purchases</span>
+          </button>
+          <button class="admin-nav-item" data-section="financers" onclick="adminSwitchSection('financers')">
+            <i class="fas fa-hand-holding-usd"></i> <span>Financers</span>
+          </button>
+
+          <div class="admin-nav-heading">Marketplace</div>
+          <button class="admin-nav-item" data-section="products" onclick="adminSwitchSection('products')">
+            <i class="fas fa-box"></i> <span>Products</span>
+          </button>
+          <button class="admin-nav-item" data-section="users" onclick="adminSwitchSection('users')">
+            <i class="fas fa-users"></i> <span>Users</span>
+          </button>
+          <button class="admin-nav-item" data-section="reports" onclick="adminSwitchSection('reports')">
+            <i class="fas fa-flag"></i> <span>Reports</span>
+            <span id="adminReportsBadge" class="reports-badge hidden">0</span>
+          </button>
+
+          <div class="admin-nav-heading">Settings</div>
+          <button class="admin-nav-item" data-section="emiareas" onclick="adminSwitchSection('emiareas')">
+            <i class="fas fa-map-location-dot"></i> <span>EMI Coverage</span>
+          </button>
+          <button class="admin-nav-item" data-section="roles" onclick="adminSwitchSection('roles')">
+            <i class="fas fa-user-lock"></i> <span>Roles &amp; Access</span>
+          </button>
+          <button class="admin-nav-item" data-section="logs" onclick="adminSwitchSection('logs')">
+            <i class="fas fa-terminal"></i> <span>Logs</span>
+          </button>
+          <button class="admin-nav-item" data-section="settings" onclick="adminSwitchSection('settings')">
+            <i class="fas fa-toggle-on"></i> <span>Site Settings</span>
+          </button>
+          <button class="admin-nav-item" data-section="chatbot" onclick="adminSwitchSection('chatbot')">
+            <i class="fas fa-robot"></i> <span>Chatbot</span>
+          </button>
+          <button class="admin-nav-item" data-section="faqs" onclick="adminSwitchSection('faqs')">
+            <i class="fas fa-circle-question"></i> <span>FAQs</span>
+          </button>
+          <button class="admin-nav-item" data-section="blog" onclick="adminSwitchSection('blog')">
+            <i class="fas fa-feather"></i> <span>Blog</span>
+          </button>
+          <button class="admin-nav-item" data-section="terms" onclick="adminSwitchSection('terms')">
+            <i class="fas fa-file-lines"></i> <span>Content Pages</span>
+          </button>
+        </nav>
+      </aside>
+
+      <div class="admin-sidebar-scrim" id="adminSidebarScrim" onclick="adminToggleSidebar(false)"></div>
+
+      <!-- MAIN COLUMN -->
+      <div class="admin-main">
+        <header class="admin-topbar">
+          <button class="admin-topbar-toggle" onclick="adminToggleSidebar()" aria-label="Toggle menu"><i class="fas fa-bars"></i></button>
+          <button class="admin-topbar-icon" onclick="goBack()" aria-label="Back"><i class="fas fa-arrow-left"></i></button>
+          <a href="#" class="admin-topbar-link" onclick="showPage('home'); return false;">View site</a>
+          <div class="admin-topbar-right">
+            <button id="adminRefreshBtn" class="admin-refresh-btn" onclick="adminRefresh()" title="Load this section again" aria-label="Refresh this section">
+              <i class="fas fa-rotate-right"></i><span>Refresh</span>
+            </button>
+            <button class="admin-topbar-icon" onclick="adminSwitchSection('reports')" aria-label="Reports">
+              <i class="fas fa-flag"></i>
+              <span id="adminTopbarReportsDot" class="admin-topbar-dot hidden"></span>
+            </button>
+            <button class="admin-logout-btn" onclick="adminLogout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+          </div>
+        </header>
+
+        <div class="admin-content">
+          <div class="admin-page-head">
+            <h1 id="adminPageTitle">Dashboard</h1>
+            <div class="admin-breadcrumb">
+              <a href="#" onclick="showPage('home'); return false;">Home</a>
+              <span>/</span>
+              <span id="adminBreadcrumbCurrent">Dashboard</span>
+            </div>
+          </div>
+
+          <div class="admin-stats-grid">
+            <button class="stat-card sc-blue" onclick="adminSwitchSection('emi')">
+              <strong id="adminStatTotal">0</strong>
+              <span>Total EMI Apps</span>
+              <i class="fas fa-list stat-card-bg"></i>
+              <span class="stat-card-more">More info <i class="fas fa-circle-arrow-right"></i></span>
+            </button>
+            <button class="stat-card sc-amber" onclick="adminFilterStatusFromCard('pending')">
+              <strong id="adminStatPending">0</strong>
+              <span>Pending</span>
+              <i class="fas fa-hourglass-half stat-card-bg"></i>
+              <span class="stat-card-more">More info <i class="fas fa-circle-arrow-right"></i></span>
+            </button>
+            <button class="stat-card sc-green" onclick="adminFilterStatusFromCard('approved')">
+              <strong id="adminStatApproved">0</strong>
+              <span>Approved</span>
+              <i class="fas fa-check-circle stat-card-bg"></i>
+              <span class="stat-card-more">More info <i class="fas fa-circle-arrow-right"></i></span>
+            </button>
+            <button class="stat-card sc-red" onclick="adminFilterStatusFromCard('rejected')">
+              <strong id="adminStatRejected">0</strong>
+              <span>Rejected</span>
+              <i class="fas fa-times-circle stat-card-bg"></i>
+              <span class="stat-card-more">More info <i class="fas fa-circle-arrow-right"></i></span>
+            </button>
+            <button class="stat-card sc-purple" onclick="adminSwitchSection('emi')">
+              <strong id="adminStatLoanValue">₹0</strong>
+              <span>Active Loan Value</span>
+              <i class="fas fa-coins stat-card-bg"></i>
+              <span class="stat-card-more">More info <i class="fas fa-circle-arrow-right"></i></span>
+            </button>
+          </div>
+
+    <!-- DASHBOARD SECTION -->
+    <div id="adminSection-dashboard" class="admin-section">
+      <div class="admin-overview-grid">
+        <button class="admin-overview-card" onclick="adminSwitchSection('users')">
+          <div class="admin-overview-icon" style="background:#EFF6FF;color:#1A56DB"><i class="fas fa-users"></i></div>
+          <div>
+            <strong id="adminStatUsers">0</strong>
+            <span>Total Users</span>
+          </div>
+        </button>
+        <button class="admin-overview-card" onclick="adminSwitchSection('products')">
+          <div class="admin-overview-icon" style="background:#ECFDF5;color:#10B981"><i class="fas fa-box"></i></div>
+          <div>
+            <strong id="adminStatProducts">0</strong>
+            <span>Total Listings</span>
+          </div>
+        </button>
+        <button class="admin-overview-card" onclick="adminSwitchSection('purchases')">
+          <div class="admin-overview-icon" style="background:#FEF6E5;color:#D97706"><i class="fas fa-receipt"></i></div>
+          <div>
+            <strong id="adminStatPurchases">0</strong>
+            <span>Total Purchases</span>
+          </div>
+        </button>
+        <button class="admin-overview-card" onclick="adminSwitchSection('purchases')">
+          <div class="admin-overview-icon" style="background:#F5F3FF;color:#7C3AED"><i class="fas fa-indian-rupee-sign"></i></div>
+          <div>
+            <strong id="adminStatRevenue">₹0</strong>
+            <span>Completed Sales Value</span>
+          </div>
+        </button>
+        <button class="admin-overview-card" onclick="adminSwitchSection('financers')">
+          <div class="admin-overview-icon" style="background:#ECFEFF;color:#0891B2"><i class="fas fa-hand-holding-usd"></i></div>
+          <div>
+            <strong id="adminStatFinancers">0</strong>
+            <span>Financing Partners</span>
+          </div>
+        </button>
+        <button class="admin-overview-card" onclick="adminSwitchSection('reports')">
+          <div class="admin-overview-icon" style="background:#FEF2F2;color:#DC2626"><i class="fas fa-flag"></i></div>
+          <div>
+            <strong id="adminStatOpenReports">0</strong>
+            <span>Open Reports</span>
+          </div>
+        </button>
+      </div>
+
+      <div class="admin-dashboard-grid">
+        <div class="admin-chart-card">
+          <div class="admin-chart-head">
+            <h3><i class="fas fa-location-dot"></i> EMI Applications by Place</h3>
+            <span class="admin-chart-sub">Grouped by district, from the linked listing's location</span>
+          </div>
+          <div class="admin-chart-canvas-wrap"><canvas id="chartEmiByPlace"></canvas></div>
+          <div id="chartEmiByPlaceEmpty" class="admin-chart-empty hidden">No EMI applications yet.</div>
+        </div>
+
+        <div class="admin-chart-card">
+          <div class="admin-chart-head">
+            <h3><i class="fas fa-hand-holding-usd"></i> EMI Applications by Financer</h3>
+            <span class="admin-chart-sub">Attributed when staff review an application</span>
+          </div>
+          <div class="admin-chart-canvas-wrap"><canvas id="chartEmiByFinancer"></canvas></div>
+          <div id="chartEmiByFinancerEmpty" class="admin-chart-empty hidden">No EMI applications yet.</div>
+        </div>
+
+        <div class="admin-chart-card admin-chart-card-wide">
+          <div class="admin-chart-head">
+            <h3><i class="fas fa-chart-line"></i> Sales by Month</h3>
+            <span class="admin-chart-sub">Completed sales, last 12 months</span>
+          </div>
+          <div class="admin-chart-canvas-wrap"><canvas id="chartSalesByMonth"></canvas></div>
+          <div id="chartSalesByMonthEmpty" class="admin-chart-empty hidden">No completed sales yet.</div>
+        </div>
+
+        <div class="admin-chart-card admin-chart-card-wide">
+          <div class="admin-chart-head">
+            <h3><i class="fas fa-box"></i> Top Products by Sales</h3>
+            <span class="admin-chart-sub">Completed sales, by revenue</span>
+          </div>
+          <div class="admin-chart-canvas-wrap"><canvas id="chartTopProducts"></canvas></div>
+          <div id="chartTopProductsEmpty" class="admin-chart-empty hidden">No completed sales yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EMI SECTION -->
+    <div id="adminSection-emi" class="admin-section hidden">
+      <div class="admin-filters">
+        <button class="admin-filter-btn active" data-status="all" onclick="adminFilterStatus('all')">All</button>
+        <button class="admin-filter-btn" data-status="pending" onclick="adminFilterStatus('pending')">Pending</button>
+        <button class="admin-filter-btn" data-status="approved" onclick="adminFilterStatus('approved')">Approved</button>
+        <button class="admin-filter-btn" data-status="review" onclick="adminFilterStatus('review')">Docs Needed</button>
+        <button class="admin-filter-btn" data-status="rejected" onclick="adminFilterStatus('rejected')">Rejected</button>
+        <button class="admin-filter-btn" data-status="disbursed" onclick="adminFilterStatus('disbursed')">Disbursed</button>
+        <button class="admin-filter-btn" data-status="completed" onclick="adminFilterStatus('completed')">Completed</button>
+        <button class="admin-filter-btn" data-status="cancelled" onclick="adminFilterStatus('cancelled')">Cancelled</button>
+        <button class="admin-filter-btn" id="adminArchivedToggle" onclick="adminToggleArchived()"><i class="fas fa-box-archive"></i> Show Archived</button>
+      </div>
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="adminEmiSearch" placeholder="Search product or applicant..." oninput="adminEmiFilterChanged()" autocomplete="off">
+        <span id="adminEmiCount" class="admin-search-count"></span>
+      </div>
+      <div id="adminPager-emi" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Product</th><th>Applicant</th><th>Loan</th><th>EMI Plan</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="adminTableBody"></tbody>
+        </table>
+        <div id="adminNoApps" class="empty-state hidden"><i class="fas fa-inbox"></i><h3>No applications</h3></div>
+      </div>
+    </div>
+
+    <!-- USERS SECTION -->
+    <div id="adminSection-users" class="admin-section hidden">
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="adminUserSearch" placeholder="Search name, email, phone or pincode..." oninput="adminUserFilterChanged()" autocomplete="off">
+        <label class="admin-restricted-filter"><input type="checkbox" id="adminUserRestrictedOnly" onchange="adminUserFilterChanged()"> Restricted only</label>
+        <span id="adminUserCount" class="admin-search-count"></span>
+      </div>
+      <div id="adminPager-users" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Pincode</th><th>Roles</th><th>Joined</th><th>Actions</th></tr></thead>
+          <tbody id="adminUsersBody"></tbody>
+        </table>
+        <div id="adminNoUsers" class="empty-state hidden"><i class="fas fa-users"></i><h3>No users found</h3></div>
+      </div>
+    </div>
+
+    <!-- PRODUCTS SECTION -->
+    <div id="adminSection-products" class="admin-section hidden">
+      <div class="admin-product-filters">
+        <input type="text" id="adminProdSearch" placeholder="Search title, brand, model or listing ID..."
+               oninput="adminProductFilterChanged()" autocomplete="off">
+        <select id="adminProdCategory" onchange="adminProductFilterChanged()">
+          <option value="all">All categories</option>
+          <option value="cars">Cars</option>
+          <option value="phones">Phones</option>
+          <option value="bikes">Bikes</option>
+          <option value="electronics">Electronics</option>
+          <option value="furniture">Furniture</option>
+          <option value="appliances">Appliances</option>
+          <option value="fashion">Fashion</option>
+          <option value="property">Property</option>
+          <option value="others">Others</option>
+        </select>
+        <select id="adminProdStatus" onchange="adminProductFilterChanged()">
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="sold">Sold</option>
+          <option value="removed">Removed</option>
+        </select>
+        <input type="text" id="adminProdSeller" placeholder="Seller name" oninput="adminProductFilterChanged()" autocomplete="off">
+        <select id="adminProdSort" onchange="adminProductFilterChanged()">
+          <option value="newest">Newest first</option>
+          <option value="price_desc">Price: high to low</option>
+          <option value="price_asc">Price: low to high</option>
+          <option value="views">Most viewed</option>
+        </select>
+        <label class="admin-emi-toggle">
+          <input type="checkbox" id="adminProdEmi" onchange="adminProductFilterChanged()"> EMI only
+        </label>
+        <button class="btn-sm" onclick="adminClearProductFilters()">Clear</button>
+        <span id="adminProdCount" class="admin-prod-count"></span>
+      </div>
+      <div id="adminPager-products" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Seller</th><th>Status</th><th>Views</th><th>Actions</th></tr></thead>
+          <tbody id="adminProductsBody"></tbody>
+        </table>
+        <div id="adminNoProducts" class="empty-state hidden"><i class="fas fa-box"></i><h3>No products found</h3></div>
+      </div>
+    </div>
+
+    <!-- PURCHASES SECTION -->
+    <!-- DEALS SECTION (DealLock, deals.js) -->
+    <div id="adminSection-deals" class="admin-section hidden">
+      <!-- Superadmin only: the seller documents on vehicle listings (deals.js ldShowQueue). -->
+      <div class="admin-deals-switch">
+        <button id="adminListingDocsBtn" class="btn-sm hidden" onclick="ldToggleQueue()"><i class="fas fa-file-shield"></i> Listing documents</button>
+      </div>
+      <div id="adminListingDocs" class="hidden"></div>
+      <div id="adminDealsTableArea">
+      <div class="admin-filters">
+        <button class="admin-filter-btn" data-status="all" onclick="adminDealsSetFilter('all')">All</button>
+        <button class="admin-filter-btn active" data-status="" onclick="adminDealsSetFilter('')">In progress</button>
+        <button class="admin-filter-btn" data-status="awaiting_seller" onclick="adminDealsSetFilter('awaiting_seller')">Awaiting confirmation</button>
+        <button class="admin-filter-btn" data-status="docs_pending" onclick="adminDealsSetFilter('docs_pending')">Documents</button>
+        <button class="admin-filter-btn" data-status="locked" onclick="adminDealsSetFilter('locked')">Locked</button>
+        <button class="admin-filter-btn" data-status="loan_in_progress" onclick="adminDealsSetFilter('loan_in_progress')">Loan in progress</button>
+        <button class="admin-filter-btn" data-status="ready_to_pay" onclick="adminDealsSetFilter('ready_to_pay')">Ready to pay</button>
+        <button class="admin-filter-btn" data-status="paid" onclick="adminDealsSetFilter('paid')">Paid</button>
+        <button class="admin-filter-btn" data-status="disputed" onclick="adminDealsSetFilter('disputed')">Disputed</button>
+        <button class="admin-filter-btn" data-status="completed" onclick="adminDealsSetFilter('completed')">Completed</button>
+        <button class="admin-filter-btn" data-status="released" onclick="adminDealsSetFilter('released')">Released</button>
+      </div>
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="adminDealSearch" placeholder="Search listing, buyer, seller or UTR..." oninput="adminDealsSearchChanged()" autocomplete="off">
+        <span id="adminDealCount" class="admin-search-count"></span>
+      </div>
+      <div id="adminPager-deals" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Listing</th><th>Buyer</th><th>Seller</th><th>Price</th><th>Loan</th><th>Status</th><th>Until</th><th>Action</th></tr></thead>
+          <tbody id="adminDealsBody"></tbody>
+        </table>
+        <div id="adminNoDeals" class="empty-state hidden"><i class="fas fa-handshake"></i><h3>No deals here</h3></div>
+      </div>
+      </div>
+    </div>
+
+    <!-- LENDER PORTAL (DealLock, deals.js). For lender (NBFC) users: only
+         their own lender's work. DealBriz staff can pick a lender. -->
+    <div id="adminSection-lender" class="admin-section hidden">
+      <div id="lenderHeader" class="lender-head"></div>
+      <div class="admin-filters lender-tabs">
+        <button class="admin-filter-btn active" data-ltab="deals" onclick="lenderSetTab('deals')"><i class="fas fa-handshake"></i> Deals</button>
+        <button class="admin-filter-btn" data-ltab="loans" onclick="lenderSetTab('loans')"><i class="fas fa-file-invoice-dollar"></i> Loan applications</button>
+      </div>
+      <div id="lenderBody" class="lender-body"></div>
+    </div>
+
+    <div id="adminSection-purchases" class="admin-section hidden">
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="adminPurchaseSearch" placeholder="Search product, buyer or seller..." oninput="adminPurchaseFilterChanged()" autocomplete="off">
+        <span id="adminPurchaseCount" class="admin-search-count"></span>
+      </div>
+      <div id="adminPager-purchases" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Product</th><th>Buyer</th><th>Seller</th><th>Amount</th><th>Payment</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody id="adminPurchasesBody"></tbody>
+        </table>
+        <div id="adminNoPurchases" class="empty-state hidden"><i class="fas fa-receipt"></i><h3>No purchases yet</h3></div>
+      </div>
+    </div>
+
+    <!-- FINANCERS SECTION -->
+    <!-- REPORTS SECTION -->
+    <div id="adminSection-reports" class="admin-section hidden">
+      <div class="admin-filters" style="padding:0 16px 12px">
+        <button class="admin-filter-btn active" data-report-status="all" onclick="adminFilterReports('all')">All</button>
+        <button class="admin-filter-btn" data-report-status="open" onclick="adminFilterReports('open')">Open</button>
+        <button class="admin-filter-btn" data-report-status="investigating" onclick="adminFilterReports('investigating')">Investigating</button>
+        <button class="admin-filter-btn" data-report-status="action_taken" onclick="adminFilterReports('action_taken')">Action Taken</button>
+        <button class="admin-filter-btn" data-report-status="dismissed" onclick="adminFilterReports('dismissed')">Dismissed</button>
+      </div>
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="adminReportSearch" placeholder="Search seller, reporter, reason or details..." oninput="adminReportSearchChanged()" autocomplete="off">
+        <span id="adminReportCount" class="admin-search-count"></span>
+      </div>
+      <div id="adminPager-reports" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Reported Seller</th><th>Reason</th><th>Details</th><th>Reported By</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="adminReportsBody"></tbody>
+        </table>
+        <div id="adminNoReports" class="empty-state hidden"><i class="fas fa-flag"></i><h3>No reports</h3></div>
+      </div>
+    </div>
+
+    <!-- TERMS OF SERVICE SECTION -->
+    <!-- EMI COVERAGE SECTION -->
+    <div id="adminSection-emiareas" class="admin-section hidden">
+      <div class="admin-terms-wrap">
+        <div class="admin-terms-head">
+          <h3>EMI Coverage Areas</h3>
+        </div>
+        <p class="admin-terms-note">
+          <i class="fas fa-circle-info"></i> Where EMI is offered. Rules are checked
+          most-specific-first: <strong>pincode &rarr; district &rarr; state</strong>, so you can
+          enable a whole state and exclude individual districts from it, or re-enable a single
+          pincode inside an excluded district.
+          <br><br>
+          <strong>With no rules, EMI is unavailable everywhere.</strong> Buyers still see EMI
+          badges on listings, but get an explanation when they tap "Buy with EMI".
+          The global switch in Site Settings overrides all of this.
+        </p>
+
+        <div class="emi-area-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="emiAreaScope">Level</label>
+              <select id="emiAreaScope" onchange="onEmiAreaScopeChange()">
+                <option value="state">State</option>
+                <option value="district">District</option>
+                <option value="pincode">Pincode</option>
+              </select>
+            </div>
+            <div class="form-group combo-wrap" style="flex:2">
+              <label for="emiAreaValue">Location</label>
+              <input type="text" id="emiAreaValue" placeholder="e.g. Himachal Pradesh" autocomplete="off"
+                     oninput="filterEmiAreaSuggestions()" onfocus="filterEmiAreaSuggestions()">
+              <div id="emiAreaSuggestions" class="combo-list hidden"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="emiAreaNote">Note <span class="opt">(optional)</span></label>
+            <input type="text" id="emiAreaNote" maxlength="255" placeholder="e.g. Pilot region — Bajaj Finserv" autocomplete="off">
+          </div>
+          <label class="toggle-label"><input type="checkbox" id="emiAreaEnabled" checked> Available (uncheck to explicitly exclude this area)</label>
+          <div id="emiAreaError" class="auth-error hidden"></div>
+          <button class="btn-primary" style="margin-top:12px" onclick="saveEmiArea()"><i class="fas fa-plus"></i> Add coverage rule</button>
+        </div>
+
+        <div id="emiAreaList"></div>
+      </div>
+    </div>
+
+    <!-- ROLES & ACCESS SECTION -->
+    <div id="adminSection-roles" class="admin-section hidden">
+      <div class="admin-terms-wrap">
+        <div class="admin-terms-head">
+          <h3>Roles &amp; Access</h3>
+        </div>
+        <p class="admin-terms-note">
+          <i class="fas fa-shield-alt"></i> Choose which parts of the admin panel each role can open,
+          and what they can do there. Changes apply the next time that user loads a page.
+          <br><br>
+          <strong>Superadmin is fixed and can't be edited.</strong> If it could, a superadmin could
+          remove their own ability to assign roles and permanently lock everyone out of administration.
+        </p>
+        <div id="adminRolesBody"></div>
+      </div>
+    </div>
+
+    <!-- LOGS SECTION -->
+    <div id="adminSection-logs" class="admin-section hidden">
+      <div class="admin-terms-wrap">
+        <div class="admin-terms-head">
+          <h3>Application Logs</h3>
+          <button class="btn-sm" onclick="renderAdminLogs()"><i class="fas fa-rotate"></i> Refresh</button>
+        </div>
+
+        <div class="log-files" id="logFileTabs"></div>
+
+        <div class="log-toolbar">
+          <div class="log-levels" id="logLevelFilters"></div>
+          <div class="log-search">
+            <i class="fas fa-search"></i>
+            <input type="text" id="logSearch" placeholder="Filter by message, logger or error id..."
+                   autocomplete="off" oninput="debouncedLogSearch()">
+          </div>
+          <select id="logLimit" onchange="loadLogEntries()">
+            <option value="100">Last 100</option>
+            <option value="300" selected>Last 300</option>
+            <option value="1000">Last 1000</option>
+            <option value="2000">Last 2000</option>
+          </select>
+        </div>
+
+        <div id="logMeta" class="log-meta"></div>
+        <div id="logEntries" class="log-entries"></div>
+      </div>
+    </div>
+
+    <!-- SITE SETTINGS SECTION -->
+    <div id="adminSection-settings" class="admin-section hidden">
+      <div class="admin-terms-wrap">
+        <div class="admin-terms-head">
+          <h3>Feature Switches</h3>
+        </div>
+        <p class="admin-terms-note">
+          <i class="fas fa-shield-alt"></i> These change what the public site offers. Only superadmins can save changes.
+        </p>
+
+        <div class="setting-row">
+          <div class="setting-main">
+            <div class="setting-title">
+              EMI &amp; Financing
+              <span id="emiFlagBadge" class="setting-badge"></span>
+            </div>
+            <div class="setting-desc">
+              Controls whether EMI is advertised <strong>site-wide</strong>: the homepage EMI section
+              and calculator, the EMI nav link, EMI badges on listings, and the EMI Partners page.
+              <br><br>
+              <strong>This is a visibility switch, not a kill switch.</strong> Whether EMI actually
+              works is decided by <a href="#" onclick="adminSwitchSection('emiareas'); return false;">EMI Coverage</a>:
+              <br>
+              &bull; <strong>Off</strong> &mdash; EMI is hidden from everyone <em>except</em> users whose
+              location is covered. Use this to pilot a region quietly.<br>
+              &bull; <strong>On</strong> &mdash; EMI is advertised everywhere, and still only usable in
+              covered areas.
+              <br><br>
+              <strong>To stop EMI completely, remove every coverage area.</strong> With no coverage
+              rules, EMI is unavailable regardless of this switch, and the server rejects any
+              application submitted through a stale page or a direct request.
+            </div>
+          </div>
+          <div class="setting-action">
+            <label class="switch">
+              <input type="checkbox" id="emiEnabledToggle" onchange="toggleEmiFeature(this.checked)">
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-main">
+            <div class="setting-title">
+              EMI Status page
+              <span id="emiStatusBadge" class="setting-badge"></span>
+            </div>
+            <div class="setting-desc">
+              Shows or hides <strong>EMI Status</strong> in the user menu, where buyers track their EMI
+              applications. <strong>Off</strong> hides the link and the page for everyone. Applications
+              are not touched, and staff still see them under EMI Applications.
+            </div>
+          </div>
+          <div class="setting-action">
+            <label class="switch">
+              <input type="checkbox" id="emiStatusToggle" onchange="toggleEmiStatusFeature(this.checked)">
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div id="settingsError" class="auth-error hidden"></div>
+        <p class="admin-terms-note" style="margin-top:16px">
+          <i class="fas fa-circle-info"></i> Existing EMI applications are never deleted by this switch.
+          Staff can still review them under EMI Applications, and turning the switch back on restores
+          everything exactly as it was.
+        </p>
+      </div>
+    </div>
+
+    <!-- BLOG SECTION -->
+    <div id="adminSection-blog" class="admin-section hidden">
+      <div class="admin-faq-wrap">
+        <div class="admin-terms-head">
+          <h3>Blog Posts</h3>
+          <button class="btn-primary btn-sm-inline" onclick="openBlogEditor()"><i class="fas fa-plus"></i> New Post</button>
+        </div>
+        <p class="admin-terms-note">
+          <i class="fas fa-circle-info"></i> Posts appear on the public Blog page. Drafts stay hidden until published.
+        </p>
+        <div id="adminBlogList"></div>
+      </div>
+    </div>
+
+    <!-- CHATBOT SECTION -->
+    <div id="adminSection-chatbot" class="admin-section hidden">
+      <div class="admin-faq-wrap">
+        <div class="admin-terms-head">
+          <h3>Questions the bot couldn't answer</h3>
+          <button class="btn-sm" onclick="renderAdminChatbot()"><i class="fas fa-rotate"></i> Refresh</button>
+        </div>
+        <p class="admin-terms-note">
+          <i class="fas fa-circle-info"></i> Real questions from users, most-asked first. Writing an answer
+          for the top one improves the bot for the most people. <strong>Answer this</strong> opens the FAQ
+          editor with the question filled in &mdash; save it and the bot can answer it immediately.
+        </p>
+        <div id="adminChatbotList"></div>
+      </div>
+    </div>
+
+    <!-- FAQ SECTION -->
+    <div id="adminSection-faqs" class="admin-section hidden">
+      <div class="admin-faq-wrap">
+        <div class="admin-terms-head">
+          <h3>Help Centre FAQs</h3>
+          <button class="btn-primary btn-sm-inline" onclick="openFaqEditor()"><i class="fas fa-plus"></i> Add FAQ</button>
+        </div>
+        <p class="admin-terms-note">
+          <i class="fas fa-circle-info"></i> These appear on the public Help Centre page.
+          Unpublished entries stay hidden from visitors so you can draft an answer first.
+        </p>
+        <div id="adminFaqList"></div>
+      </div>
+    </div>
+
+    <div id="adminSection-terms" class="admin-section hidden">
+      <div class="admin-terms-wrap">
+        <div class="admin-terms-head">
+          <h3 id="adminDocHeading">Content Pages</h3>
+          <span id="adminTermsMeta" class="admin-terms-meta"></span>
+        </div>
+        <div class="admin-doc-picker" id="adminDocPicker"></div>
+        <p class="admin-terms-note">
+          <i class="fas fa-shield-alt"></i> Publishing replaces the live version of this page everywhere it is linked.
+          Only superadmins can save changes.
+        </p>
+        <div id="adminTermsBody"></div>
+      </div>
+    </div>
+
+    <div id="adminSection-financers" class="admin-section hidden">
+      <div style="padding:0 16px 12px">
+        <button class="btn-primary" onclick="openFinancerForm()"><i class="fas fa-plus"></i> Add Financer</button>
+      </div>
+      <div id="financerFormBox" class="admin-login-card hidden" style="margin:0 16px 16px;max-width:100%">
+        <div class="form-group"><label>Name</label><input type="text" id="financerName" autocomplete="off"></div>
+        <div class="form-row">
+          <div class="form-group"><label>Contact Email</label><input type="email" id="financerEmail" autocomplete="off"></div>
+          <div class="form-group"><label>Contact Phone</label><input type="text" id="financerPhone" autocomplete="off"></div>
+        </div>
+        <div class="form-group"><label>Email for loan applications and documents</label>
+          <input type="text" id="financerDocsEmail" inputmode="email" autocomplete="off" maxlength="255" placeholder="e.g. loans@lender.in">
+          <small style="color:var(--text-muted)">Each new loan application on a DealBriz deal is emailed here with the buyer’s and the seller’s verified documents. Up to 3 addresses, separated by commas. The lender can also set it in its portal.</small>
+        </div>
+        <div class="form-group" style="margin-bottom:4px">
+          <label style="font-weight:700;color:var(--navy)">Address</label>
+        </div>
+        <div class="form-group"><label>Street / Building</label><input type="text" id="financerAddress" placeholder="e.g. 2nd Floor, Sector 17 Plaza" autocomplete="off"></div>
+        <div class="form-row">
+          <div class="form-group"><label>City</label><input type="text" id="financerCity" placeholder="e.g. Chandigarh" autocomplete="off"></div>
+          <div class="form-group"><label>State</label><input type="text" id="financerState" placeholder="e.g. Punjab" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Pincode</label><input type="text" id="financerPincode" maxlength="6" placeholder="6-digit PIN" autocomplete="off"></div>
+          <div class="form-group">
+            <label>Service Area</label>
+            <select id="financerServesAll">
+              <option value="true">All India</option>
+              <option value="false">Local only (near this pincode)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Min Interest Rate (%)</label><input type="number" step="0.1" id="financerMinRate" autocomplete="off"></div>
+          <div class="form-group"><label>Max Interest Rate (%)</label><input type="number" step="0.1" id="financerMaxRate" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Min Loan Amount (₹)</label><input type="number" id="financerMinLoan" autocomplete="off"></div>
+          <div class="form-group"><label>Max Loan Amount (₹)</label><input type="number" id="financerMaxLoan" autocomplete="off"></div>
+        </div>
+        <div class="form-group"><label>Status</label>
+          <select id="financerStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        </div>
+        <div class="form-group">
+          <label>DealLock loans it funds</label>
+          <div class="financer-loan-types">
+            <label><input type="checkbox" id="financerLoanVehicle" checked> Vehicle loans <small>(cars, bikes)</small></label>
+            <label><input type="checkbox" id="financerLoanPersonal" checked> Personal loans <small>(every other category)</small></label>
+          </div>
+        </div>
+        <input type="hidden" id="financerEditId">
+        <button class="btn-primary" onclick="saveFinancer()">Save Financer</button>
+        <button class="btn-clear-filters" onclick="closeFinancerForm()" style="border:1.5px solid var(--border);color:var(--text-muted)">Cancel</button>
+      </div>
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="adminFinancerSearch" placeholder="Search name, contact, city or state..." oninput="adminFinancerFilterChanged()" autocomplete="off">
+        <span id="adminFinancerCount" class="admin-search-count"></span>
+      </div>
+      <div id="adminPager-financers" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Name</th><th>Contact</th><th>Location</th><th>Rate Range</th><th>Loan Range</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="adminFinancersBody"></tbody>
+        </table>
+        <div id="adminNoFinancers" class="empty-state hidden"><i class="fas fa-hand-holding-usd"></i><h3>No financers added</h3></div>
+      </div>
+    </div>
+
+        </div><!-- /.admin-content -->
+      </div><!-- /.admin-main -->
+    </div><!-- /.admin-shell -->
+  </div>

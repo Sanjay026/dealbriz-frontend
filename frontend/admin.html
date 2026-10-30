@@ -36,6 +36,9 @@
           <button class="admin-nav-item active" data-section="dashboard" onclick="adminSwitchSection('dashboard')">
             <i class="fas fa-chart-column"></i> <span>Dashboard</span>
           </button>
+          <button class="admin-nav-item" data-section="analytics" onclick="adminSwitchSection('analytics')">
+            <i class="fas fa-chart-line"></i> <span>Analytics</span>
+          </button>
 
           <div class="admin-nav-heading">Operations</div>
           <button class="admin-nav-item" data-section="emi" onclick="adminSwitchSection('emi')">
@@ -75,6 +78,9 @@
           </button>
           <button class="admin-nav-item" data-section="logs" onclick="adminSwitchSection('logs')">
             <i class="fas fa-terminal"></i> <span>Logs</span>
+          </button>
+          <button class="admin-nav-item" data-section="categories" onclick="adminSwitchSection('categories')">
+            <i class="fas fa-layer-group"></i> <span>Categories</span>
           </button>
           <button class="admin-nav-item" data-section="settings" onclick="adminSwitchSection('settings')">
             <i class="fas fa-toggle-on"></i> <span>Site Settings</span>
@@ -517,6 +523,93 @@
 
         <div id="logMeta" class="log-meta"></div>
         <div id="logEntries" class="log-entries"></div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS SECTION (app.js renderAdminAnalytics, data from track.js) -->
+    <div id="adminSection-analytics" class="admin-section hidden">
+      <div class="admin-product-filters">
+        <select id="anDays" onchange="renderAdminAnalytics()" aria-label="Period">
+          <option value="1">Last 24 hours</option>
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="365">Last 12 months</option>
+          <option value="0">All time</option>
+        </select>
+        <select id="anCategory" onchange="renderAdminAnalyticsProducts()" aria-label="Category">
+          <option value="">All categories</option>
+        </select>
+        <select id="anSort" onchange="renderAdminAnalyticsProducts()" aria-label="Sort listings">
+          <option value="clicks">Most clicked</option>
+          <option value="impressions">Most seen</option>
+          <option value="ctr">Highest CTR</option>
+          <option value="dwell">Most time spent</option>
+        </select>
+      </div>
+      <div class="an-cards" id="anCards"></div>
+      <div class="an-grid">
+        <div class="an-box">
+          <h4>Impressions, clicks and visitors per day</h4>
+          <div class="an-chart"><canvas id="anDailyChart"></canvas></div>
+          <div id="anDailyEmpty" class="an-empty hidden">No activity in this period yet.</div>
+        </div>
+        <div class="an-box">
+          <h4>Devices</h4>
+          <div id="anDevices"></div>
+          <h4 style="margin-top:18px">Where listings were opened</h4>
+          <div id="anSources"></div>
+        </div>
+      </div>
+      <div class="an-box">
+        <h4>Categories explored</h4>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Category</th><th>Times browsed</th><th>Visitors who browsed</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>Avg time on a listing</th></tr></thead>
+            <tbody id="anCatsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="an-box">
+        <h4>Listings</h4>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Listing</th><th>Category</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>Visitors who clicked</th><th>Avg time</th><th>Total time</th></tr></thead>
+            <tbody id="anProductsBody"></tbody>
+          </table>
+          <div id="anNoProducts" class="empty-state hidden"><i class="fas fa-chart-line"></i><h3>No listing activity in this period yet</h3></div>
+        </div>
+      </div>
+      <p class="admin-terms-note">
+        <i class="fas fa-user-shield"></i><span> Impression = a listing card at least half on screen for a moment. CTR = clicks &divide; impressions.
+        Time is counted only while the listing is open and the tab is visible. No raw IP address is stored, only a keyed hash used to count
+        unique visitors. Staff accounts, bots and sellers looking at their own listings aren't counted.</span>
+      </p>
+    </div>
+
+    <!-- CATEGORIES SECTION (app.js renderAdminCategories) -->
+    <div id="adminSection-categories" class="admin-section hidden">
+      <div class="admin-terms-wrap">
+        <div class="admin-terms-head"><h3>Listing categories</h3></div>
+        <p class="admin-terms-note">
+          <i class="fas fa-circle-info"></i>
+          <span>The order, names and icons here are what the website shows (Buy page, sell form, home tiles, footer).
+          The <strong>key</strong> is stored on every listing and used in links, so it can't be changed after a category is created.
+          <strong>Hiding</strong> a category takes it out of menus and the sell form; listings already in it stay visible.
+          <strong>Vehicle</strong> means the listing needs RC and insurance and loans are vehicle loans; changing it applies to listings already in the category.</span>
+        </p>
+        <div id="adminCatsList"></div>
+        <div id="adminCatsUnknown"></div>
+        <h4 class="cat-add-title">Add a category</h4>
+        <div class="cat-add-form">
+          <input type="text" id="catNewSlug" placeholder="Key, e.g. scooters" maxlength="30" autocomplete="off" aria-label="Key">
+          <input type="text" id="catNewLabel" placeholder="Name, e.g. Scooters" maxlength="60" autocomplete="off" aria-label="Name">
+          <select id="catNewIcon" aria-label="Icon"></select>
+          <input type="text" id="catNewEmoji" placeholder="Emoji" maxlength="16" value="📦" aria-label="Emoji">
+          <label class="admin-emi-toggle"><input type="checkbox" id="catNewVehicle"> Vehicle</label>
+          <button class="btn-sm btn-sm-blue" onclick="adminCatAdd()"><i class="fas fa-plus"></i> Add</button>
+        </div>
+        <p id="adminCatError" class="auth-error hidden"></p>
       </div>
     </div>
 

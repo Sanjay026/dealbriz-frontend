@@ -149,6 +149,39 @@ const db = {
     return apiFetch("/auth/google", { method: "POST", body: { credential } });
   },
 
+  /* ============ CATEGORIES (Admin -> Categories) ============ */
+
+  // Shown categories in order, with live listing counts. Public.
+  async getCategories() {
+    return apiFetch("/categories");
+  },
+  async adminGetCategories() {
+    return apiFetch("/admin/categories");
+  },
+  async adminCreateCategory(fields) {
+    return apiFetch("/admin/categories", { method: "POST", body: fields });
+  },
+  async adminUpdateCategory(slug, fields) {
+    return apiFetch(`/admin/categories/${encodeURIComponent(slug)}`, { method: "PUT", body: fields });
+  },
+  async adminReorderCategories(slugs) {
+    return apiFetch("/admin/categories/reorder", { method: "POST", body: { slugs } });
+  },
+  async adminDeleteCategory(slug) {
+    return apiFetch(`/admin/categories/${encodeURIComponent(slug)}`, { method: "DELETE" });
+  },
+
+  /* ============ ANALYTICS (Admin -> Analytics) ============ */
+
+  async getAnalyticsSummary(days) {
+    return apiFetch(`/admin/analytics/summary?days=${encodeURIComponent(days)}`);
+  },
+  async getAnalyticsProducts(days, { sort = "clicks", category = "", limit = 100 } = {}) {
+    const p = new URLSearchParams({ days, sort, limit });
+    if (category) p.set("category", category);
+    return apiFetch(`/admin/analytics/products?${p}`);
+  },
+
   async logOut() {
     // The server revokes the session AND clears the cookies. There is
     // nothing left for us to delete client-side — which is the point.
@@ -453,8 +486,10 @@ const db = {
     return apiFetch(`/chatbot/unanswered/${id}`, { method: "DELETE" });
   },
 
-  async askChatbot(message, pincode) {
-    return apiFetch("/chatbot", { method: "POST", body: { message, pincode } });
+  // history: the last few turns [{role: 'user'|'assistant', text}], so the
+  // AI assistant can follow up ("and the second one?"). The server caps it.
+  async askChatbot(message, pincode, history) {
+    return apiFetch("/chatbot", { method: "POST", body: { message, pincode, history: history || [] } });
   },
 
   /* ============ LOCATIONS ============ */
@@ -623,8 +658,10 @@ const db = {
     return apiFetch(`/chatbot/unanswered/${id}`, { method: "DELETE" });
   },
 
-  async askChatbot(message, pincode) {
-    return apiFetch("/chatbot", { method: "POST", body: { message, pincode } });
+  // history: the last few turns [{role: 'user'|'assistant', text}], so the
+  // AI assistant can follow up ("and the second one?"). The server caps it.
+  async askChatbot(message, pincode, history) {
+    return apiFetch("/chatbot", { method: "POST", body: { message, pincode, history: history || [] } });
   },
 
   /* ============ LOCATIONS ============ */

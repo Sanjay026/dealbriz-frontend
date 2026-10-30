@@ -1,0 +1,608 @@
+/* =====================================================
+   DealBriz — DealLock styles (deals.js)
+   Uses the tokens from style.css (--accent, --border, --radius...).
+   ===================================================== */
+
+/* ---------- Layering ----------
+   style.css stacks overlays explicitly: listing 3000, chat/EMI 3100,
+   lightbox 3300, login 3400. The deal sheet opens over the chat or a
+   listing, the offer form over the chat, and the loan form over the deal
+   sheet, so they slot in between. Login stays above everything. */
+#dealModal      { z-index: 3200; }
+#dealOfferModal { z-index: 3250; }
+#dealLoanModal  { z-index: 3300; }
+
+/* ---------- Status pills ---------- */
+.deal-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; letter-spacing: .01em;
+  padding: 3px 9px; border-radius: 20px; white-space: nowrap;
+  background: var(--bg); color: var(--text-muted);
+}
+.deal-pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.deal-pill-locked { background: var(--accent-light); color: var(--accent); }
+.deal-pill-loan_in_progress { background: var(--gold-light); color: #92400E; }
+.deal-pill-ready_to_pay { background: #DBEAFE; color: #1E40AF; }
+.deal-pill-paid { background: #D1FAE5; color: #065F46; }
+.deal-pill-completed { background: #065F46; color: #fff; }
+.deal-pill-released { background: #F1F3F6; color: var(--text-muted); }
+.deal-pill-disputed { background: #FEE2E2; color: #991B1B; }
+
+.deal-tag {
+  display: inline-block; margin-left: 4px; padding: 1px 6px; border-radius: 6px;
+  font-size: 10px; font-weight: 700; background: var(--accent-light); color: var(--accent);
+  vertical-align: middle;
+}
+.listing-status-pill.status-reserved { background: var(--accent-light); color: var(--accent); }
+.pdp-pill-reserved { background: var(--accent-light); color: var(--accent); }
+.pdp-reserved-note {
+  display: flex; gap: 8px; align-items: flex-start;
+  background: var(--accent-light); color: #1E3A8A; border-radius: var(--radius-sm);
+  padding: 10px 12px; font-size: 13px; line-height: 1.45; margin-bottom: 12px;
+}
+.pdp-reserved-note i { margin-top: 3px; }
+
+/* ---------- Buttons ---------- */
+.deal-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: var(--white); color: var(--text); border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm); padding: 8px 12px; font-size: 13px; font-weight: 600;
+  font-family: inherit; cursor: pointer; white-space: nowrap; transition: .15s;
+}
+.deal-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.deal-btn:disabled { opacity: .55; cursor: default; }
+.deal-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.deal-btn-primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+.deal-btn-quiet { background: transparent; border-color: transparent; color: var(--text-muted); }
+.deal-btn-danger { background: var(--red); border-color: var(--red); color: #fff; }
+.deal-btn-danger:hover:not(:disabled) { filter: brightness(.93); color: #fff; border-color: var(--red); }
+.deal-btn-quiet-danger { background: transparent; border-color: transparent; color: var(--red); }
+.deal-btn-quiet-danger:hover:not(:disabled) { border-color: #FECACA; color: var(--red); }
+.deal-btn-wide { width: 100%; padding: 11px 14px; font-size: 14px; }
+
+/* ---------- Chat: offer cards and system lines ---------- */
+.deal-card {
+  width: min(280px, 86%); padding: 12px 14px 8px; border-radius: 16px;
+  background: var(--white); border: 1.5px solid var(--accent); box-shadow: var(--shadow);
+}
+.deal-card.sent { align-self: flex-end; border-bottom-right-radius: 4px; }
+.deal-card.received { align-self: flex-start; border-bottom-left-radius: 4px; }
+.deal-card:not(.deal-card-open) { border-color: var(--border); }
+.deal-card-kicker {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--accent);
+}
+.deal-card:not(.deal-card-open) .deal-card-kicker { color: var(--text-muted); }
+.deal-card-price { font-size: 24px; font-weight: 800; letter-spacing: -.01em; margin: 2px 0 4px; color: var(--text); }
+.deal-card-superseded .deal-card-price,
+.deal-card-expired .deal-card-price,
+.deal-card-withdrawn .deal-card-price,
+.deal-card-declined .deal-card-price { color: var(--text-light); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.deal-card-note {
+  font-size: 13px; color: var(--text); background: var(--bg); border-radius: var(--radius-sm);
+  padding: 6px 9px; margin: 4px 0 6px; white-space: pre-wrap; word-break: break-word;
+}
+.deal-card-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.deal-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-light); flex-shrink: 0; }
+.deal-dot-open { background: var(--gold); }
+.deal-dot-accepted { background: var(--green); }
+.deal-dot-declined, .deal-dot-withdrawn { background: var(--red); }
+.deal-card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.deal-card-actions .deal-btn { padding: 7px 11px; font-size: 12.5px; }
+.deal-card-hint { font-size: 11.5px; color: var(--text-muted); margin-top: 6px; }
+.deal-card .chat-msg-time { text-align: right; }
+
+.chat-system {
+  align-self: center; max-width: 92%;
+  display: flex; align-items: flex-start; gap: 7px;
+  background: #EEF2F7; color: #334155; border-radius: 12px;
+  padding: 8px 12px; font-size: 12.5px; line-height: 1.45;
+}
+.chat-system i { color: var(--accent); margin-top: 2px; }
+.chat-system time { font-size: 10px; color: var(--text-light); white-space: nowrap; margin-left: 4px; align-self: flex-end; }
+
+/* ---------- Chat: the deal bar above the input ---------- */
+.chat-deal-bar { margin-bottom: 10px; }
+.deal-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--accent-light); border-radius: var(--radius-sm); padding: 8px 10px;
+}
+.deal-bar-text { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; min-width: 0; }
+.deal-bar-muted { color: var(--text-muted); font-size: 12.5px; }
+.deal-bar .deal-btn { padding: 7px 11px; font-size: 12.5px; flex-shrink: 0; }
+.deal-bar-info { justify-content: flex-start; gap: 8px; font-size: 12.5px; color: #1E3A8A; }
+
+/* ---------- Modals ---------- */
+.deal-modal-box { padding: 22px 20px 20px; }
+.deal-modal-title { font-size: 19px; font-weight: 800; margin: 0 34px 4px 0; }
+.deal-modal-sub { font-size: 13px; color: var(--text-muted); margin: 0 0 14px; }
+.deal-optional { font-weight: 500; color: var(--text-light); font-size: 12px; }
+.deal-price-input { font-size: 22px !important; font-weight: 800; letter-spacing: .01em; }
+.deal-small { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin: 0 0 12px; }
+.deal-loading { text-align: center; padding: 50px 16px; color: var(--text-muted); font-size: 14px; }
+
+.deal-head { display: flex; gap: 12px; align-items: center; margin-right: 36px; }
+.deal-head-img {
+  width: 56px; height: 56px; border-radius: 12px; overflow: hidden; flex-shrink: 0;
+  background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--text-light); font-size: 20px;
+}
+.deal-head-img { position: relative; }
+.deal-head-img img, .deal-list-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.deal-head-title { font-weight: 800; font-size: 16px; line-height: 1.3; }
+.deal-head-sub { font-size: 12.5px; color: var(--text-muted); }
+
+.deal-price-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin: 14px 0 12px; padding: 12px 14px; border-radius: var(--radius); background: var(--bg);
+}
+.deal-price-row > div { display: flex; flex-direction: column; }
+.deal-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+.deal-price-row strong { font-size: 22px; font-weight: 800; }
+
+/* Progress */
+.deal-steps { list-style: none; display: grid; grid-template-columns: repeat(5, 1fr); margin: 4px 0 14px; padding: 0; position: relative; }
+.deal-steps li { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; text-align: center; }
+.deal-steps li + li::before {
+  content: ''; position: absolute; top: 12px; right: 50%; width: 100%; height: 2px; background: var(--border); z-index: 0;
+}
+.deal-steps li.is-done + li::before, .deal-steps li.is-done + li.is-current::before { background: var(--green); }
+.deal-step-dot {
+  width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; background: var(--white); border: 2px solid var(--border); color: var(--text-light);
+  position: relative; z-index: 1;
+}
+.deal-steps li.is-done .deal-step-dot { background: var(--green); border-color: var(--green); color: #fff; }
+.deal-steps li.is-current .deal-step-dot { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px var(--accent-light); }
+.deal-step-label { font-size: 10.5px; font-weight: 600; color: var(--text-muted); line-height: 1.2; }
+.deal-steps li.is-current .deal-step-label { color: var(--accent); }
+.deal-ended {
+  display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text-muted);
+  background: var(--bg); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px;
+}
+
+/* Next step */
+.deal-next {
+  border: 1.5px solid var(--accent); border-radius: var(--radius); padding: 14px; margin-bottom: 14px;
+  background: linear-gradient(180deg, var(--accent-light), var(--white) 70%);
+}
+.deal-next-head { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; margin-bottom: 6px; }
+.deal-next-head i { color: var(--accent); }
+.deal-next p { font-size: 13px; color: var(--text); line-height: 1.5; margin: 0 0 12px; }
+.deal-next > :last-child { margin-bottom: 0; }
+.deal-utr { font-family: 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: .02em; }
+.deal-wait { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+.deal-checklist { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.deal-checklist li { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; }
+.deal-checklist li i { color: var(--border); font-size: 16px; margin-top: 1px; }
+.deal-checklist li.is-done i { color: var(--green); }
+.deal-checklist li div { display: flex; flex-direction: column; }
+.deal-checklist li span { font-size: 12px; color: var(--text-muted); }
+
+.deal-inline-form label { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 6px; }
+.deal-inline-row { display: flex; gap: 8px; }
+.deal-inline-row input {
+  flex: 1; min-width: 0; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  padding: 9px 11px; font-size: 15px; font-weight: 700; font-family: inherit;
+}
+.deal-inline-row input:focus { outline: none; border-color: var(--accent); }
+
+/* Sections, timeline, footer */
+.deal-section { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
+.deal-section-flat { border-top: none; padding-top: 0; margin-top: 0; }
+.deal-section h4 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 0 0 8px; }
+.deal-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 5px 0; }
+.deal-row span { color: var(--text-muted); }
+.deal-row strong { text-align: right; font-weight: 600; word-break: break-word; }
+.deal-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; font-weight: 600; color: var(--accent); }
+
+.deal-timeline { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--border); }
+.deal-timeline li { position: relative; padding: 0 0 10px 12px; font-size: 13px; display: flex; flex-direction: column; }
+.deal-timeline li::before {
+  content: ''; position: absolute; left: -20px; top: 6px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--white); border: 2px solid var(--accent);
+}
+.deal-timeline time { font-size: 11px; color: var(--text-light); }
+
+.deal-footer { display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px; }
+.deal-confirm { border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px; }
+.deal-confirm h4 { margin: 0 0 6px; font-size: 15px; }
+.deal-confirm textarea {
+  width: 100%; border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 9px 11px;
+  font-size: 13.5px; font-family: inherit; resize: vertical; margin-bottom: 10px;
+}
+.deal-confirm-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.deal-warn {
+  display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.45;
+  background: #FEF2F2; color: #991B1B; border-radius: var(--radius-sm); padding: 9px 11px; margin: 0 0 10px;
+}
+.deal-warn i { margin-top: 2px; }
+
+/* Loan form */
+.deal-loan-result {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  background: var(--bg); border-radius: var(--radius); padding: 12px; margin-bottom: 10px;
+}
+.deal-loan-result div { display: flex; flex-direction: column; }
+.deal-loan-result span { font-size: 11px; color: var(--text-muted); }
+.deal-loan-result strong { font-size: 15px; font-weight: 800; }
+.deal-existing { margin-bottom: 14px; }
+.deal-existing p { font-size: 13px; margin: 0 0 8px; }
+.deal-existing .deal-btn { margin-bottom: 6px; white-space: normal; text-align: left; }
+.deal-or { display: flex; align-items: center; gap: 8px; color: var(--text-light); font-size: 12px; margin-top: 8px; }
+.deal-or::before, .deal-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ---------- My Deals page ---------- */
+.deal-tabs {
+  display: flex; gap: 6px; padding: 12px 12px 0;
+}
+.deal-tab {
+  background: var(--white); border: 1.5px solid var(--border); color: var(--text-muted);
+  padding: 7px 16px; border-radius: 20px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;
+}
+.deal-tab.is-active { background: var(--navy); border-color: var(--navy); color: #fff; }
+.deal-list-item {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+  background: var(--white); border: none; border-radius: var(--radius); padding: 12px; margin-bottom: 10px;
+  box-shadow: var(--shadow); font-family: inherit; cursor: pointer; transition: .15s;
+}
+.deal-list-item:hover { box-shadow: 0 0 0 1.5px var(--accent), var(--shadow); }
+.deal-list-img {
+  width: 60px; height: 60px; border-radius: 10px; overflow: hidden; flex-shrink: 0;
+  background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--text-light); font-size: 20px;
+}
+.deal-list-img { position: relative; }
+.deal-list-info { flex: 1; min-width: 0; }
+.deal-list-title { font-weight: 700; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.deal-list-sub { font-size: 12px; color: var(--text-muted); }
+.deal-list-price { font-weight: 800; font-size: 15px; margin-top: 2px; color: var(--text); }
+
+/* ---------- Admin ---------- */
+.deal-attn { color: #B45309; font-weight: 600; }
+
+@media (min-width: 768px) {
+  .deal-tabs { max-width: 960px; margin: 0 auto; padding: 20px 40px 0; }
+  .deal-modal-box { max-width: 500px; }
+}
+@media (max-width: 400px) {
+  .deal-step-label { font-size: 9.5px; }
+  .deal-loan-result { grid-template-columns: 1fr 1fr; }
+}
+
+/* =====================================================
+   Phase 3: confirmation, warning, documents, handover code,
+   loan types, bans, lender portal
+   ===================================================== */
+#dealOtpModal  { z-index: 3300; }
+#dealWarnModal { z-index: 3350; }   /* above every deal overlay, below login */
+#dealNoticeModal { z-index: 3340; }
+
+.deal-pill-awaiting_seller { background: #FEF3C7; color: #92400E; }
+.deal-pill-docs_pending { background: #EDE9FE; color: #5B21B6; }
+
+.deal-type {
+  display: inline-flex; align-items: center; gap: 4px; vertical-align: middle;
+  font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 6px;
+  background: #F1F5F9; color: #334155; white-space: nowrap;
+}
+.deal-type-vehicle { background: #E0F2FE; color: #075985; }
+.deal-type-personal { background: #FCE7F3; color: #9D174D; }
+.deal-head-type { margin-top: 3px; }
+.deal-green { color: var(--green); }
+.deal-red { color: var(--red); }
+
+/* The warning: big, centred on every screen size (other overlays are
+   bottom sheets on phones), English then Hindi. */
+#dealWarnModal, #dealNoticeModal { align-items: center; justify-content: center; padding: 16px; }
+.deal-warn-box {
+  width: 100%; max-width: 620px !important; max-height: calc(100vh - 32px) !important; overflow-y: auto;
+  border-radius: 18px !important; padding: 26px 24px 20px; text-align: left;
+  border-top: 6px solid #DC2626;
+}
+.deal-warn-icon {
+  width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: #FEE2E2; color: #DC2626; font-size: 26px;
+}
+.deal-warn-title {
+  text-align: center; font-size: 22px; font-weight: 800; line-height: 1.3; margin: 0 0 14px; color: var(--text);
+}
+.deal-warn-title span[lang="hi"] { display: block; font-size: 19px; font-weight: 700; color: #7F1D1D; margin-top: 4px; }
+.deal-warn-body { display: flex; flex-direction: column; gap: 12px; }
+.deal-warn-lang { background: #FFF7ED; border: 1px solid #FED7AA; border-radius: 12px; padding: 12px 14px; }
+.deal-warn-lang[lang="hi"] { background: #FEF2F2; border-color: #FECACA; }
+.deal-warn-langname { font-size: 11px; font-weight: 800; letter-spacing: .08em; color: #991B1B; margin-bottom: 4px; }
+.deal-warn-lang ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px; }
+.deal-warn-lang li { font-size: 15.5px; line-height: 1.5; color: #1F2937; }
+.deal-warn-lang[lang="hi"] li { font-size: 16px; line-height: 1.65; }
+.deal-warn-check {
+  display: flex; gap: 10px; align-items: flex-start; margin: 16px 0 14px; padding: 12px 14px;
+  border: 2px solid var(--border); border-radius: 12px; cursor: pointer; font-size: 15px; font-weight: 600; line-height: 1.45;
+}
+.deal-warn-check input { width: 22px; height: 22px; flex-shrink: 0; margin-top: 1px; accent-color: var(--accent); }
+.deal-warn-check:has(input:checked) { border-color: var(--accent); background: var(--accent-light); }
+.deal-warn-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.deal-warn-actions .deal-btn { padding: 11px 18px; font-size: 15px; }
+@media (max-width: 480px) {
+  .deal-warn-box { padding: 20px 16px 16px; }
+  .deal-warn-title { font-size: 19px; }
+  .deal-warn-title span[lang="hi"] { font-size: 17px; }
+  .deal-warn-lang li { font-size: 15px; }
+  .deal-warn-actions .deal-btn { flex: 1; }
+}
+
+/* OTP */
+.deal-otp-input {
+  width: 100%; text-align: center; font-size: 28px; font-weight: 800; letter-spacing: .5em;
+  padding: 12px 10px 12px calc(10px + .5em); border: 2px solid var(--border); border-radius: 12px;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace; margin-bottom: 10px;
+}
+.deal-otp-input:focus { outline: none; border-color: var(--accent); }
+.deal-otp-box .deal-btn-quiet { margin-top: 8px; }
+
+/* Progress bar (documents) */
+.deal-progress { height: 8px; background: #E5E7EB; border-radius: 6px; overflow: hidden; }
+.deal-progress span { display: block; height: 100%; background: var(--green); border-radius: 6px; transition: width .3s; }
+.deal-progress-text { font-size: 12.5px; color: var(--text-muted); margin-top: 6px; }
+.deal-next-docs { border-color: #7C3AED; background: linear-gradient(180deg, #F5F3FF, var(--white) 70%); }
+.deal-next-docs .deal-next-head i { color: #7C3AED; }
+
+/* Documents list */
+.deal-doc-question {
+  display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  background: var(--bg); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px; font-size: 13px;
+}
+.deal-doc-question.is-open { background: #FEF3C7; }
+.deal-doc-question > div:first-child { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 180px; }
+.deal-doc-question span { font-size: 12px; color: var(--text-muted); }
+.deal-doc-yesno { display: flex; gap: 6px; }
+.deal-doc-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.deal-doc {
+  display: flex; gap: 10px; align-items: flex-start; justify-content: space-between;
+  border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px;
+}
+.deal-doc.is-extra { opacity: .7; }
+.deal-doc-row-rejected { border-color: #FCA5A5; background: #FFF5F5; }
+.deal-doc-row-approved { border-color: #A7F3D0; }
+.deal-doc-main { flex: 1; min-width: 0; }
+.deal-doc-name { font-weight: 700; font-size: 13.5px; }
+.deal-doc-name small { font-weight: 500; color: var(--text-muted); }
+.deal-doc-hint { font-size: 12px; color: var(--text-muted); line-height: 1.4; margin-top: 2px; word-break: break-word; }
+.deal-doc-reason { font-size: 12px; color: #B91C1C; margin-top: 4px; }
+.deal-doc-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.deal-doc-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.deal-doc-status { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px; white-space: nowrap; }
+.deal-doc-missing { background: #F1F5F9; color: #475569; }
+.deal-doc-uploaded { background: #FEF3C7; color: #92400E; }
+.deal-doc-approved { background: #D1FAE5; color: #065F46; }
+.deal-doc-rejected { background: #FEE2E2; color: #991B1B; }
+.deal-btn-sm { padding: 6px 10px; font-size: 12px; }
+label.deal-btn { position: relative; overflow: hidden; }
+.deal-file { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+@media (max-width: 420px) {
+  .deal-doc { flex-direction: column; }
+  .deal-doc-side { align-items: flex-start; width: 100%; }
+  .deal-doc-actions { justify-content: flex-start; }
+}
+
+/* Handover code */
+.deal-code-card {
+  margin-top: 12px; border: 2px dashed var(--accent); border-radius: var(--radius); padding: 12px 14px; text-align: center;
+  background: var(--white);
+}
+.deal-code-label { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.deal-code { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 30px; font-weight: 800; letter-spacing: .12em; margin: 4px 0 6px; }
+.deal-code-card p { font-size: 12.5px !important; color: var(--text-muted) !important; margin: 0 !important; }
+.deal-code-input { letter-spacing: .3em; font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+
+/* Bans */
+.deal-ban-banner {
+  display: flex; gap: 8px; align-items: flex-start;
+  background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; border-radius: var(--radius-sm);
+  padding: 10px 12px; font-size: 13px; line-height: 1.45; margin: 0 0 12px;
+}
+.deal-ban-banner i { margin-top: 3px; }
+.deal-bar-ban { background: #FEF2F2; color: #991B1B; }
+#myDealsContent > .deal-ban-banner { margin-bottom: 12px; }
+.deal-warn span[lang="hi"] { display: inline-block; margin-top: 4px; }
+
+/* Lender portal + financer form */
+.lender-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 0 16px 12px; }
+.lender-head-name { font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+.lender-head-name i { color: var(--accent); }
+.lender-head-sub { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lender-toolbar { display: flex; align-items: center; gap: 8px; padding: 0 16px 10px; font-size: 13px; }
+.lender-body { min-height: 120px; }
+.deal-doc-review .btn-sm { margin-top: 0; }
+.financer-loan-types { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13.5px; }
+.financer-loan-types label { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.financer-loan-types small { color: var(--text-muted); font-weight: 500; }
+
+/* The cancel-request popup: same layout as the warning, calmer colours,
+   because it asks a question rather than warns. */
+.deal-notice-box { border-top-color: #D97706; }
+.deal-notice-box .deal-warn-icon { background: #FEF3C7; color: #B45309; }
+.deal-notice-box .deal-warn-title span[lang="hi"] { color: #78350F; }
+.deal-notice-box .deal-warn-lang { background: #FFFBEB; border-color: #FDE68A; }
+.deal-notice-box .deal-warn-lang[lang="hi"] { background: #FFF7ED; border-color: #FED7AA; }
+.deal-notice-box .deal-warn-langname { color: #92400E; }
+.deal-notice-box .auth-error { margin-top: 12px; }
+.deal-notice-box .deal-warn-actions { margin-top: 16px; }
+
+/* Phase 4: cancel requests, force cancel, both sides' documents */
+.deal-cancel-req { border: 1.5px solid #FDE68A; background: #FFFBEB; border-radius: 12px; padding: 12px 14px; margin: 14px 0 4px; }
+.deal-cancel-req.is-theirs { border-color: #FCA5A5; background: #FEF2F2; }
+.deal-cancel-req-head { font-weight: 800; font-size: 14px; margin-bottom: 4px; display: flex; gap: 8px; align-items: center; }
+.deal-cancel-req .deal-confirm-actions { margin-top: 10px; }
+.deal-force .deal-warn-check { margin: 10px 0; }
+.deal-next-attn { border-color: #FCD34D !important; background: #FFFBEB !important; }
+.deal-bar-attn { color: #B45309; font-weight: 700; font-size: 12px; }
+.deal-doc-group-head { font-weight: 800; font-size: 13px; margin: 12px 0 6px; display: flex; gap: 8px; align-items: baseline; }
+.deal-doc-group-head small { font-weight: 500; color: var(--text-muted); }
+#dealNoticeModal .deal-warn-actions { flex-wrap: wrap; }
+
+/* Phase 5: the seller's documents on the listing (Sell form, Edit listing,
+   My Listings badge, staff queue) and the password confirmation. */
+.deal-otp-password { letter-spacing: normal; font-size: 16px; text-align: left; }
+#sellDocs .deal-doc-list { margin-top: 10px; }
+#sellDocs .deal-doc-question { margin-top: 4px; }
+.sell-docs-intro { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin: 0 0 10px; }
+.deal-doc-row-ready { border-color: #FCD34D; }
+.ld-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 10px 12px; border-radius: 10px; font-size: 13px; margin-bottom: 10px; }
+.ld-summary span { color: var(--text-muted); flex-basis: 100%; line-height: 1.45; }
+.ld-summary-needed { background: #FEF2F2; color: #991B1B; }
+.ld-summary-checking { background: #FFFBEB; color: #92400E; }
+.ld-summary-verified { background: #ECFDF5; color: #065F46; }
+.ld-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 12px; white-space: nowrap; }
+.ld-badge-needed { background: #FEE2E2; color: #991B1B; }
+.ld-badge-checking { background: #FEF3C7; color: #92400E; }
+.ld-badge-verified { background: #D1FAE5; color: #065F46; }
+.my-listing-card .ld-badge { margin: 4px 0; }
+.admin-deals-switch { display: flex; justify-content: flex-end; padding: 0 16px 8px; }
+.admin-deals-switch .btn-sm.active { background: var(--primary, #1346B8); color: #fff; }
+.ld-queue-note { padding: 0 16px; }
+.ld-state { font-size: 12px; }
+.ld-state-verified { color: #065F46; }
+.ld-state-checking { color: #92400E; }
+.ld-state-needed { color: #991B1B; }
+@media (max-width: 600px) {
+  .admin-deals-switch { justify-content: flex-start; }
+  #sellDocs .deal-doc-actions .deal-btn { white-space: nowrap; }
+}
+
+/* The site's own confirmation dialog (dlAsk), replacing the browser's
+   confirm() popup. Centred on every screen size. */
+#dealAskModal { z-index: 3360; align-items: center; justify-content: center; padding: 16px; }
+.deal-ask-box {
+  width: 100%; max-width: 440px !important; max-height: calc(100vh - 32px) !important; overflow-y: auto;
+  border-radius: 18px !important; padding: 24px 22px 18px; text-align: left;
+}
+.deal-ask-icon {
+  width: 52px; height: 52px; border-radius: 50%; margin: 0 auto 10px;
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+  background: var(--accent-light, #EEF2FF); color: var(--accent, #1A56DB);
+}
+.deal-ask-warn .deal-ask-icon { background: #FEF3C7; color: #B45309; }
+.deal-ask-danger .deal-ask-icon { background: #FEE2E2; color: #DC2626; }
+.deal-ask-title { text-align: center; font-size: 19px; font-weight: 800; line-height: 1.3; margin: 0 0 12px; color: var(--text); }
+.deal-ask-body { font-size: 14.5px; line-height: 1.55; color: var(--text); }
+.deal-ask-body p { margin: 0 0 10px; }
+.deal-ask-amount {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  background: var(--bg, #F8FAFC); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;
+}
+.deal-ask-amount span { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
+.deal-ask-amount strong { font-size: 22px; font-weight: 800; }
+.deal-ask-sub { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+.deal-ask-steps { margin: 0 0 12px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.deal-ask-steps li { padding-left: 2px; }
+.deal-ask-note { font-size: 13px; color: var(--text-muted); background: #F8FAFC; border-radius: 10px; padding: 9px 11px; }
+.deal-ask-note i { margin-right: 4px; }
+.deal-ask-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+.deal-ask-actions .deal-btn { padding: 11px 18px; font-size: 15px; }
+@media (max-width: 480px) {
+  .deal-ask-box { padding: 20px 16px 16px; }
+  .deal-ask-actions .deal-btn { flex: 1; }
+}
+
+/* 21 Oct: lender "Documents to check" groups, and the checker's loan answer */
+.lender-group-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 14px; font-weight: 800; margin: 6px 16px 8px; }
+.lender-group-head small { font-weight: 500; font-size: 12px; color: var(--text-muted); }
+.lender-group-head + .admin-table-wrap { margin-bottom: 18px; }
+.ld-loan-answer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: #F8FAFC; font-size: 13px; }
+.ld-loan-answer.is-open { background: #FEF3C7; }
+.ld-loan-answer span { flex: 1 1 100%; font-weight: 700; }
+.ld-loan-answer .btn-sm { margin-top: 0; }
+
+/* Loan application sent: the confirmation in the loan form */
+.deal-loan-done { text-align: left; }
+.deal-loan-done-icon { width: 60px; height: 60px; border-radius: 50%; margin: 6px auto 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 30px; background: #D1FAE5; color: #059669; }
+.deal-loan-done h3 { text-align: center; font-size: 21px; font-weight: 800; margin: 0 0 8px; }
+.deal-loan-done-lead { text-align: center; font-size: 14.5px; line-height: 1.55; margin: 0 0 16px; }
+.deal-loan-done-card { background: var(--bg, #F8FAFC); border: 1px solid var(--border); border-radius: 12px; padding: 4px 14px; margin-bottom: 16px; }
+.deal-loan-done-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; font-size: 14px; }
+.deal-loan-done-row + .deal-loan-done-row { border-top: 1px solid var(--border); }
+.deal-loan-done-row span { color: var(--text-muted); }
+.deal-loan-done .deal-ask-steps { font-size: 14px; line-height: 1.5; }
+.deal-loan-done .deal-ask-note { margin-bottom: 16px; }
+
+/* Lender portal: where loan applications are emailed */
+.lender-docs-email { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 8px; font-size: 13px; }
+.lender-docs-email > span { display: inline-flex; align-items: center; gap: 6px; }
+.lender-docs-email .btn-sm { margin-top: 0; }
+.lender-docs-email label { flex-basis: 100%; font-weight: 700; font-size: 12.5px; }
+.lender-docs-email small { flex-basis: 100%; color: var(--text-muted); }
+.lender-docs-email-row { display: flex; gap: 8px; flex: 1 1 100%; flex-wrap: wrap; }
+.lender-docs-email-row input { flex: 1 1 240px; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+.lender-docs-email-missing { color: #B45309; }
+
+/* Lender portal: Deals / Loan applications tabs above the admin-style deals */
+.lender-tabs { border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 6px; }
+.lender-tabs .admin-filter-btn { font-weight: 700; }
+
+/* Loan form: the buyer chooses the lender; the rates are assumptions */
+.deal-loan-lender { margin-bottom: 14px; }
+.deal-loan-lender select.is-invalid { border-color: #DC2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12); }
+.deal-loan-lender-hint { display: block; font-size: 12px; color: var(--text-muted); line-height: 1.45; margin-top: 5px; }
+.deal-loan-lender-hint.is-error { color: #B91C1C; }
+.deal-loan-assume {
+  display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.5;
+  background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; border-radius: var(--radius-sm);
+  padding: 9px 11px; margin: 0 0 14px;
+}
+.deal-loan-assume i { margin-top: 3px; color: #D97706; }
+
+/* Lender portal: a lender user chooses their company once, then it is locked */
+.lender-firm { max-width: 480px; margin: 8px auto 24px; padding: 22px 20px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); }
+.lender-firm-icon { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-light); color: var(--accent); font-size: 19px; margin-bottom: 10px; }
+.lender-firm h3 { margin: 0 0 6px; font-size: 18px; }
+.lender-firm label { display: block; font-weight: 700; font-size: 12.5px; margin: 6px 0 4px; }
+.lender-firm select { width: 100%; padding: 10px 11px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: 14px; background: #fff; }
+.lender-firm-warn {
+  display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.5;
+  background: #FFFBEB; color: #92400E; border: 1px solid #FDE68A; border-radius: var(--radius-sm);
+  padding: 10px 12px; margin: 12px 0;
+}
+.lender-firm-warn i { margin-top: 3px; color: #D97706; }
+.lender-firm-help { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); margin-top: 16px; }
+.lender-firm-help .btn-sm, .lender-firm-note .btn-sm { margin-top: 0; }
+.lender-firm-lock { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--text-muted); background: var(--bg); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; }
+.lender-firm-lock i { color: var(--text-muted); font-size: 10px; }
+.lender-firm-note { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-muted); }
+.lender-firm-request { flex-basis: 100%; display: flex; flex-direction: column; gap: 6px; margin-top: 10px; font-size: 13px; }
+.lender-firm-request label { font-weight: 700; font-size: 12.5px; }
+.lender-firm-request textarea { width: 100%; border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 9px 11px; font-size: 13.5px; font-family: inherit; resize: vertical; }
+.lender-firm-request small { color: var(--text-muted); }
+.lender-firm-request .auth-error { margin: 0; }
+.lender-firm-request-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.lender-firm-request-actions .btn-sm { margin-top: 0; }
+@media (max-width: 600px) {
+  .lender-firm { margin: 4px 0 18px; padding: 18px 16px; }
+}
+
+/* Offers: DealLock (with EMI) or a normal offer */
+.deal-offer-type { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 3px 9px; margin: 4px 0 2px; }
+.deal-offer-type i { font-size: 10.5px; }
+.deal-offer-type.is-lock { background: #EEF3FF; color: #2E5CE0; border: 1px solid #C7D7FE; }
+.deal-offer-type.is-normal { background: #F3F4F6; color: #374151; border: 1px solid #E5E7EB; }
+.deal-offer-mode { border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 12px; transition: border-color .15s, background .15s; }
+.deal-offer-mode.is-lock { border-color: #C7D7FE; background: #F5F8FF; }
+.deal-offer-mode-row { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; margin: 0; }
+.deal-offer-mode-row input { width: 18px; height: 18px; margin-top: 2px; flex: 0 0 auto; accent-color: var(--accent); }
+.deal-offer-mode-row strong { display: block; font-size: 14px; }
+.deal-offer-mode-row small { display: block; font-size: 12.5px; color: var(--text-muted); line-height: 1.45; margin-top: 2px; font-weight: 500; }
+.deal-offer-mode-off { font-size: 12.5px; color: #92400E; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: var(--radius-sm); padding: 7px 9px; margin: 8px 0 0; line-height: 1.45; }
+
+/* Loan form: fixed rate range, and a stronger "estimates" notice */
+.deal-loan-rate-fixed { padding: 11px 12px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); font-size: 14px; font-weight: 700; color: var(--text); }
+.deal-loan-assume {
+  display: flex; gap: 12px; align-items: flex-start;
+  background: #FEF3C7; color: #78350F; border: 2px solid #F59E0B; border-left-width: 6px;
+  border-radius: var(--radius-sm); padding: 12px 14px; margin: 0 0 16px; font-size: 13.5px; line-height: 1.5;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.18);
+}
+.deal-loan-assume > i { font-size: 22px; color: #D97706; margin-top: 1px; flex: 0 0 auto; }
+.deal-loan-assume strong { display: block; font-size: 14.5px; font-weight: 800; color: #78350F; margin-bottom: 3px; }
+.deal-loan-assume span { display: block; }
+.admin-restricted-filter { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; color: var(--text-muted); cursor: pointer; }

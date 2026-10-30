@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+# Disallow private/admin/lender/chat/emi pages
+Disallow: /admin
+Disallow: /lender
+Disallow: /mychats
+Disallow: /mydeals
+Disallow: /profile
+Disallow: /mylistings
+Disallow: /myads
+Disallow: /emi-status
+Disallow: /api/
+
+Sitemap: https://dealbriz.com/sitemap.xml

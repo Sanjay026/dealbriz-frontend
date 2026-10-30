@@ -167,8 +167,12 @@
       <path d="M240 96l18-12h44l-18 12z" fill="#f4f5f8"/>`],
   };
 
+  // Categories now come from Admin -> Categories (app.js rebuilds the
+  // tiles). "phones" is drawn with the mobiles art; a new category with no
+  // art of its own gets the "others" box.
+  const ALIAS = { phones: 'mobiles' };
   const svgFor = (slug) => {
-    const a = ART[slug];
+    const a = ART[slug] || ART[ALIAS[slug]] || ART.others;
     if (!a) return '';
     const [, , w, h] = a[0].split(' ');
     return `<svg viewBox="${a[0]}" style="aspect-ratio:${w}/${h}" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">${a[1]}</svg>`;
@@ -177,7 +181,12 @@
   const root = document.querySelector('[data-dbz-cats]');
   if (!root) return;
   const stage = root.querySelector('.dbz-cats__stage');
-  const tiles = [...root.querySelectorAll('.dbz-tile')];
+  let tiles = [...root.querySelectorAll('.dbz-tile')];
+  const grid = root.querySelector('#homeCatGrid') || tiles[0]?.parentElement?.parentElement;
+  // Each tile's hand-drawn line icon, kept by slug so rebuilt tiles reuse it.
+  const ICONS = {};
+  tiles.forEach(t => { ICONS[t.dataset.slug] = t.querySelector('.dbz-tile__icon')?.innerHTML || ''; });
+  const iconFor = (slug) => ICONS[slug] || ICONS[ALIAS[slug]] || ICONS.others || '';
   const panel = root.querySelector('.dbz-panel');
   const nameEl = panel.querySelector('[data-panel-name]');
   const countRow = panel.querySelector('[data-panel-countrow]');
@@ -269,7 +278,7 @@
   }
 
   /* ---------- desktop: hover; keyboard: focus ---------- */
-  tiles.forEach((tile) => {
+  function bindTile(tile) {
     tile.setAttribute('aria-expanded', 'false');
     tile.addEventListener('mouseenter', () => {
       if (!canHover.matches || hoverLocked) return;
@@ -288,7 +297,8 @@
       e.preventDefault();
       open(tile);
     });
-  });
+  }
+  tiles.forEach(bindTile);
 
   stage.addEventListener('mouseenter', () => clearTimeout(closeTimer));
   stage.addEventListener('mouseleave', () => {
@@ -315,6 +325,51 @@
   // app.js fills data-count after fetching totals; keep an open panel in sync.
   window.dbzCats = {
     close,
+    /* list: [{slug, name, count}] in display order (Admin -> Categories).
+       Same categories as now: only names and counts are updated. Otherwise
+       the tiles are redrawn (built with DOM calls, so names can't inject
+       markup). */
+    rebuild(list) {
+      if (!grid || !Array.isArray(list) || !list.length) return;
+      const same = list.length === tiles.length && list.every((c, i) => tiles[i].dataset.slug === c.slug);
+      if (same) {
+        list.forEach((c, i) => {
+          const t = tiles[i];
+          t.dataset.name = c.name;
+          t.dataset.count = c.count == null ? '' : String(c.count);
+          t.setAttribute('aria-label', `Browse ${c.name}`);
+          const n = t.querySelector('.dbz-tile__name'); if (n) n.textContent = c.name;
+        });
+        this.refresh();
+        return;
+      }
+      close();
+      grid.textContent = '';
+      tiles = list.map((c, i) => {
+        const li = document.createElement('li');
+        const b = document.createElement('button');
+        b.className = `dbz-tile ${i % 2 ? 'dbz-tile--white' : 'dbz-tile--blue'}`;
+        b.type = 'button';
+        b.dataset.slug = c.slug;
+        b.dataset.name = c.name;
+        b.dataset.count = c.count == null ? '' : String(c.count);
+        b.setAttribute('aria-label', `Browse ${c.name}`);
+        b.setAttribute('aria-haspopup', 'dialog');
+        b.setAttribute('aria-expanded', 'false');
+        b.style.setProperty('--i', String(i));
+        const icon = document.createElement('span');
+        icon.className = 'dbz-tile__icon';
+        icon.innerHTML = iconFor(c.slug);     // our own SVG markup, captured above
+        const name = document.createElement('span');
+        name.className = 'dbz-tile__name';
+        name.textContent = c.name;
+        b.append(icon, name);
+        li.append(b);
+        grid.append(li);
+        return b;
+      });
+      tiles.forEach(bindTile);
+    },
     refresh() {
       if (!active) return;
       const n = getCount(active);

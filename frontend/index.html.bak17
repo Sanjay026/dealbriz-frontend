@@ -1,0 +1,2360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0A1628">
+<meta name="description" content="DealBriz is India's trusted marketplace to buy and sell used cars, bikes, phones, furniture, electronics & more locally. Safe, simple, and near you.">
+<meta name="keywords" content="buy sell used products, used cars near me, second hand bikes, sell old phone, used furniture chandigarh, dealbriz">
+<meta name="author" content="DealBriz">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://dealbriz.com/">
+<link rel="preconnect" href="https://www.googletagmanager.com">
+<!-- No icon was declared at all before this, so browsers fell back to their
+     default globe. Versioned because nginx caches svg/png for 30 days. -->
+<link rel="icon" type="image/png" href="/logo.png?v=20261027">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20261003b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>DealBriz – Buy & Sell Near You</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- ?v= is a cache buster. nginx serves these with a long max-age, so a
+     browser will happily keep an old style.css after a deploy and the page
+     renders with stale CSS while the HTML and JS are new. Bump this string
+     on any release that changes CSS or JS. -->
+<link rel="stylesheet" href="/style.css?v=20261022a">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="/home.css?v=20261023k">
+<link rel="stylesheet" href="/how-it-works.css?v=20261023e">
+<link rel="stylesheet" href="/lottie.css?v=20261026a">
+<link rel="stylesheet" href="/browse-categories.css?v=20261023a">
+<link rel="stylesheet" href="/deals.css?v=20261024a">
+
+<!-- SEO Meta & Schema -->
+<script src="/seo.js?v=20261024a"></script>
+
+<!-- Google tag (gtag.js). send_page_view is off because the app swaps pages
+     with history.pushState and never reloads — GA's one automatic view would
+     only ever see the first screen. analytics.js sends every view instead. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-M2WVWHBX5H"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-M2WVWHBX5H', { send_page_view: false });
+</script>
+</head>
+<body>
+
+<!-- ===== AUTH MODAL ===== -->
+<div id="authModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal()"><i class="fa fa-times"></i></button>
+    <div class="modal-tabs">
+      <button class="tab-btn active" id="loginTab" onclick="switchTab('login')">Login</button>
+      <button class="tab-btn" id="signupTab" onclick="switchTab('signup')">Sign Up</button>
+    </div>
+    <div id="loginForm" class="auth-form" data-enter-flow>
+      <h2>Welcome Back</h2>
+      <p class="auth-sub">Sign in to continue</p>
+      <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="off"></div>
+      <div class="form-group"><label>Password</label><div class="password-wrap"><input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••"><button type="button" class="pw-toggle" onclick="togglePassword('loginPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
+      <a href="#" class="forgot-link">Forgot password?</a>
+      <p id="loginError" class="auth-error hidden"></p>
+      <button class="btn-primary full-width" data-enter-submit onclick="handleLogin()">Sign In</button>
+    </div>
+    <div id="signupForm" class="auth-form hidden" data-enter-flow>
+      <h2>Create Account</h2>
+      <p class="auth-sub">Join DealBriz today</p>
+      <div class="form-row">
+        <div class="form-group"><label>First Name</label><input type="text" id="signupFirstName" placeholder="John" autocomplete="off"></div>
+        <div class="form-group"><label>Last Name</label><input type="text" id="signupLastName" placeholder="Doe" autocomplete="off"></div>
+      </div>
+      <div class="form-group"><label>Email</label><input type="email" id="signupEmail" placeholder="you@example.com" autocomplete="off"></div>
+      <div class="form-group"><label>Phone</label><input type="tel" id="signupPhone" inputmode="tel" maxlength="17" oninput="sanitisePhone(this)" placeholder="+91 99999 99999" autocomplete="off"></div>
+      <div class="form-group"><label>Pincode</label><input type="text" id="signupPincode" placeholder="e.g. 132001" maxlength="6" autocomplete="off"></div>
+      <div class="form-group"><label>Password</label><div class="password-wrap"><input type="password" id="signupPassword" autocomplete="new-password" placeholder="Min 8 characters"><button type="button" class="pw-toggle" onclick="togglePassword('signupPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
+      <div class="form-group"><label>Confirm Password</label><div class="password-wrap"><input type="password" id="signupConfirmPassword" autocomplete="new-password" placeholder="Re-enter password"><button type="button" class="pw-toggle" onclick="togglePassword('signupConfirmPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
+      <!-- Not a <label> wrapping the whole line: clicking a link inside a
+           label also activates the label, so opening the Terms would have
+           silently ticked the box too. The label covers the checkbox and the
+           words before the links only. -->
+      <div class="signup-terms">
+        <input type="checkbox" id="signupTerms">
+        <span><label for="signupTerms">I agree to the</label>
+          <a href="/terms" onclick="openLegalFromAuth('terms'); return false;">Terms of Service</a> and
+          <a href="/privacy" onclick="openLegalFromAuth('privacy'); return false;">Privacy Policy</a>.
+        </span>
+      </div>
+      <p id="signupError" class="auth-error hidden"></p>
+      <button class="btn-primary full-width" data-enter-submit onclick="handleSignup()">Create Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PRODUCT DETAIL MODAL ===== -->
+<div id="productModal" class="modal-overlay hidden">
+  <div class="modal-box product-modal-box">
+    <button class="modal-close" onclick="closeProductModal()"><i class="fa fa-times"></i></button>
+    <div id="productModalContent"></div>
+  </div>
+</div>
+
+<!-- ===== CHAT MODAL ===== -->
+<div id="chatModal" class="modal-overlay hidden">
+  <div class="modal-box chat-modal-box">
+    <div class="chat-modal-header">
+      <button class="modal-close-inline" onclick="closeChatModal()"><i class="fa fa-arrow-left"></i></button>
+      <div class="chat-seller-info">
+        <div class="chat-seller-avatar" id="chatSellerAvatar"></div>
+        <div class="chat-seller-text">
+          <!-- Name and the listing link share a row so the button sits on the
+               name's baseline rather than floating between the two lines. -->
+          <div class="chat-seller-row">
+            <div class="chat-seller-name" id="chatSellerName">Seller</div>
+            <button class="chat-info-btn" onclick="showChatPartyInfo()" title="About this person" aria-label="About this person">
+              <i class="fas fa-circle-info"></i>
+            </button>
+            <button class="chat-view-listing hidden" id="chatViewListing"
+                    onclick="openChatListing()" title="Open this listing">
+              <i class="fas fa-box-open"></i> View listing
+            </button>
+          </div>
+          <div class="chat-product-title" id="chatProductTitle"></div>
+        </div>
+      </div>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-notice"><i class="fas fa-shield-alt"></i> All chats are monitored for your safety. Never share OTPs or payment outside DealBriz.</div>
+    </div>
+    <div class="chat-input-area">
+      <!-- DealLock: deal status / Send offer for this conversation (deals.js).
+           Hidden until the server says there is something to show. -->
+      <div class="chat-deal-bar hidden" id="chatDealBar"></div>
+      <!-- Filled by renderChatQuickMsgs(): a seller answering a buyer needs
+           different openers from a buyer enquiring about an item. -->
+      <div class="chat-quick-msgs" id="chatQuickMsgs"></div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendMessage()" autocomplete="off">
+        <button class="chat-send-btn" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== IMAGE LIGHTBOX =====
+     Full-bleed view of a listing photo. The gallery thumbnail crops to fill
+     its box; this shows the whole frame, so a photo whose detail sits near
+     an edge is still readable. Registered on the modal stack so Back closes
+     it and returns to the listing rather than jumping to Home. -->
+<div id="imageLightbox" class="modal-overlay lightbox hidden">
+  <button class="lightbox-close" onclick="closeLightbox()" aria-label="Close image"><i class="fas fa-xmark"></i></button>
+  <button class="lightbox-nav lightbox-prev hidden" onclick="lightboxNav(-1)" aria-label="Previous image"><i class="fas fa-chevron-left"></i></button>
+  <img id="lightboxImg" src="" alt="">
+  <button class="lightbox-nav lightbox-next hidden" onclick="lightboxNav(1)" aria-label="Next image"><i class="fas fa-chevron-right"></i></button>
+  <div class="lightbox-count hidden" id="lightboxCount"></div>
+</div>
+
+<!-- ===== EMI MODAL ===== -->
+<div id="emiModal" class="modal-overlay hidden">
+  <div class="modal-box emi-modal-box">
+    <button class="modal-close" onclick="closeEmiModal()"><i class="fa fa-times"></i></button>
+    <div class="emi-header">
+      <div class="emi-icon"><i class="fas fa-hand-holding-usd"></i></div>
+      <h2>Apply for EMI</h2>
+      <p>Flexible financing for your purchase</p>
+    </div>
+    <div id="emiProductName" class="emi-product-label"></div>
+    <div class="emi-calculator">
+      <div class="emi-price-display">
+        <span class="emi-label">Product Price</span>
+        <span id="emiPrice" class="emi-amount">₹0</span>
+      </div>
+      <div class="form-group"><label>Down Payment (₹)</label><input type="number" id="downPayment" placeholder="e.g. 5000" oninput="calcEMI()" autocomplete="off"></div>
+      <div class="form-group"><label>Tenure</label>
+        <select id="emiTenure" onchange="calcEMI()">
+          <option value="3">3 Months</option><option value="6" selected>6 Months</option>
+          <option value="12">12 Months</option><option value="18">18 Months</option>
+          <option value="24">24 Months</option><option value="36">36 Months</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Interest Rate</label>
+        <select id="emiRate" onchange="calcEMI()">
+          <option value="12">12% – Standard</option><option value="10">10% – Good Credit</option>
+          <option value="8">8% – Excellent Credit</option><option value="15">15% – No Credit Check</option>
+        </select>
+      </div>
+      <div class="emi-result">
+        <div class="emi-result-item"><span>Loan Amount</span><strong id="loanAmt">₹0</strong></div>
+        <div class="emi-result-item"><span>Monthly EMI</span><strong id="monthlyEmi" class="highlight">₹0</strong></div>
+        <div class="emi-result-item"><span>Total Payable</span><strong id="totalPay">₹0</strong></div>
+        <div class="emi-result-item"><span>Total Interest</span><strong id="totalInt">₹0</strong></div>
+      </div>
+    </div>
+    <div class="form-group"><label>Full Name</label><input type="text" id="emiFullName" placeholder="As per Aadhaar" autocomplete="off"></div>
+    <div class="form-group"><label>Phone</label><input type="tel" id="emiPhone" inputmode="tel" maxlength="17" oninput="sanitisePhone(this)" placeholder="+91 99999 99999" autocomplete="off"></div>
+    <div class="form-group"><label>Monthly Income (₹)</label><input type="number" id="emiIncome" placeholder="e.g. 25000" autocomplete="off"></div>
+    <p id="emiFormMsg" class="auth-error hidden"></p>
+    <div class="emi-note"><i class="fas fa-info-circle"></i><span>Our loan partner pays the seller directly. You repay in monthly EMIs.</span></div>
+    <button class="btn-primary full-width" onclick="submitEMI()">Submit EMI Application</button>
+  </div>
+</div>
+
+<!-- ===== BRAND MARK (referenced by <use> in the navbar and footer) ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="dbBlueGrad" x1="68" y1="36" x2="68" y2="144" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB"/><stop offset="1" stop-color="#1A56DB"/>
+    </linearGradient>
+    <linearGradient id="dbOrangeGrad" x1="44" y1="58" x2="136" y2="122" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF7A1A"/><stop offset="1" stop-color="#F95A00"/>
+    </linearGradient>
+    <filter id="dbSoftShadow" x="32" y="52" width="116" height="84" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#0B1B3D" flood-opacity="0.16"/>
+    </filter>
+    <g id="dbBridgeMark" transform="translate(0 0)">
+      <!-- Blue vertical spine -->
+      <rect x="68" y="36" width="22" height="108" rx="11" fill="url(#dbBlueGrad)"/>
+      <!-- Orange interlocking loop -->
+      <g filter="url(#dbSoftShadow)">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M55 58C48.9249 58 44 62.9249 44 69C44 75.0751 48.9249 80 55 80H90C101.046 80 110 88.9543 110 100C110 111.046 101.046 120 90 120H55C48.9249 120 44 124.925 44 131C44 137.075 48.9249 142 55 142H90C113.196 142 132 123.196 132 100C132 76.804 113.196 58 90 58H55Z" fill="url(#dbOrangeGrad)"/>
+      </g>
+    </g>
+  </defs>
+</svg>
+
+<!-- ===== NAVBAR ===== -->
+<nav class="navbar">
+  <div class="nav-container">
+    <a href="#" class="nav-brand" onclick="showPage('home'); return false;">
+      <img class="brand-logo" src="logo-full.png" alt="DealBriz" height="38">
+    </a>
+    <div class="nav-desktop">
+      <button class="nav-loc" onclick="openLocationPicker()">
+        <i class="fas fa-location-dot"></i> <span data-area-label>Chandigarh</span> <i class="fas fa-chevron-down"></i>
+      </button>
+      <div class="nav-buy-search" id="navBuySearch">
+        <i class="fas fa-search"></i>
+        <input type="text" id="buySearchInput" placeholder="Try: bike under 60k above 2015" autocomplete="off"
+               oninput="onSearchInput('buySearchInput','buySuggest')"
+               onkeydown="handleSearchKeys(event,'buySearchInput','buySuggest',triggerBuySearch)">
+        <div id="buySuggest" class="search-suggest hidden"></div>
+        <button onclick="triggerBuySearch()" class="nav-buy-search-go">Go</button>
+      </div>
+    </div>
+    <!-- data-nav marks which page each link leads to, so markNavActive() can
+         highlight the current one without hardcoding link positions. -->
+    <div class="nav-desktop-links">
+      <a href="#" class="nav-cta-sell" data-nav="sell" onclick="startSell(); return false;"><i class="fas fa-plus"></i> Post Ad / Sell</a>
+      <a href="#" data-nav="buy" onclick="showPage('buy'); return false;">Explore Deals</a>
+      <a href="#" class="nav-live-map" onclick="showPage('buy'); setTimeout(()=>document.getElementById('buyMap')?.scrollIntoView({behavior:'smooth'}),300); return false;"><span class="nav-live-dot"></span> Live Map</a>
+      <a href="#" onclick="goHowItWorks(); return false;">Why DealBriz</a>
+    </div>
+    <div class="nav-actions">
+      <!-- Chat and notifications. Rendered for signed-out visitors too: the
+           click routes them through the login modal and then resumes, which
+           is a clearer path than hiding the controls and leaving a visitor
+           with no idea the features exist. The red dot is presence-only, not
+           a count - an exact number invites the user to reconcile it against
+           what they find, and a stale poll makes that reconciliation fail. -->
+      <button class="nav-icon-btn nav-badge-btn nav-chat-glow" id="navChatBtn" onclick="openChatsFromNav()"
+              aria-label="Chats" title="Chats">
+        <svg class="nav-chat-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M5 7a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-3l-4 4.5L9 19H8a3 3 0 0 1-3-3V7z" fill="url(#chatGrad)"/>
+          <circle cx="10" cy="11.5" r="1.3" fill="#fff"/>
+          <circle cx="14" cy="11.5" r="1.3" fill="#fff"/>
+          <circle cx="18" cy="11.5" r="1.3" fill="#fff"/>
+          <defs><linearGradient id="chatGrad" x1="5" y1="4" x2="23" y2="23" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#1A56DB"/><stop offset="1" stop-color="#1346B8"/>
+          </linearGradient></defs>
+        </svg>
+        <span class="nav-dot hidden" id="navChatDot"></span>
+      </button>
+      <button class="nav-icon-btn nav-badge-btn" id="navNotifBtn" onclick="toggleNotifPanel()"
+              aria-label="Notifications" title="Notifications">
+        <i class="fas fa-bell"></i>
+        <span class="nav-dot hidden" id="navNotifDot"></span>
+      </button>
+      <!-- A bare person icon reads as "my account" even to a visitor who has
+           none. The word makes the action obvious; the icon is kept for
+           narrow screens where the label would push the navbar to wrap. -->
+      <button class="nav-signin-btn" id="loginNavBtn" onclick="openModal()"><i class="fas fa-user"></i> <span>Sign in</span></button>
+      <div class="user-avatar hidden" id="userAvatar" onclick="toggleUserMenu()">
+        <img src="" alt="User" id="userAvatarImg">
+        <span class="staff-badge hidden" id="navStaffBadge" title="Staff account"><i class="fas fa-crown"></i></span>
+      </div>
+      <div class="user-menu hidden" id="userMenu">
+        <div class="user-menu-header">
+          <img src="" id="userMenuAvatar" alt="">
+          <div>
+            <strong id="userMenuName"></strong>
+            <small id="userMenuEmail"></small>
+            <div id="userMenuRoleBadges" class="role-badges"></div>
+          </div>
+        </div>
+        <hr>
+        <a href="#" onclick="showPage('profile'); return false;"><i class="fas fa-user-circle"></i> My Profile</a>
+        <a href="#" onclick="showPage('mylistings'); return false;"><i class="fas fa-list"></i> My Listings</a>
+        <a href="#" onclick="showPage('myads'); return false;"><i class="fas fa-heart"></i> Saved Items</a>
+        <a href="#" class="emi-feature" onclick="showPage('emi-status'); return false;"><i class="fas fa-file-invoice-dollar"></i> EMI Status</a>
+        <a href="#" onclick="showPage('mychats'); return false;"><i class="fas fa-comments"></i> My Chats</a>
+        <a href="#" onclick="showPage('mydeals'); return false;"><i class="fas fa-handshake"></i> My Deals</a>
+        <div id="userMenuAdminLink" class="hidden">
+          <hr>
+          <a href="#" onclick="openAdminPanel(); return false;" class="staff-link"><i class="fas fa-shield-alt"></i> Admin Panel</a>
+        </div>
+        <hr>
+        <a href="#" onclick="handleLogout(); return false;" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
+      </div>
+
+      <!-- Notifications dropdown. Anchored to .nav-actions (position:relative)
+           exactly like #userMenu, so it is positioned by CSS rather than by
+           the browser - the same reason the Brand and Year fields use a
+           custom .combo-menu instead of a native datalist. -->
+      <div class="notif-panel hidden" id="notifPanel">
+        <div class="notif-panel-head">
+          <strong>Notifications</strong>
+          <button type="button" id="notifMarkAllBtn" onclick="markAllNotificationsRead()">Mark all read</button>
+        </div>
+        <div class="notif-list" id="notifList"></div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== PAGES WRAPPER ===== -->
+
+<!-- HOME PAGE -->
+<div id="homePage" class="page">
+
+  <!-- HERO -->
+  <section class="hb-hero">
+    <div class="hb-wrap hb-hero-grid">
+      <div class="hb-hero-copy">
+        <div class="hb-badge"><i class="fas fa-star"></i> India's 1st Peer-to-Peer Marketplace with Instant EMI</div>
+        <h1>Great Deals<br><span class="hb-accent">Easy EMIs.</span></h1>
+        <p class="hb-lede">Buy smartphones, laptops, cars, and designer furniture directly from verified owners with zero-paperwork monthly installments.</p>
+
+        <div class="hb-hero-btns">
+          <button class="hb-btn hb-btn-primary" onclick="showPage('buy')">Browse Products <i class="fas fa-arrow-right"></i></button>
+          <button class="hb-btn hb-btn-amber" onclick="startSell()"><i class="fas fa-plus"></i> Sell Your Item</button>
+        </div>
+
+        <div class="hb-hero-search">
+          <button class="hb-hero-loc" onclick="openLocationPicker()">
+            <i class="fas fa-location-dot"></i> <span data-area-label>Chandigarh</span> <i class="fas fa-chevron-down"></i>
+          </button>
+          <input type="text" id="homeSearchInput" placeholder="Try: iphone 12 grey under 30000" autocomplete="off"
+                 oninput="onSearchInput('homeSearchInput','homeSuggest')"
+                 onkeydown="handleSearchKeys(event,'homeSearchInput','homeSuggest',homeSearch)">
+          <div id="homeSuggest" class="search-suggest hidden"></div>
+          <button class="hb-go" onclick="homeSearch()" aria-label="Search"><i class="fas fa-search"></i></button>
+        </div>
+
+        <div class="hb-stats">
+          <div class="hb-stat"><strong id="statListings">0</strong><span>Active Listings</span></div>
+          <div class="hb-stat-div"></div>
+          <div class="hb-stat amber emi-feature"><strong><i class="fas fa-bolt"></i></strong><span>EMI Available</span></div>
+          <div class="hb-stat-div"></div>
+          <div class="hb-stat"><strong>100%</strong><span>Secure Chat</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- The map is the hero's right-hand backdrop on desktop and a card
+         below the copy on narrow screens. Everything on it floats, so the
+         old card head/foot bars are gone. -->
+    <div class="hb-hero-map" id="hbHeroMap">
+      <div id="homeMap" class="hb-map-canvas">
+        <!-- Sits in the pane stack between tiles and markers (see home.css),
+             so the wash never dims a pin or its popup. -->
+        <div class="hb-map-fade" aria-hidden="true"></div>
+      </div>
+
+
+      <div class="hb-map-zoom">
+        <button type="button" onclick="homeMapZoom(1)" aria-label="Zoom in"><i class="fas fa-plus"></i></button>
+        <button type="button" onclick="homeMapZoom(-1)" aria-label="Zoom out"><i class="fas fa-minus"></i></button>
+        <span class="hb-map-zoom-sep"></span>
+        <button type="button" onclick="recenterHomeMap()" aria-label="Recenter on my area"><i class="fas fa-location-crosshairs"></i></button>
+      </div>
+
+      <div class="hb-map-status">
+        <span class="hb-map-dot"></span>
+        <span id="homeMapChipText">Loading listings…</span>
+        <button type="button" class="hb-map-browse" onclick="showPage('buy')">Browse all <i class="fas fa-arrow-right"></i></button>
+      </div>
+
+      <a class="hb-map-credit" href="https://www.openstreetmap.org/copyright"
+         target="_blank" rel="noopener noreferrer">&copy; OpenStreetMap contributors &middot; tiles: OSM France</a>
+
+      <div class="hb-map-fallback" id="homeMapFallback">
+        <i class="fas fa-map"></i>
+        <span>Loading map…</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- BROWSE CATEGORIES -->
+  <section class="hb-section hb-section--cats" id="browseCategories">
+    <div class="hb-wrap">
+      <div class="dbz-cats" data-dbz-cats aria-labelledby="dbz-cats-title">
+        <div class="dbz-cats__head hb-reveal">
+          <div>
+            <h2 class="dbz-cats__title" id="dbz-cats-title">Browse categories</h2>
+            <p class="dbz-cats__sub"><span class="t-hover">Hover a category to take a peek</span><span class="t-touch">Tap a category to take a peek</span></p>
+          </div>
+          <button class="dbz-cats__all" type="button" onclick="browseAllCategories()">View all</button>
+        </div>
+
+        <div class="dbz-cats__stage hb-reveal">
+          <ul class="dbz-cats__grid" id="homeCatGrid">
+        <li><button class="dbz-tile dbz-tile--blue" type="button" data-slug="cars" data-name="Cars" data-count="" aria-label="Browse Cars" aria-haspopup="dialog" style="--i:0"><span class="dbz-tile__icon"><svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="52" width="92" height="36" rx="10"/><path d="M28 52l12-20h40l12 20"/><circle cx="36" cy="88" r="8"/><circle cx="84" cy="88" r="8"/><path d="M44 42h10M64 42h4"/><rect x="18" y="58" width="14" height="6" rx="2"/><rect x="88" y="58" width="14" height="6" rx="2"/></svg></span><span class="dbz-tile__name">Cars</span></button></li>
+        <li><button class="dbz-tile dbz-tile--white" type="button" data-slug="bikes" data-name="Bikes" data-count="" aria-label="Browse Bikes" aria-haspopup="dialog" style="--i:1"><span class="dbz-tile__icon"><svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="30" cy="78" r="18"/><circle cx="90" cy="78" r="18"/><path d="M30 78l20-34h20l20 34"/><path d="M50 44l10 34"/><path d="M42 38h24"/><circle cx="42" cy="34" r="4"/></svg></span><span class="dbz-tile__name">Bikes</span></button></li>
+        <li><button class="dbz-tile dbz-tile--blue" type="button" data-slug="scooters" data-name="Scooters" data-count="" aria-label="Browse Scooters" aria-haspopup="dialog" style="--i:2"><span class="dbz-tile__icon"><svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="28" cy="84" r="14"/><circle cx="92" cy="84" r="14"/><path d="M42 84h10l8-30h20v10H68l-4 20h28"/><path d="M56 54h16"/><rect x="78" y="48" width="12" height="8" rx="3"/><path d="M34 50l10-10h14"/></svg></span><span class="dbz-tile__name">Scooters</span></button></li>
+        <li><button class="dbz-tile dbz-tile--white" type="button" data-slug="commercial" data-name="Commercial" data-count="" aria-label="Browse Commercial" aria-haspopup="dialog" style="--i:3"><span class="dbz-tile__icon"><svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="10" y="40" width="58" height="42" rx="6"/><path d="M68 56h26a6 6 0 016 6v20H68"/><circle cx="30" cy="88" r="8"/><circle cx="84" cy="88" r="8"/><path d="M38 88h38"/><rect x="16" y="48" width="16" height="10" rx="2"/><path d="M74 56l16 8"/></svg></span><span class="dbz-tile__name">Commercial</span></button></li>
+        <li><button class="dbz-tile dbz-tile--blue" type="button" data-slug="mobiles" data-name="Mobiles" data-count="" aria-label="Browse Mobiles" aria-haspopup="dialog" style="--i:4"><span class="dbz-tile__icon"><svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="30" y="14" width="60" height="92" rx="12"/><path d="M52 24h16"/><circle cx="60" cy="90" r="4"/><rect x="38" y="34" width="44" height="46" rx="4"/></svg></span><span class="dbz-tile__name">Mobiles</span></button></li>
+        <li><button class="dbz-tile dbz-tile--white" type="button" data-slug="laptops" data-name="Laptops" data-count="" aria-label="Browse Laptops" aria-haspopup="dialog" style="--i:5"><span class="dbz-tile__icon"><svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="20" y="24" width="80" height="54" rx="6"/><rect x="28" y="32" width="64" height="38" rx="2"/><path d="M10 78h100l-6 14H16z"/><path d="M48 85h24"/></svg></span><span class="dbz-tile__name">Laptops</span></button></li>
+        <li><button class="dbz-tile dbz-tile--blue" type="button" data-slug="electronics" data-name="TV & Audio" data-count="" aria-label="Browse TV and Audio" aria-haspopup="dialog" style="--i:6"><span class="dbz-tile__icon"><svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="30" width="92" height="56" rx="6"/><rect x="22" y="38" width="76" height="40" rx="2"/><path d="M48 86h24v8H48z"/><path d="M38 94h44"/><path d="M40 20l20 18M80 20L60 38"/></svg></span><span class="dbz-tile__name">TV & Audio</span></button></li>
+        <li><button class="dbz-tile dbz-tile--white" type="button" data-slug="appliances" data-name="Appliances" data-count="" aria-label="Browse Appliances" aria-haspopup="dialog" style="--i:7"><span class="dbz-tile__icon"><svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="24" y="14" width="72" height="92" rx="8"/><path d="M24 40h72"/><circle cx="60" cy="70" r="20"/><circle cx="60" cy="70" r="12"/><rect x="34" y="22" width="24" height="10" rx="4"/><circle cx="80" cy="27" r="5"/></svg></span><span class="dbz-tile__name">Appliances</span></button></li>
+        <li><button class="dbz-tile dbz-tile--blue" type="button" data-slug="furniture" data-name="Furniture" data-count="" aria-label="Browse Furniture" aria-haspopup="dialog" style="--i:8"><span class="dbz-tile__icon"><svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="24" y="34" width="72" height="30" rx="10"/><path d="M60 34V28"/><rect x="30" y="64" width="60" height="12" rx="4"/><rect x="14" y="44" width="14" height="32" rx="6"/><rect x="92" y="44" width="14" height="32" rx="6"/><path d="M34 76v14M86 76v14"/></svg></span><span class="dbz-tile__name">Furniture</span></button></li>
+        <li><button class="dbz-tile dbz-tile--white" type="button" data-slug="others" data-name="Others" data-count="" aria-label="Browse Others" aria-haspopup="dialog" style="--i:9"><span class="dbz-tile__icon"><svg viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="20" y="28" width="40" height="32" rx="6"/><circle cx="82" cy="44" r="18"/><rect x="20" y="68" width="80" height="28" rx="6"/><path d="M50 68v28"/><circle cx="40" cy="44" r="4"/></svg></span><span class="dbz-tile__name">Others</span></button></li>
+          </ul>
+
+          <div class="dbz-panel" role="dialog" aria-label="Category preview" aria-hidden="true" inert>
+            <div class="dbz-panel__content">
+              <span class="dbz-panel__eyebrow">Category</span>
+              <h3 class="dbz-panel__name" data-panel-name></h3>
+              <p class="dbz-panel__count" data-panel-countrow hidden><strong data-panel-count>0</strong> <span data-panel-countword>listings</span></p>
+              <button class="dbz-panel__cta" type="button" data-panel-cta>
+                <span data-panel-cta-label>Browse</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </button>
+              <span class="dbz-panel__hint">Move away to see all categories</span>
+            </div>
+            <div class="dbz-panel__art" data-panel-art></div>
+            <button class="dbz-panel__close" type="button" aria-label="Close and show all categories">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="hb-section hb-section--how" id="howItWorks">
+    <div class="hb-wrap">
+      <div class="dbz-how" data-dbz-how>
+        <div class="hb-head-center hb-reveal">
+          <h2>How DealBriz Works</h2>
+          <div class="dbz-how__toggle" role="group" aria-label="Show steps for">
+            <button type="button" data-flow="buy" aria-pressed="true">Buying</button>
+            <button type="button" data-flow="sell" aria-pressed="false">Selling</button>
+          </div>
+        </div>
+        <div class="dbz-how__track">
+          <svg class="dbz-how__road" aria-hidden="true" focusable="false"></svg>
+          <ol class="dbz-how__steps"></ol>
+          <div class="dbz-how__finish" aria-hidden="true"></div>
+        </div>
+        <div class="dbz-how__cta hb-reveal">
+          <button class="hb-btn hb-btn-primary" onclick="showPage('buy')">Start exploring <i class="fas fa-arrow-right"></i></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BUY & SELL WITH CONFIDENCE -->
+  <section class="hb-superpowers">
+    <div class="hb-wrap">
+      <div class="hb-sp-header hb-reveal">
+        <span class="hb-sp-badge">⚡ The DealBriz Difference</span>
+        <h2>Buy & Sell with Complete Confidence</h2>
+        <p>Why 50,000+ Indians switched from chaotic classifieds to DealBriz.</p>
+      </div>
+
+      <div class="hb-sp-grid">
+        <!-- Card 1: Buy on EMI -->
+        <div class="hb-sp-card hb-reveal">
+          <div class="hb-sp-illus">
+            <svg width="220" height="160" viewBox="0 0 220 160" fill="none">
+              <circle cx="110" cy="80" r="65" fill="#EFF6FF"/>
+              <rect x="75" y="20" width="70" height="120" rx="14" fill="#FFF" stroke="#CBD5E1" stroke-width="2.5"/>
+              <rect x="95" y="27" width="30" height="4" rx="2" fill="#E2E8F0"/>
+              <rect x="85" y="42" width="50" height="60" rx="6" fill="#F8FAFC"/>
+              <g style="filter:drop-shadow(0 12px 18px rgba(26,86,219,0.22))">
+                <rect x="35" y="55" width="115" height="72" rx="10" fill="url(#spCardGrad1)"/>
+                <rect x="47" y="70" width="18" height="14" rx="3" fill="#FBBF24" fill-opacity="0.9"/>
+                <line x1="47" y1="102" x2="85" y2="102" stroke="#FFF" stroke-width="3" stroke-linecap="round" stroke-opacity="0.8"/>
+                <line x1="47" y1="110" x2="105" y2="110" stroke="#FFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.5"/>
+                <circle cx="132" cy="74" r="7" fill="#FFF" fill-opacity="0.25"/>
+              </g>
+              <g style="filter:drop-shadow(0 8px 12px rgba(249,115,22,0.25))">
+                <rect x="110" y="25" width="95" height="30" rx="15" fill="#F97316"/>
+                <path d="M122 40L126 35H129L126 40H130L124 47L125 41H122Z" fill="#FFF"/>
+                <text x="133" y="44" font-family="'Plus Jakarta Sans',sans-serif" font-size="10.5" font-weight="800" fill="#FFF">90s Approval</text>
+              </g>
+              <circle cx="145" cy="115" r="14" fill="#10B981" stroke="#FFF" stroke-width="2.5"/>
+              <path d="M140 115L143 118L150 111" stroke="#FFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <defs><linearGradient id="spCardGrad1" x1="35" y1="55" x2="150" y2="127" gradientUnits="userSpaceOnUse"><stop stop-color="#1A56DB"/><stop offset="1" stop-color="#0B1B3D"/></linearGradient></defs>
+            </svg>
+          </div>
+          <div class="hb-sp-meta">
+            <span class="hb-sp-step hb-sp-step--orange">Step 01 · Instant Credit</span>
+            <span class="hb-sp-tag hb-sp-tag--green">Zero Paperwork</span>
+          </div>
+          <h3>Buy on Flexible EMI</h3>
+          <p>No need to spend entire monthly savings at once. Split any verified product into 3 to 12 flexible monthly installments.</p>
+          <div class="hb-sp-footer">
+            <span>Approval speed</span>
+            <span class="hb-sp-val">⚡ Under 2 minutes</span>
+          </div>
+        </div>
+
+        <!-- Card 2: Sellers Get 100% Upfront -->
+        <div class="hb-sp-card hb-reveal">
+          <div class="hb-sp-illus">
+            <svg width="220" height="160" viewBox="0 0 220 160" fill="none">
+              <circle cx="110" cy="80" r="65" fill="#ECFDF5"/>
+              <path d="M40 95C60 45 100 45 130 65" stroke="#10B981" stroke-width="2.5" stroke-dasharray="5 5"/>
+              <circle cx="40" cy="95" r="5" fill="#10B981"/>
+              <g style="filter:drop-shadow(0 14px 20px rgba(11,27,61,0.12))">
+                <rect x="75" y="55" width="105" height="74" rx="14" fill="#0B1B3D"/>
+                <rect x="87" y="40" width="70" height="30" rx="4" fill="#10B981"/>
+                <rect x="94" y="47" width="56" height="18" rx="3" fill="#34D399"/>
+                <circle cx="122" cy="56" r="4" fill="#059669"/>
+                <path d="M150 78H180V102H150C146 102 144 98 144 90C144 82 146 78 150 78Z" fill="#1E293B"/>
+                <circle cx="168" cy="90" r="4.5" fill="#FBBF24"/>
+              </g>
+              <g style="filter:drop-shadow(0 8px 14px rgba(16,185,129,0.25))">
+                <rect x="25" y="30" width="105" height="30" rx="15" fill="#10B981"/>
+                <text x="37" y="49" font-family="'Plus Jakarta Sans',sans-serif" font-size="10.5" font-weight="800" fill="#FFF">100% Day 1 Cash</text>
+              </g>
+            </svg>
+          </div>
+          <div class="hb-sp-meta">
+            <span class="hb-sp-step hb-sp-step--green">Step 02 · Zero Risk</span>
+            <span class="hb-sp-tag hb-sp-tag--blue">Instant UPI</span>
+          </div>
+          <h3>Sellers Get 100% Upfront</h3>
+          <p>Even if the buyer opts for monthly installments, DealBriz settles 100% of your listing price directly into your bank on Day 1.</p>
+          <div class="hb-sp-footer">
+            <span>Seller payment mode</span>
+            <span class="hb-sp-val">Bank / UPI Transfer</span>
+          </div>
+        </div>
+
+        <!-- Card 3: Escrow Protected Chat -->
+        <div class="hb-sp-card hb-reveal">
+          <div class="hb-sp-illus">
+            <svg width="220" height="160" viewBox="0 0 220 160" fill="none">
+              <circle cx="110" cy="80" r="65" fill="#EEF2FF"/>
+              <path d="M110 25L155 42V85C155 115 132 135 110 144C88 135 65 115 65 85V42L110 25Z" fill="#FFF" stroke="#CBD5E1" stroke-width="2.5"/>
+              <path d="M110 32L147 47V84C147 110 126 128 110 135C94 128 73 110 73 84V47L110 32Z" fill="#F8FAFC"/>
+              <g style="filter:drop-shadow(0 8px 12px rgba(15,23,42,0.08))">
+                <rect x="42" y="55" width="95" height="32" rx="16" fill="#FFF" stroke="#E2E8F0"/>
+                <circle cx="56" cy="71" r="5" fill="#1A56DB"/>
+                <line x1="68" y1="68" x2="118" y2="68" stroke="#64748B" stroke-width="2.5" stroke-linecap="round"/>
+                <line x1="68" y1="74" x2="98" y2="74" stroke="#CBD5E1" stroke-width="2" stroke-linecap="round"/>
+              </g>
+              <g style="filter:drop-shadow(0 10px 16px rgba(26,86,219,0.2))">
+                <rect x="90" y="90" width="95" height="32" rx="16" fill="#1A56DB"/>
+                <line x1="105" y1="103" x2="155" y2="103" stroke="#FFF" stroke-width="2.5" stroke-linecap="round"/>
+                <line x1="105" y1="109" x2="135" y2="109" stroke="#93C5FD" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="170" cy="106" r="4" fill="#10B981"/>
+              </g>
+              <g style="filter:drop-shadow(0 6px 10px rgba(11,27,61,0.1))">
+                <rect x="55" y="125" width="110" height="26" rx="13" fill="#0B1B3D"/>
+                <rect x="68" y="133" width="7" height="6" rx="1.5" fill="#FFF"/>
+                <path d="M70 133V131C70 130 71 129 72 129C73 129 74 130 74 131V133" stroke="#FFF" stroke-width="1.2"/>
+                <text x="80" y="142" font-family="'Plus Jakarta Sans',sans-serif" font-size="9.5" font-weight="700" fill="#FFF">Phone Hidden</text>
+              </g>
+            </svg>
+          </div>
+          <div class="hb-sp-meta">
+            <span class="hb-sp-step hb-sp-step--blue">Step 03 · Privacy</span>
+            <span class="hb-sp-tag hb-sp-tag--slate">No Spam Calls</span>
+          </div>
+          <h3>Escrow Protected Chat</h3>
+          <p>No unsolicited WhatsApp messages or fraud callers. Both buyer and seller are Aadhaar-verified, and negotiations stay encrypted.</p>
+          <div class="hb-sp-footer">
+            <span>Seller identity</span>
+            <span class="hb-sp-val hb-sp-val--green">✓ 100% Aadhaar Verified</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SELL BAND -->
+  <section class="hb-sell">
+    <div class="hb-wrap hb-sell-grid">
+      <div class="hb-reveal">
+        <h2>Turn Your Unused Things<span>Into Cash.</span></h2>
+        <p>List your product for free and reach thousands of buyers near you.</p>
+        <div class="hb-sell-btns">
+          <button class="hb-btn hb-btn-amber" onclick="startSell()"><i class="fas fa-plus"></i> List Your Item — It's Free</button>
+          <button class="hb-link-btn" onclick="goHowSellingWorks()">Learn How Selling Works <i class="fas fa-arrow-right"></i></button>
+        </div>
+      </div>
+
+      <div class="hb-sell-card hb-reveal">
+        <div class="hb-sell-card-head">
+          <strong><i class="fas fa-box-open"></i> Listing in 3 steps</strong>
+          <span class="hb-live">FREE</span>
+        </div>
+        <div class="hb-mini">
+          <div class="hb-mini-row">
+            <div class="hb-mini-n">1</div>
+            <div><strong>Add photos &amp; details</strong><span>Up to 5 photos, condition and price.</span></div>
+          </div>
+          <div class="hb-mini-row">
+            <div class="hb-mini-n">2</div>
+            <div><strong>Set your location</strong><span>Buyers nearby find you first.</span></div>
+          </div>
+          <div class="hb-mini-row">
+            <div class="hb-mini-n">3</div>
+            <div><strong>Publish and reply</strong><span>Answer buyers in secure in-app chat.</span></div>
+          </div>
+        </div>
+        <div class="hb-sell-card-foot"><i class="fas fa-circle-check"></i> No listing fee, no commission to post</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- FOOTER -->
+
+<!-- BUY PAGE -->
+<div id="buyPage" class="page hidden">
+  <div class="buy-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+  </div>
+
+  <!-- Category pills -->
+  <div class="cat-scroll">
+    <button class="cat-pill active" data-cat="all" onclick="setCat(this,'all')">All</button>
+    <button class="cat-pill" data-cat="cars" onclick="setCat(this,'cars')"><i class="fas fa-car-side"></i> Cars</button>
+    <button class="cat-pill" data-cat="phones" onclick="setCat(this,'phones')"><i class="fas fa-mobile-screen-button"></i> Phones</button>
+    <button class="cat-pill" data-cat="bikes" onclick="setCat(this,'bikes')"><i class="fas fa-motorcycle"></i> Bikes</button>
+    <button class="cat-pill" data-cat="electronics" onclick="setCat(this,'electronics')"><i class="fas fa-laptop"></i> Electronics</button>
+    <button class="cat-pill" data-cat="furniture" onclick="setCat(this,'furniture')"><i class="fas fa-couch"></i> Furniture</button>
+    <button class="cat-pill" data-cat="appliances" onclick="setCat(this,'appliances')"><i class="fas fa-blender"></i> Appliances</button>
+    <button class="cat-pill" data-cat="fashion" onclick="setCat(this,'fashion')"><i class="fas fa-shirt"></i> Fashion</button>
+    <button class="cat-pill" data-cat="property" onclick="setCat(this,'property')"><i class="fas fa-building"></i> Property</button>
+    <button class="cat-pill" data-cat="others" onclick="setCat(this,'others')"><i class="fas fa-box-open"></i> Others</button>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <button class="filter-toggle-btn" onclick="toggleFilters()"><i class="fas fa-sliders-h"></i> Filters</button>
+    <!-- Hidden until at least one filter is set, and hidden again the moment
+         they're cleared, so it never sits there offering to undo nothing. -->
+    <button class="filter-clear-btn hidden" id="clearFiltersBtn" onclick="clearBuyFilters()"><i class="fas fa-xmark"></i> Clear</button>
+    <div class="filter-chips" id="activeFilterChips"></div>
+    <select class="sort-select" id="buySortSelect" onchange="applyBuyFilters()">
+      <option value="recommended" selected>Recommended</option>
+      <option value="newest">Newest</option>
+      <option value="price_asc">Price ↑</option>
+      <option value="price_desc">Price ↓</option>
+    </select>
+  </div>
+
+  <!-- Expandable filter panel -->
+  <div class="filter-panel hidden" id="filterPanel">
+    <div class="filter-panel-inner">
+      <div class="filter-group">
+        <label>Price Range</label>
+        <div class="price-inputs">
+          <input type="number" id="priceMin" placeholder="Min ₹" min="0" oninput="clampNonNegative(this); applyBuyFilters()" autocomplete="off">
+          <span>–</span>
+          <input type="number" id="priceMax" placeholder="Max ₹" min="0" oninput="clampNonNegative(this); applyBuyFilters()" autocomplete="off">
+        </div>
+      </div>
+      <div class="filter-group">
+        <label>Pincode</label>
+        <input type="text" id="pincodeFilter" placeholder="e.g. 132001" maxlength="6" oninput="applyBuyFilters()" autocomplete="off">
+      </div>
+      <div class="filter-group emi-feature">
+        <label>EMI Available</label>
+        <label class="toggle-label"><input type="checkbox" id="emiFilter" onchange="applyBuyFilters()"> Show EMI eligible only</label>
+      </div>
+    </div>
+  </div>
+
+  <div id="searchUnderstood" class="search-understood hidden"></div>
+  <div class="buy-results-count" id="buyResultsCount"></div>
+  <div class="listings-grid" id="buyListingsGrid"></div>
+  <div id="buyNoResults" class="no-results hidden">
+    <i class="fas fa-search"></i>
+    <h3>No listings found</h3>
+    <p>Try adjusting your search or filters</p>
+    <button class="btn-primary" onclick="clearBuyFilters()">Clear Filters</button>
+  </div>
+  <div class="buy-loading hidden" id="buyLoading">
+    <i class="fas fa-spinner fa-spin"></i> Loading...
+  </div>
+  <div id="buyPager" class="admin-pager buy-pager"></div>
+</div>
+
+<!-- SELL PAGE -->
+<div id="sellPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2 id="sellPageTitle">Post Your Ad</h2>
+  </div>
+  <div class="sell-form-wrap" data-enter-flow>
+
+    <!-- Photo Upload -->
+    <div class="sell-section">
+      <h3><span class="sell-step">1</span> Add Photos</h3>
+      <p class="sell-hint">First photo will be the cover. Max 5 photos.</p>
+      <div class="photo-upload-area" id="photoUploadArea">
+        <input type="file" id="photoInput" accept="image/*" multiple onchange="handlePhotoUpload(event)" style="display:none">
+        <div class="photo-grid" id="photoGrid">
+          <div class="photo-add-btn" onclick="document.getElementById('photoInput').click()">
+            <i class="fas fa-camera"></i>
+            <span>Add Photos</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category -->
+    <div class="sell-section">
+      <h3><span class="sell-step">2</span> Category</h3>
+      <div class="sell-cat-grid" id="sellCatGrid">
+        <div class="sell-cat-item" data-cat="cars" onclick="selectSellCat(this,'cars')"><i class="fas fa-car"></i><span>Cars</span></div>
+        <div class="sell-cat-item" data-cat="phones" onclick="selectSellCat(this,'phones')"><i class="fas fa-mobile-alt"></i><span>Phones</span></div>
+        <div class="sell-cat-item" data-cat="bikes" onclick="selectSellCat(this,'bikes')"><i class="fas fa-motorcycle"></i><span>Bikes</span></div>
+        <div class="sell-cat-item" data-cat="electronics" onclick="selectSellCat(this,'electronics')"><i class="fas fa-laptop"></i><span>Electronics</span></div>
+        <div class="sell-cat-item" data-cat="furniture" onclick="selectSellCat(this,'furniture')"><i class="fas fa-couch"></i><span>Furniture</span></div>
+        <div class="sell-cat-item" data-cat="appliances" onclick="selectSellCat(this,'appliances')"><i class="fas fa-blender"></i><span>Appliances</span></div>
+        <div class="sell-cat-item" data-cat="fashion" onclick="selectSellCat(this,'fashion')"><i class="fas fa-tshirt"></i><span>Fashion</span></div>
+        <div class="sell-cat-item" data-cat="property" onclick="selectSellCat(this,'property')"><i class="fas fa-home"></i><span>Property</span></div>
+        <div class="sell-cat-item" data-cat="others" onclick="selectSellCat(this,'others')"><i class="fas fa-box-open"></i><span>Others</span></div>
+      </div>
+      <!-- Ticked by default. For a car or bike, ticking it asks for the RC
+           and insurance just below (deals.js sellDocsRender). -->
+      <label class="toggle-label emi-feature sell-emi-toggle"><input type="checkbox" id="sellEmiEligible" checked onchange="if (typeof sellDocsRender === 'function') sellDocsRender()">
+        <span><strong>Offer EMI option</strong><small>Buyers can pay in monthly instalments through DealBriz’s lending partners.</small></span></label>
+    </div>
+
+    <!-- DealLock: the vehicle's documents, for cars and bikes (deals.js
+         sellDocsRender). Checked by DealBriz or the lender, never public. -->
+    <div class="sell-section hidden" id="sellDocs">
+      <h3><span class="sell-step"><i class="fas fa-file-shield"></i></span> Vehicle documents</h3>
+      <div id="sellDocsBody"></div>
+    </div>
+
+    <!-- Details -->
+    <div class="sell-section">
+      <h3><span class="sell-step">3</span> Item Details</h3>
+      <div class="form-group"><label>Title <span class="req">*</span></label><input type="text" id="sellTitle" placeholder="e.g. Honda City 2021 – Single Owner" maxlength="80" autocomplete="off"></div>
+      <div class="form-group"><label>Description <span class="req">*</span></label>
+        <textarea id="sellDesc" rows="5" placeholder="Describe your item — condition, age, reason for selling, any defects. Be honest for faster sale."></textarea>
+      </div>
+      <div class="form-group"><label>Condition <span class="req">*</span></label>
+        <select id="sellCondition">
+          <option value="">Select condition</option>
+          <option value="like_new">Like New</option>
+          <option value="good">Good</option>
+          <option value="fair">Fair</option>
+          <option value="for_parts">For Parts / Not Working</option>
+        </select>
+      </div>
+      <!-- combo-group, not a <datalist>: the browser draws a datalist popup
+           wherever it likes — the black panel pinned to the side of the
+           window — and its position cannot be styled. This is ordinary DOM,
+           so it always opens directly under the input, and still accepts a
+           brand that is not on the list. -->
+      <div class="form-group combo-group">
+        <label id="sellBrandLabel">Brand / Make</label>
+        <input type="text" id="sellBrand" placeholder="e.g. Samsung, Honda, IKEA" autocomplete="off"
+               onfocus="openComboMenu('sellBrand')" onclick="openComboMenu('sellBrand')"
+               oninput="filterComboMenu('sellBrand')">
+        <div class="combo-menu hidden" id="sellBrand_menu"></div>
+      </div>
+      <!-- Was "Model / Year", which invited sellers to type 2017 here — so
+           the model name was lost and the real Year field below (a category
+           attribute, used by search filters like "2018 hyundai") stayed
+           empty. This field is the model name only; year has its own input
+           with a dropdown in the category details section. -->
+      <div class="form-group"><label id="sellModelLabel">Model</label><input type="text" id="sellModel" placeholder="e.g. Figo Aspire, Galaxy S21" autocomplete="off"></div>
+
+      <!-- Category-specific fields (year, km driven, colour...). Rendered
+           from the server's definitions so the form, the search parser and
+           the database never drift apart. -->
+      <div id="sellAttributes" class="sell-attrs"></div>
+    </div>
+
+    <!-- Price -->
+    <div class="sell-section">
+      <h3><span class="sell-step">4</span> Set Your Price</h3>
+      <div class="form-group"><label>Price (₹) <span class="req">*</span></label>
+        <div class="price-input-wrap">
+          <span class="price-prefix">₹</span>
+          <!-- min/step block the spinner and most typing; the paste and
+               keyboard-entry cases are caught in JS (see sellPrice guard). -->
+          <input type="number" id="sellPrice" placeholder="0" min="0" step="1" inputmode="numeric" autocomplete="off" oninput="clampNonNegative(this)">
+        </div>
+      </div>
+      <label class="toggle-label"><input type="checkbox" id="sellNegotiable"> Price is negotiable</label>
+      <label class="toggle-label" style="margin-top:10px"><input type="checkbox" id="sellFeature"> <i class="fas fa-bolt" style="color:var(--gold)"></i> Show at top for 7 days <small style="color:var(--text-light)">(free while in beta)</small></label>
+    </div>
+
+    <!-- Location -->
+    <div class="sell-section">
+      <h3><span class="sell-step">5</span> Location</h3>
+      <div class="form-group"><label>Pincode <span class="req">*</span></label>
+        <input type="text" id="sellPincode" placeholder="e.g. 132001" maxlength="6" oninput="lookupPincode(this.value)" autocomplete="off">
+        <small id="pincodeResult" class="pincode-result"></small>
+      </div>
+      <div class="form-group"><label>Exact Location / Landmark</label>
+        <input type="text" id="sellLandmark" placeholder="e.g. Near Sector 7 Market" autocomplete="off">
+      </div>
+    </div>
+
+    <!-- Contact -->
+    <div class="sell-section">
+      <h3><span class="sell-step">6</span> Contact Preference</h3>
+      <div class="form-group"><label>Show phone number to buyers?</label>
+        <select id="sellShowPhone">
+          <option value="yes">Yes, show my number</option>
+          <option value="chat_only">No, chat only</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="sellError" class="auth-error hidden"></div>
+    <button class="btn-primary full-width sell-submit-btn" data-enter-submit onclick="handleSellSubmit()">
+      <i class="fas fa-upload"></i> Save & Post Ad
+    </button>
+    <p class="sell-note">By posting, you agree to our <a href="#" data-foot="legal:terms" onclick="openLegalPage('terms'); return false;">Terms of Service</a>. Your ad will be visible immediately.</p>
+  </div>
+</div>
+
+<!-- MY LISTINGS PAGE -->
+<div id="mylistingsPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>My Listings</h2>
+  </div>
+  <div id="myListingsContent" class="page-content"></div>
+</div>
+
+<!-- MY CHATS PAGE -->
+<div id="mychatsPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>My Chats</h2>
+  </div>
+  <div id="myChatsContent" class="page-content"></div>
+</div>
+
+<!-- MY DEALS PAGE (DealLock, deals.js) -->
+<div id="mydealsPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>My Deals</h2>
+  </div>
+  <div class="deal-tabs">
+    <button class="deal-tab is-active" data-tab="live" onclick="setMyDealsTab('live')">Active</button>
+    <button class="deal-tab" data-tab="closed" onclick="setMyDealsTab('closed')">Past</button>
+  </div>
+  <div id="myDealsContent" class="page-content"></div>
+</div>
+
+<!-- SAVED PAGE -->
+<div id="myadsPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>Saved Items</h2>
+  </div>
+  <div id="savedContent" class="page-content"></div>
+</div>
+
+<!-- EMI STATUS PAGE -->
+<div id="emi-statusPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>EMI Applications</h2>
+    <span id="emiAppCount" class="header-count"></span>
+  </div>
+  <div id="emiAppsList" class="page-content"></div>
+  <div id="noEmiApps" class="empty-state hidden">
+    <i class="fas fa-file-invoice-dollar"></i>
+    <h3>No EMI applications yet</h3>
+    <p>Apply for EMI when viewing a product</p>
+  </div>
+</div>
+
+<!-- PROFILE PAGE -->
+<div id="profilePage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>My Profile</h2>
+  </div>
+  <div class="profile-wrap">
+    <div class="profile-avatar-section">
+      <div class="profile-avatar-wrap">
+        <img id="profilePageAvatar" src="" alt="Profile picture">
+        <button type="button" class="avatar-edit-btn" onclick="toggleAvatarMenu(event)" aria-label="Change profile picture"><i class="fas fa-camera"></i></button>
+
+        <!-- Two inputs, not one. capture="user" asks the phone for its camera
+             directly; without it the picker only offers the gallery. On
+             desktop capture is ignored and both behave the same. -->
+        <input type="file" id="avatarInput" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="handleAvatarPicked(event)">
+        <input type="file" id="avatarCameraInput" accept="image/*" capture="user" style="display:none" onchange="handleAvatarPicked(event)">
+
+        <div class="avatar-menu hidden" id="avatarMenu">
+          <button type="button" onclick="pickAvatar('camera')"><i class="fas fa-camera"></i> Take a photo</button>
+          <button type="button" onclick="pickAvatar('file')"><i class="fas fa-image"></i> Choose from device</button>
+          <button type="button" class="avatar-menu-danger hidden" id="avatarRemoveBtn" onclick="removeAvatar()"><i class="fas fa-trash"></i> Remove picture</button>
+        </div>
+      </div>
+      <div id="profileSidebarName" class="profile-name"></div>
+      <div id="profileSidebarEmail" class="profile-email-sm"></div>
+      <div id="profileRoleBadges" class="role-badges" style="justify-content:center;margin-top:8px"></div>
+    </div>
+    <div class="profile-nav">
+      <button class="profile-nav-btn active" onclick="switchProfileTab('details')"><i class="fas fa-user"></i> Personal Info</button>
+      <button class="profile-nav-btn" onclick="switchProfileTab('security')"><i class="fas fa-lock"></i> Password</button>
+      <button class="profile-nav-btn" onclick="switchProfileTab('stats')"><i class="fas fa-chart-bar"></i> Stats</button>
+    </div>
+    <div id="profileTab-details" class="profile-tab profile-card" data-enter-flow>
+      <div class="form-row">
+        <div class="form-group"><label>First Name</label><input type="text" id="profileFirstName" autocomplete="off"></div>
+        <div class="form-group"><label>Last Name</label><input type="text" id="profileLastName" autocomplete="off"></div>
+      </div>
+      <div class="form-group"><label>Email</label><input type="email" id="profileEmail" disabled autocomplete="off"></div>
+      <div class="form-group"><label>Phone</label><input type="tel" id="profilePhone" inputmode="tel" maxlength="17" oninput="sanitisePhone(this)" autocomplete="off"></div>
+      <div class="form-group"><label>Pincode</label><input type="text" id="profilePincode" maxlength="6" autocomplete="off"></div>
+      <p id="profileDetailsMsg" class="profile-msg hidden"></p>
+      <button class="btn-primary" data-enter-submit onclick="saveProfileDetails()">Save Changes</button>
+    </div>
+    <div id="profileTab-security" class="profile-tab profile-card hidden" data-enter-flow>
+      <div class="form-group"><label>Current Password</label><div class="password-wrap"><input type="password" id="currentPassword" autocomplete="current-password"><button type="button" class="pw-toggle" onclick="togglePassword('currentPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
+      <div class="form-group"><label>New Password</label><div class="password-wrap"><input type="password" id="newPassword" autocomplete="new-password"><button type="button" class="pw-toggle" onclick="togglePassword('newPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
+      <div class="form-group"><label>Confirm New Password</label><div class="password-wrap"><input type="password" id="confirmNewPassword" autocomplete="new-password"><button type="button" class="pw-toggle" onclick="togglePassword('confirmNewPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
+      <p id="profileSecurityMsg" class="profile-msg hidden"></p>
+      <button class="btn-primary" onclick="changePassword()">Update Password</button>
+    </div>
+    <div id="profileTab-stats" class="profile-tab profile-card hidden">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-card-icon" style="background:#E0F2FE;color:#0EA5E9"><i class="fas fa-list"></i></div><div><strong id="statListingsCount">0</strong><span>Listings</span></div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#FCE7F3;color:#DB2777"><i class="fas fa-heart"></i></div><div><strong id="statSavedCount">0</strong><span>Saved</span></div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#D1FAE5;color:#10B981"><i class="fas fa-comments"></i></div><div><strong id="statChatsCount">0</strong><span>Chats</span></div></div>
+        <div class="stat-card"><div class="stat-card-icon" style="background:#FEF3C7;color:#F59E0B"><i class="fas fa-file-invoice-dollar"></i></div><div><strong id="statEmiCount">0</strong><span>EMI Apps</span></div></div>
+      </div>
+      <div class="member-since">Member since <span id="statMemberSince">—</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN PAGE -->
+<!-- ===== HELP CENTRE (FAQs) ===== -->
+<div id="helpPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>Help Centre</h2>
+  </div>
+  <div class="page-content info-page">
+    <div class="info-hero">
+      <h1>How can we help?</h1>
+      <p>Search our answers, or get in touch if you can't find what you need.</p>
+      <div class="info-search">
+        <i class="fas fa-search"></i>
+        <input type="text" id="faqSearch" placeholder="Search help topics..." oninput="renderFaqList()" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="faq-cats" id="faqCategories"></div>
+    <div id="faqList" class="faq-list"></div>
+
+    <div class="info-cta-grid">
+      <button class="info-cta" onclick="showPage('contact')">
+        <i class="fas fa-envelope"></i>
+        <strong>Contact Us</strong>
+        <span>Send us a message and we'll reply by email</span>
+      </button>
+      <button class="info-cta" onclick="showPage('reportProblem')">
+        <i class="fas fa-triangle-exclamation"></i>
+        <strong>Report a Problem</strong>
+        <span>Something broken or unsafe? Tell our team</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CONTACT US ===== -->
+<div id="contactPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>Contact Us</h2>
+  </div>
+  <div class="page-content info-page">
+    <div class="info-hero">
+      <h1>Get in touch</h1>
+      <p>We read every message. Most replies go out within two working days.</p>
+    </div>
+
+    <div class="info-contact-grid">
+      <div class="info-contact-card">
+        <i class="fas fa-envelope"></i>
+        <strong>Email</strong>
+        <span>support@dealbriz.in</span>
+      </div>
+      <div class="info-contact-card">
+        <i class="fas fa-location-dot"></i>
+        <strong>Serving</strong>
+        <span>Himachal Pradesh, Chandigarh tricity &amp; more</span>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <h3>Send us a message</h3>
+      <div id="contactFormWrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== REPORT A PROBLEM ===== -->
+<div id="reportProblemPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>Report a Problem</h2>
+  </div>
+  <div class="page-content info-page">
+    <div class="info-hero">
+      <h1>Report a problem</h1>
+      <p>Tell us what went wrong and our team will look into it.</p>
+    </div>
+
+    <div class="info-note">
+      <i class="fas fa-circle-info"></i>
+      <div>
+        Reporting a <strong>specific seller</strong>? Open their listing and use the
+        <strong>Report</strong> button there instead — that attaches the report to their account.
+      </div>
+    </div>
+
+    <div class="info-card">
+      <div id="problemFormWrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DOCUMENT PAGE — About, Safety, Cookies, Terms, Privacy =====
+     One page renders every editable content document; the tab strip only
+     appears for the legal pair, which genuinely belong side by side. -->
+<div id="legalPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2 id="legalPageHeading">Legal</h2>
+  </div>
+  <div class="page-content info-page">
+    <div class="legal-tabs" id="legalTabs">
+      <button id="legalTabTerms" class="legal-tab" onclick="openLegalPage('terms')">Terms of Service</button>
+      <button id="legalTabPrivacy" class="legal-tab" onclick="openLegalPage('privacy')">Privacy Policy</button>
+      <button id="legalTabCookies" class="legal-tab" onclick="openLegalPage('cookies')">Cookie Policy</button>
+    </div>
+    <div class="info-card">
+      <p id="legalUpdated" class="legal-updated"></p>
+      <div id="legalContent" class="terms-rendered"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== EMI PARTNERS ===== -->
+<div id="partnersPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>EMI Partners</h2>
+  </div>
+  <div class="page-content info-page">
+    <div class="info-hero">
+      <h1>Our financing partners</h1>
+      <p>These lenders fund EMI purchases on DealBriz. Rates and limits vary by partner and by your eligibility.</p>
+    </div>
+    <div id="partnersList"></div>
+    <div class="info-note">
+      <i class="fas fa-circle-info"></i>
+      <div>Every EMI application is reviewed by our team before a partner funds it. Approval and final terms are decided by the lender.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== BLOG ===== -->
+<div id="blogPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>Blog</h2>
+  </div>
+  <div class="page-content info-page">
+    <div class="info-hero">
+      <h1>From the team</h1>
+      <p>Updates, guides and thinking behind DealBriz.</p>
+    </div>
+    <div id="blogList"></div>
+  </div>
+</div>
+
+<!-- ===== BLOG POST ===== -->
+<div id="blogPostPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="showPage('blog')"><i class="fas fa-arrow-left"></i></button>
+    <h2>Blog</h2>
+  </div>
+  <div class="page-content info-page">
+    <div id="blogPostContent"></div>
+  </div>
+</div>
+
+<div id="adminPage" class="page hidden">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fas fa-arrow-left"></i></button>
+    <h2>Admin Panel</h2>
+  </div>
+  <div id="adminLoginBox" class="admin-login-wrap">
+    <div class="admin-login-card">
+      <div class="emi-icon"><i class="fas fa-user-shield"></i></div>
+      <h2>Admin Access</h2>
+      <p style="color:var(--text-muted);font-size:14px;margin-bottom:20px;text-align:center">Restricted to DealBriz staff only</p>
+      <div class="form-group"><label>Admin Email</label><input type="email" id="adminEmail" autocomplete="username"></div>
+      <div class="form-group"><label>Password</label><div class="password-wrap"><input type="password" id="adminPassword" autocomplete="current-password"><button type="button" class="pw-toggle" onclick="togglePassword('adminPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
+      <p id="adminLoginError" class="auth-error hidden"></p>
+      <button class="btn-primary full-width" onclick="handleAdminLogin()">Sign In as Admin</button>
+    </div>
+  </div>
+  <div id="adminDashboard" class="hidden">
+    <div class="admin-shell">
+
+      <!-- SIDEBAR -->
+      <aside class="admin-sidebar" id="adminSidebar">
+        <div class="admin-sidebar-brand">
+          <i class="fas fa-bridge"></i>
+          <span>DealBriz</span>
+        </div>
+
+        <div class="admin-sidebar-user">
+          <div class="admin-sidebar-avatar" id="adminSidebarAvatar">A</div>
+          <div>
+            <div class="admin-sidebar-name" id="adminSidebarName">Admin</div>
+            <div class="admin-sidebar-role" id="adminSidebarRole">Staff</div>
+          </div>
+        </div>
+
+        <nav class="admin-nav">
+          <div class="admin-nav-heading">Overview</div>
+          <button class="admin-nav-item active" data-section="dashboard" onclick="adminSwitchSection('dashboard')">
+            <i class="fas fa-chart-column"></i> <span>Dashboard</span>
+          </button>
+
+          <div class="admin-nav-heading">Operations</div>
+          <button class="admin-nav-item" data-section="emi" onclick="adminSwitchSection('emi')">
+            <i class="fas fa-file-invoice-dollar"></i> <span>EMI Applications</span>
+          </button>
+          <button class="admin-nav-item" data-section="deals" onclick="adminSwitchSection('deals')">
+            <i class="fas fa-handshake"></i> <span>Deals</span>
+          </button>
+          <button class="admin-nav-item" data-section="lender" onclick="adminSwitchSection('lender')">
+            <i class="fas fa-building-columns"></i> <span>Lender portal</span>
+          </button>
+          <button class="admin-nav-item" data-section="purchases" onclick="adminSwitchSection('purchases')">
+            <i class="fas fa-receipt"></i> <span>Purchases</span>
+          </button>
+          <button class="admin-nav-item" data-section="financers" onclick="adminSwitchSection('financers')">
+            <i class="fas fa-hand-holding-usd"></i> <span>Financers</span>
+          </button>
+
+          <div class="admin-nav-heading">Marketplace</div>
+          <button class="admin-nav-item" data-section="products" onclick="adminSwitchSection('products')">
+            <i class="fas fa-box"></i> <span>Products</span>
+          </button>
+          <button class="admin-nav-item" data-section="users" onclick="adminSwitchSection('users')">
+            <i class="fas fa-users"></i> <span>Users</span>
+          </button>
+          <button class="admin-nav-item" data-section="reports" onclick="adminSwitchSection('reports')">
+            <i class="fas fa-flag"></i> <span>Reports</span>
+            <span id="adminReportsBadge" class="reports-badge hidden">0</span>
+          </button>
+
+          <div class="admin-nav-heading">Settings</div>
+          <button class="admin-nav-item" data-section="emiareas" onclick="adminSwitchSection('emiareas')">
+            <i class="fas fa-map-location-dot"></i> <span>EMI Coverage</span>
+          </button>
+          <button class="admin-nav-item" data-section="roles" onclick="adminSwitchSection('roles')">
+            <i class="fas fa-user-lock"></i> <span>Roles &amp; Access</span>
+          </button>
+          <button class="admin-nav-item" data-section="logs" onclick="adminSwitchSection('logs')">
+            <i class="fas fa-terminal"></i> <span>Logs</span>
+          </button>
+          <button class="admin-nav-item" data-section="settings" onclick="adminSwitchSection('settings')">
+            <i class="fas fa-toggle-on"></i> <span>Site Settings</span>
+          </button>
+          <button class="admin-nav-item" data-section="chatbot" onclick="adminSwitchSection('chatbot')">
+            <i class="fas fa-robot"></i> <span>Chatbot</span>
+          </button>
+          <button class="admin-nav-item" data-section="faqs" onclick="adminSwitchSection('faqs')">
+            <i class="fas fa-circle-question"></i> <span>FAQs</span>
+          </button>
+          <button class="admin-nav-item" data-section="blog" onclick="adminSwitchSection('blog')">
+            <i class="fas fa-feather"></i> <span>Blog</span>
+          </button>
+          <button class="admin-nav-item" data-section="terms" onclick="adminSwitchSection('terms')">
+            <i class="fas fa-file-lines"></i> <span>Content Pages</span>
+          </button>
+        </nav>
+      </aside>
+
+      <div class="admin-sidebar-scrim" id="adminSidebarScrim" onclick="adminToggleSidebar(false)"></div>
+
+      <!-- MAIN COLUMN -->
+      <div class="admin-main">
+        <header class="admin-topbar">
+          <button class="admin-topbar-toggle" onclick="adminToggleSidebar()" aria-label="Toggle menu"><i class="fas fa-bars"></i></button>
+          <button class="admin-topbar-icon" onclick="goBack()" aria-label="Back"><i class="fas fa-arrow-left"></i></button>
+          <a href="#" class="admin-topbar-link" onclick="showPage('home'); return false;">View site</a>
+          <div class="admin-topbar-right">
+            <button id="adminRefreshBtn" class="admin-refresh-btn" onclick="adminRefresh()" title="Load this section again" aria-label="Refresh this section">
+              <i class="fas fa-rotate-right"></i><span>Refresh</span>
+            </button>
+            <button class="admin-topbar-icon" onclick="adminSwitchSection('reports')" aria-label="Reports">
+              <i class="fas fa-flag"></i>
+              <span id="adminTopbarReportsDot" class="admin-topbar-dot hidden"></span>
+            </button>
+            <button class="admin-logout-btn" onclick="adminLogout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+          </div>
+        </header>
+
+        <div class="admin-content">
+          <div class="admin-page-head">
+            <h1 id="adminPageTitle">Dashboard</h1>
+            <div class="admin-breadcrumb">
+              <a href="#" onclick="showPage('home'); return false;">Home</a>
+              <span>/</span>
+              <span id="adminBreadcrumbCurrent">Dashboard</span>
+            </div>
+          </div>
+
+          <div class="admin-stats-grid">
+            <button class="stat-card sc-blue" onclick="adminSwitchSection('emi')">
+              <strong id="adminStatTotal">0</strong>
+              <span>Total EMI Apps</span>
+              <i class="fas fa-list stat-card-bg"></i>
+              <span class="stat-card-more">More info <i class="fas fa-circle-arrow-right"></i></span>
+            </button>
+            <button class="stat-card sc-amber" onclick="adminFilterStatusFromCard('pending')">
+              <strong id="adminStatPending">0</strong>
+              <span>Pending</span>
+              <i class="fas fa-hourglass-half stat-card-bg"></i>
+              <span class="stat-card-more">More info <i class="fas fa-circle-arrow-right"></i></span>
+            </button>
+            <button class="stat-card sc-green" onclick="adminFilterStatusFromCard('approved')">
+              <strong id="adminStatApproved">0</strong>
+              <span>Approved</span>
+              <i class="fas fa-check-circle stat-card-bg"></i>
+              <span class="stat-card-more">More info <i class="fas fa-circle-arrow-right"></i></span>
+            </button>
+            <button class="stat-card sc-red" onclick="adminFilterStatusFromCard('rejected')">
+              <strong id="adminStatRejected">0</strong>
+              <span>Rejected</span>
+              <i class="fas fa-times-circle stat-card-bg"></i>
+              <span class="stat-card-more">More info <i class="fas fa-circle-arrow-right"></i></span>
+            </button>
+            <button class="stat-card sc-purple" onclick="adminSwitchSection('emi')">
+              <strong id="adminStatLoanValue">₹0</strong>
+              <span>Active Loan Value</span>
+              <i class="fas fa-coins stat-card-bg"></i>
+              <span class="stat-card-more">More info <i class="fas fa-circle-arrow-right"></i></span>
+            </button>
+          </div>
+
+    <!-- DASHBOARD SECTION -->
+    <div id="adminSection-dashboard" class="admin-section">
+      <div class="admin-overview-grid">
+        <button class="admin-overview-card" onclick="adminSwitchSection('users')">
+          <div class="admin-overview-icon" style="background:#EFF6FF;color:#1A56DB"><i class="fas fa-users"></i></div>
+          <div>
+            <strong id="adminStatUsers">0</strong>
+            <span>Total Users</span>
+          </div>
+        </button>
+        <button class="admin-overview-card" onclick="adminSwitchSection('products')">
+          <div class="admin-overview-icon" style="background:#ECFDF5;color:#10B981"><i class="fas fa-box"></i></div>
+          <div>
+            <strong id="adminStatProducts">0</strong>
+            <span>Total Listings</span>
+          </div>
+        </button>
+        <button class="admin-overview-card" onclick="adminSwitchSection('purchases')">
+          <div class="admin-overview-icon" style="background:#FEF6E5;color:#D97706"><i class="fas fa-receipt"></i></div>
+          <div>
+            <strong id="adminStatPurchases">0</strong>
+            <span>Total Purchases</span>
+          </div>
+        </button>
+        <button class="admin-overview-card" onclick="adminSwitchSection('purchases')">
+          <div class="admin-overview-icon" style="background:#F5F3FF;color:#7C3AED"><i class="fas fa-indian-rupee-sign"></i></div>
+          <div>
+            <strong id="adminStatRevenue">₹0</strong>
+            <span>Completed Sales Value</span>
+          </div>
+        </button>
+        <button class="admin-overview-card" onclick="adminSwitchSection('financers')">
+          <div class="admin-overview-icon" style="background:#ECFEFF;color:#0891B2"><i class="fas fa-hand-holding-usd"></i></div>
+          <div>
+            <strong id="adminStatFinancers">0</strong>
+            <span>Financing Partners</span>
+          </div>
+        </button>
+        <button class="admin-overview-card" onclick="adminSwitchSection('reports')">
+          <div class="admin-overview-icon" style="background:#FEF2F2;color:#DC2626"><i class="fas fa-flag"></i></div>
+          <div>
+            <strong id="adminStatOpenReports">0</strong>
+            <span>Open Reports</span>
+          </div>
+        </button>
+      </div>
+
+      <div class="admin-dashboard-grid">
+        <div class="admin-chart-card">
+          <div class="admin-chart-head">
+            <h3><i class="fas fa-location-dot"></i> EMI Applications by Place</h3>
+            <span class="admin-chart-sub">Grouped by district, from the linked listing's location</span>
+          </div>
+          <div class="admin-chart-canvas-wrap"><canvas id="chartEmiByPlace"></canvas></div>
+          <div id="chartEmiByPlaceEmpty" class="admin-chart-empty hidden">No EMI applications yet.</div>
+        </div>
+
+        <div class="admin-chart-card">
+          <div class="admin-chart-head">
+            <h3><i class="fas fa-hand-holding-usd"></i> EMI Applications by Financer</h3>
+            <span class="admin-chart-sub">Attributed when staff review an application</span>
+          </div>
+          <div class="admin-chart-canvas-wrap"><canvas id="chartEmiByFinancer"></canvas></div>
+          <div id="chartEmiByFinancerEmpty" class="admin-chart-empty hidden">No EMI applications yet.</div>
+        </div>
+
+        <div class="admin-chart-card admin-chart-card-wide">
+          <div class="admin-chart-head">
+            <h3><i class="fas fa-chart-line"></i> Sales by Month</h3>
+            <span class="admin-chart-sub">Completed sales, last 12 months</span>
+          </div>
+          <div class="admin-chart-canvas-wrap"><canvas id="chartSalesByMonth"></canvas></div>
+          <div id="chartSalesByMonthEmpty" class="admin-chart-empty hidden">No completed sales yet.</div>
+        </div>
+
+        <div class="admin-chart-card admin-chart-card-wide">
+          <div class="admin-chart-head">
+            <h3><i class="fas fa-box"></i> Top Products by Sales</h3>
+            <span class="admin-chart-sub">Completed sales, by revenue</span>
+          </div>
+          <div class="admin-chart-canvas-wrap"><canvas id="chartTopProducts"></canvas></div>
+          <div id="chartTopProductsEmpty" class="admin-chart-empty hidden">No completed sales yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EMI SECTION -->
+    <div id="adminSection-emi" class="admin-section hidden">
+      <div class="admin-filters">
+        <button class="admin-filter-btn active" data-status="all" onclick="adminFilterStatus('all')">All</button>
+        <button class="admin-filter-btn" data-status="pending" onclick="adminFilterStatus('pending')">Pending</button>
+        <button class="admin-filter-btn" data-status="approved" onclick="adminFilterStatus('approved')">Approved</button>
+        <button class="admin-filter-btn" data-status="review" onclick="adminFilterStatus('review')">Docs Needed</button>
+        <button class="admin-filter-btn" data-status="rejected" onclick="adminFilterStatus('rejected')">Rejected</button>
+        <button class="admin-filter-btn" data-status="disbursed" onclick="adminFilterStatus('disbursed')">Disbursed</button>
+        <button class="admin-filter-btn" data-status="completed" onclick="adminFilterStatus('completed')">Completed</button>
+        <button class="admin-filter-btn" data-status="cancelled" onclick="adminFilterStatus('cancelled')">Cancelled</button>
+        <button class="admin-filter-btn" id="adminArchivedToggle" onclick="adminToggleArchived()"><i class="fas fa-box-archive"></i> Show Archived</button>
+      </div>
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="adminEmiSearch" placeholder="Search product or applicant..." oninput="adminEmiFilterChanged()" autocomplete="off">
+        <span id="adminEmiCount" class="admin-search-count"></span>
+      </div>
+      <div id="adminPager-emi" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Product</th><th>Applicant</th><th>Loan</th><th>EMI Plan</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="adminTableBody"></tbody>
+        </table>
+        <div id="adminNoApps" class="empty-state hidden"><i class="fas fa-inbox"></i><h3>No applications</h3></div>
+      </div>
+    </div>
+
+    <!-- USERS SECTION -->
+    <div id="adminSection-users" class="admin-section hidden">
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="adminUserSearch" placeholder="Search name, email, phone or pincode..." oninput="adminUserFilterChanged()" autocomplete="off">
+        <span id="adminUserCount" class="admin-search-count"></span>
+      </div>
+      <div id="adminPager-users" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Pincode</th><th>Roles</th><th>Joined</th><th>Actions</th></tr></thead>
+          <tbody id="adminUsersBody"></tbody>
+        </table>
+        <div id="adminNoUsers" class="empty-state hidden"><i class="fas fa-users"></i><h3>No users found</h3></div>
+      </div>
+    </div>
+
+    <!-- PRODUCTS SECTION -->
+    <div id="adminSection-products" class="admin-section hidden">
+      <div class="admin-product-filters">
+        <input type="text" id="adminProdSearch" placeholder="Search title, brand, model or listing ID..."
+               oninput="adminProductFilterChanged()" autocomplete="off">
+        <select id="adminProdCategory" onchange="adminProductFilterChanged()">
+          <option value="all">All categories</option>
+          <option value="cars">Cars</option>
+          <option value="phones">Phones</option>
+          <option value="bikes">Bikes</option>
+          <option value="electronics">Electronics</option>
+          <option value="furniture">Furniture</option>
+          <option value="appliances">Appliances</option>
+          <option value="fashion">Fashion</option>
+          <option value="property">Property</option>
+          <option value="others">Others</option>
+        </select>
+        <select id="adminProdStatus" onchange="adminProductFilterChanged()">
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="sold">Sold</option>
+          <option value="removed">Removed</option>
+        </select>
+        <input type="text" id="adminProdSeller" placeholder="Seller name" oninput="adminProductFilterChanged()" autocomplete="off">
+        <select id="adminProdSort" onchange="adminProductFilterChanged()">
+          <option value="newest">Newest first</option>
+          <option value="price_desc">Price: high to low</option>
+          <option value="price_asc">Price: low to high</option>
+          <option value="views">Most viewed</option>
+        </select>
+        <label class="admin-emi-toggle">
+          <input type="checkbox" id="adminProdEmi" onchange="adminProductFilterChanged()"> EMI only
+        </label>
+        <button class="btn-sm" onclick="adminClearProductFilters()">Clear</button>
+        <span id="adminProdCount" class="admin-prod-count"></span>
+      </div>
+      <div id="adminPager-products" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Seller</th><th>Status</th><th>Views</th><th>Actions</th></tr></thead>
+          <tbody id="adminProductsBody"></tbody>
+        </table>
+        <div id="adminNoProducts" class="empty-state hidden"><i class="fas fa-box"></i><h3>No products found</h3></div>
+      </div>
+    </div>
+
+    <!-- PURCHASES SECTION -->
+    <!-- DEALS SECTION (DealLock, deals.js) -->
+    <div id="adminSection-deals" class="admin-section hidden">
+      <!-- Superadmin only: the seller documents on vehicle listings (deals.js ldShowQueue). -->
+      <div class="admin-deals-switch">
+        <button id="adminListingDocsBtn" class="btn-sm hidden" onclick="ldToggleQueue()"><i class="fas fa-file-shield"></i> Listing documents</button>
+      </div>
+      <div id="adminListingDocs" class="hidden"></div>
+      <div id="adminDealsTableArea">
+      <div class="admin-filters">
+        <button class="admin-filter-btn" data-status="all" onclick="adminDealsSetFilter('all')">All</button>
+        <button class="admin-filter-btn active" data-status="" onclick="adminDealsSetFilter('')">In progress</button>
+        <button class="admin-filter-btn" data-status="awaiting_seller" onclick="adminDealsSetFilter('awaiting_seller')">Awaiting confirmation</button>
+        <button class="admin-filter-btn" data-status="docs_pending" onclick="adminDealsSetFilter('docs_pending')">Documents</button>
+        <button class="admin-filter-btn" data-status="locked" onclick="adminDealsSetFilter('locked')">Locked</button>
+        <button class="admin-filter-btn" data-status="loan_in_progress" onclick="adminDealsSetFilter('loan_in_progress')">Loan in progress</button>
+        <button class="admin-filter-btn" data-status="ready_to_pay" onclick="adminDealsSetFilter('ready_to_pay')">Ready to pay</button>
+        <button class="admin-filter-btn" data-status="paid" onclick="adminDealsSetFilter('paid')">Paid</button>
+        <button class="admin-filter-btn" data-status="disputed" onclick="adminDealsSetFilter('disputed')">Disputed</button>
+        <button class="admin-filter-btn" data-status="completed" onclick="adminDealsSetFilter('completed')">Completed</button>
+        <button class="admin-filter-btn" data-status="released" onclick="adminDealsSetFilter('released')">Released</button>
+      </div>
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="adminDealSearch" placeholder="Search listing, buyer, seller or UTR..." oninput="adminDealsSearchChanged()" autocomplete="off">
+        <span id="adminDealCount" class="admin-search-count"></span>
+      </div>
+      <div id="adminPager-deals" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Listing</th><th>Buyer</th><th>Seller</th><th>Price</th><th>Loan</th><th>Status</th><th>Until</th><th>Action</th></tr></thead>
+          <tbody id="adminDealsBody"></tbody>
+        </table>
+        <div id="adminNoDeals" class="empty-state hidden"><i class="fas fa-handshake"></i><h3>No deals here</h3></div>
+      </div>
+      </div>
+    </div>
+
+    <!-- LENDER PORTAL (DealLock, deals.js). For lender (NBFC) users: only
+         their own lender's work. DealBriz staff can pick a lender. -->
+    <div id="adminSection-lender" class="admin-section hidden">
+      <div id="lenderHeader" class="lender-head"></div>
+      <div class="admin-filters lender-tabs">
+        <button class="admin-filter-btn active" data-ltab="deals" onclick="lenderSetTab('deals')"><i class="fas fa-handshake"></i> Deals</button>
+        <button class="admin-filter-btn" data-ltab="loans" onclick="lenderSetTab('loans')"><i class="fas fa-file-invoice-dollar"></i> Loan applications</button>
+      </div>
+      <div id="lenderBody" class="lender-body"></div>
+    </div>
+
+    <div id="adminSection-purchases" class="admin-section hidden">
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="adminPurchaseSearch" placeholder="Search product, buyer or seller..." oninput="adminPurchaseFilterChanged()" autocomplete="off">
+        <span id="adminPurchaseCount" class="admin-search-count"></span>
+      </div>
+      <div id="adminPager-purchases" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Product</th><th>Buyer</th><th>Seller</th><th>Amount</th><th>Payment</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody id="adminPurchasesBody"></tbody>
+        </table>
+        <div id="adminNoPurchases" class="empty-state hidden"><i class="fas fa-receipt"></i><h3>No purchases yet</h3></div>
+      </div>
+    </div>
+
+    <!-- FINANCERS SECTION -->
+    <!-- REPORTS SECTION -->
+    <div id="adminSection-reports" class="admin-section hidden">
+      <div class="admin-filters" style="padding:0 16px 12px">
+        <button class="admin-filter-btn active" data-report-status="all" onclick="adminFilterReports('all')">All</button>
+        <button class="admin-filter-btn" data-report-status="open" onclick="adminFilterReports('open')">Open</button>
+        <button class="admin-filter-btn" data-report-status="investigating" onclick="adminFilterReports('investigating')">Investigating</button>
+        <button class="admin-filter-btn" data-report-status="action_taken" onclick="adminFilterReports('action_taken')">Action Taken</button>
+        <button class="admin-filter-btn" data-report-status="dismissed" onclick="adminFilterReports('dismissed')">Dismissed</button>
+      </div>
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="adminReportSearch" placeholder="Search seller, reporter, reason or details..." oninput="adminReportSearchChanged()" autocomplete="off">
+        <span id="adminReportCount" class="admin-search-count"></span>
+      </div>
+      <div id="adminPager-reports" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Reported Seller</th><th>Reason</th><th>Details</th><th>Reported By</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="adminReportsBody"></tbody>
+        </table>
+        <div id="adminNoReports" class="empty-state hidden"><i class="fas fa-flag"></i><h3>No reports</h3></div>
+      </div>
+    </div>
+
+    <!-- TERMS OF SERVICE SECTION -->
+    <!-- EMI COVERAGE SECTION -->
+    <div id="adminSection-emiareas" class="admin-section hidden">
+      <div class="admin-terms-wrap">
+        <div class="admin-terms-head">
+          <h3>EMI Coverage Areas</h3>
+        </div>
+        <p class="admin-terms-note">
+          <i class="fas fa-circle-info"></i> Where EMI is offered. Rules are checked
+          most-specific-first: <strong>pincode &rarr; district &rarr; state</strong>, so you can
+          enable a whole state and exclude individual districts from it, or re-enable a single
+          pincode inside an excluded district.
+          <br><br>
+          <strong>With no rules, EMI is unavailable everywhere.</strong> Buyers still see EMI
+          badges on listings, but get an explanation when they tap "Buy with EMI".
+          The global switch in Site Settings overrides all of this.
+        </p>
+
+        <div class="emi-area-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="emiAreaScope">Level</label>
+              <select id="emiAreaScope" onchange="onEmiAreaScopeChange()">
+                <option value="state">State</option>
+                <option value="district">District</option>
+                <option value="pincode">Pincode</option>
+              </select>
+            </div>
+            <div class="form-group combo-wrap" style="flex:2">
+              <label for="emiAreaValue">Location</label>
+              <input type="text" id="emiAreaValue" placeholder="e.g. Himachal Pradesh" autocomplete="off"
+                     oninput="filterEmiAreaSuggestions()" onfocus="filterEmiAreaSuggestions()">
+              <div id="emiAreaSuggestions" class="combo-list hidden"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="emiAreaNote">Note <span class="opt">(optional)</span></label>
+            <input type="text" id="emiAreaNote" maxlength="255" placeholder="e.g. Pilot region — Bajaj Finserv" autocomplete="off">
+          </div>
+          <label class="toggle-label"><input type="checkbox" id="emiAreaEnabled" checked> Available (uncheck to explicitly exclude this area)</label>
+          <div id="emiAreaError" class="auth-error hidden"></div>
+          <button class="btn-primary" style="margin-top:12px" onclick="saveEmiArea()"><i class="fas fa-plus"></i> Add coverage rule</button>
+        </div>
+
+        <div id="emiAreaList"></div>
+      </div>
+    </div>
+
+    <!-- ROLES & ACCESS SECTION -->
+    <div id="adminSection-roles" class="admin-section hidden">
+      <div class="admin-terms-wrap">
+        <div class="admin-terms-head">
+          <h3>Roles &amp; Access</h3>
+        </div>
+        <p class="admin-terms-note">
+          <i class="fas fa-shield-alt"></i> Choose which parts of the admin panel each role can open,
+          and what they can do there. Changes apply the next time that user loads a page.
+          <br><br>
+          <strong>Superadmin is fixed and can't be edited.</strong> If it could, a superadmin could
+          remove their own ability to assign roles and permanently lock everyone out of administration.
+        </p>
+        <div id="adminRolesBody"></div>
+      </div>
+    </div>
+
+    <!-- LOGS SECTION -->
+    <div id="adminSection-logs" class="admin-section hidden">
+      <div class="admin-terms-wrap">
+        <div class="admin-terms-head">
+          <h3>Application Logs</h3>
+          <button class="btn-sm" onclick="renderAdminLogs()"><i class="fas fa-rotate"></i> Refresh</button>
+        </div>
+
+        <div class="log-files" id="logFileTabs"></div>
+
+        <div class="log-toolbar">
+          <div class="log-levels" id="logLevelFilters"></div>
+          <div class="log-search">
+            <i class="fas fa-search"></i>
+            <input type="text" id="logSearch" placeholder="Filter by message, logger or error id..."
+                   autocomplete="off" oninput="debouncedLogSearch()">
+          </div>
+          <select id="logLimit" onchange="loadLogEntries()">
+            <option value="100">Last 100</option>
+            <option value="300" selected>Last 300</option>
+            <option value="1000">Last 1000</option>
+            <option value="2000">Last 2000</option>
+          </select>
+        </div>
+
+        <div id="logMeta" class="log-meta"></div>
+        <div id="logEntries" class="log-entries"></div>
+      </div>
+    </div>
+
+    <!-- SITE SETTINGS SECTION -->
+    <div id="adminSection-settings" class="admin-section hidden">
+      <div class="admin-terms-wrap">
+        <div class="admin-terms-head">
+          <h3>Feature Switches</h3>
+        </div>
+        <p class="admin-terms-note">
+          <i class="fas fa-shield-alt"></i> These change what the public site offers. Only superadmins can save changes.
+        </p>
+
+        <div class="setting-row">
+          <div class="setting-main">
+            <div class="setting-title">
+              EMI &amp; Financing
+              <span id="emiFlagBadge" class="setting-badge"></span>
+            </div>
+            <div class="setting-desc">
+              Controls whether EMI is advertised <strong>site-wide</strong>: the homepage EMI section
+              and calculator, the EMI nav link, EMI badges on listings, and the EMI Partners page.
+              <br><br>
+              <strong>This is a visibility switch, not a kill switch.</strong> Whether EMI actually
+              works is decided by <a href="#" onclick="adminSwitchSection('emiareas'); return false;">EMI Coverage</a>:
+              <br>
+              &bull; <strong>Off</strong> &mdash; EMI is hidden from everyone <em>except</em> users whose
+              location is covered. Use this to pilot a region quietly.<br>
+              &bull; <strong>On</strong> &mdash; EMI is advertised everywhere, and still only usable in
+              covered areas.
+              <br><br>
+              <strong>To stop EMI completely, remove every coverage area.</strong> With no coverage
+              rules, EMI is unavailable regardless of this switch, and the server rejects any
+              application submitted through a stale page or a direct request.
+            </div>
+          </div>
+          <div class="setting-action">
+            <label class="switch">
+              <input type="checkbox" id="emiEnabledToggle" onchange="toggleEmiFeature(this.checked)">
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div id="settingsError" class="auth-error hidden"></div>
+        <p class="admin-terms-note" style="margin-top:16px">
+          <i class="fas fa-circle-info"></i> Existing EMI applications are never deleted by this switch.
+          Staff can still review them under EMI Applications, and turning the switch back on restores
+          everything exactly as it was.
+        </p>
+      </div>
+    </div>
+
+    <!-- BLOG SECTION -->
+    <div id="adminSection-blog" class="admin-section hidden">
+      <div class="admin-faq-wrap">
+        <div class="admin-terms-head">
+          <h3>Blog Posts</h3>
+          <button class="btn-primary btn-sm-inline" onclick="openBlogEditor()"><i class="fas fa-plus"></i> New Post</button>
+        </div>
+        <p class="admin-terms-note">
+          <i class="fas fa-circle-info"></i> Posts appear on the public Blog page. Drafts stay hidden until published.
+        </p>
+        <div id="adminBlogList"></div>
+      </div>
+    </div>
+
+    <!-- CHATBOT SECTION -->
+    <div id="adminSection-chatbot" class="admin-section hidden">
+      <div class="admin-faq-wrap">
+        <div class="admin-terms-head">
+          <h3>Questions the bot couldn't answer</h3>
+          <button class="btn-sm" onclick="renderAdminChatbot()"><i class="fas fa-rotate"></i> Refresh</button>
+        </div>
+        <p class="admin-terms-note">
+          <i class="fas fa-circle-info"></i> Real questions from users, most-asked first. Writing an answer
+          for the top one improves the bot for the most people. <strong>Answer this</strong> opens the FAQ
+          editor with the question filled in &mdash; save it and the bot can answer it immediately.
+        </p>
+        <div id="adminChatbotList"></div>
+      </div>
+    </div>
+
+    <!-- FAQ SECTION -->
+    <div id="adminSection-faqs" class="admin-section hidden">
+      <div class="admin-faq-wrap">
+        <div class="admin-terms-head">
+          <h3>Help Centre FAQs</h3>
+          <button class="btn-primary btn-sm-inline" onclick="openFaqEditor()"><i class="fas fa-plus"></i> Add FAQ</button>
+        </div>
+        <p class="admin-terms-note">
+          <i class="fas fa-circle-info"></i> These appear on the public Help Centre page.
+          Unpublished entries stay hidden from visitors so you can draft an answer first.
+        </p>
+        <div id="adminFaqList"></div>
+      </div>
+    </div>
+
+    <div id="adminSection-terms" class="admin-section hidden">
+      <div class="admin-terms-wrap">
+        <div class="admin-terms-head">
+          <h3 id="adminDocHeading">Content Pages</h3>
+          <span id="adminTermsMeta" class="admin-terms-meta"></span>
+        </div>
+        <div class="admin-doc-picker" id="adminDocPicker"></div>
+        <p class="admin-terms-note">
+          <i class="fas fa-shield-alt"></i> Publishing replaces the live version of this page everywhere it is linked.
+          Only superadmins can save changes.
+        </p>
+        <div id="adminTermsBody"></div>
+      </div>
+    </div>
+
+    <div id="adminSection-financers" class="admin-section hidden">
+      <div style="padding:0 16px 12px">
+        <button class="btn-primary" onclick="openFinancerForm()"><i class="fas fa-plus"></i> Add Financer</button>
+      </div>
+      <div id="financerFormBox" class="admin-login-card hidden" style="margin:0 16px 16px;max-width:100%">
+        <div class="form-group"><label>Name</label><input type="text" id="financerName" autocomplete="off"></div>
+        <div class="form-row">
+          <div class="form-group"><label>Contact Email</label><input type="email" id="financerEmail" autocomplete="off"></div>
+          <div class="form-group"><label>Contact Phone</label><input type="text" id="financerPhone" autocomplete="off"></div>
+        </div>
+        <div class="form-group"><label>Email for loan applications and documents</label>
+          <input type="text" id="financerDocsEmail" inputmode="email" autocomplete="off" maxlength="255" placeholder="e.g. loans@lender.in">
+          <small style="color:var(--text-muted)">Each new loan application on a DealBriz deal is emailed here with the buyer’s and the seller’s verified documents. Up to 3 addresses, separated by commas. The lender can also set it in its portal.</small>
+        </div>
+        <div class="form-group" style="margin-bottom:4px">
+          <label style="font-weight:700;color:var(--navy)">Address</label>
+        </div>
+        <div class="form-group"><label>Street / Building</label><input type="text" id="financerAddress" placeholder="e.g. 2nd Floor, Sector 17 Plaza" autocomplete="off"></div>
+        <div class="form-row">
+          <div class="form-group"><label>City</label><input type="text" id="financerCity" placeholder="e.g. Chandigarh" autocomplete="off"></div>
+          <div class="form-group"><label>State</label><input type="text" id="financerState" placeholder="e.g. Punjab" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Pincode</label><input type="text" id="financerPincode" maxlength="6" placeholder="6-digit PIN" autocomplete="off"></div>
+          <div class="form-group">
+            <label>Service Area</label>
+            <select id="financerServesAll">
+              <option value="true">All India</option>
+              <option value="false">Local only (near this pincode)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Min Interest Rate (%)</label><input type="number" step="0.1" id="financerMinRate" autocomplete="off"></div>
+          <div class="form-group"><label>Max Interest Rate (%)</label><input type="number" step="0.1" id="financerMaxRate" autocomplete="off"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Min Loan Amount (₹)</label><input type="number" id="financerMinLoan" autocomplete="off"></div>
+          <div class="form-group"><label>Max Loan Amount (₹)</label><input type="number" id="financerMaxLoan" autocomplete="off"></div>
+        </div>
+        <div class="form-group"><label>Status</label>
+          <select id="financerStatus"><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        </div>
+        <div class="form-group">
+          <label>DealLock loans it funds</label>
+          <div class="financer-loan-types">
+            <label><input type="checkbox" id="financerLoanVehicle" checked> Vehicle loans <small>(cars, bikes)</small></label>
+            <label><input type="checkbox" id="financerLoanPersonal" checked> Personal loans <small>(every other category)</small></label>
+          </div>
+        </div>
+        <input type="hidden" id="financerEditId">
+        <button class="btn-primary" onclick="saveFinancer()">Save Financer</button>
+        <button class="btn-clear-filters" onclick="closeFinancerForm()" style="border:1.5px solid var(--border);color:var(--text-muted)">Cancel</button>
+      </div>
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="adminFinancerSearch" placeholder="Search name, contact, city or state..." oninput="adminFinancerFilterChanged()" autocomplete="off">
+        <span id="adminFinancerCount" class="admin-search-count"></span>
+      </div>
+      <div id="adminPager-financers" class="admin-pager"></div>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Name</th><th>Contact</th><th>Location</th><th>Rate Range</th><th>Loan Range</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="adminFinancersBody"></tbody>
+        </table>
+        <div id="adminNoFinancers" class="empty-state hidden"><i class="fas fa-hand-holding-usd"></i><h3>No financers added</h3></div>
+      </div>
+    </div>
+
+        </div><!-- /.admin-content -->
+      </div><!-- /.admin-main -->
+    </div><!-- /.admin-shell -->
+  </div>
+</div>
+
+<!-- ===== DEALLOCK OVERLAYS (deals.js) =====
+     Placed after the chat and listing modals so they stack on top of them. -->
+<div id="dealOfferModal" class="modal-overlay hidden">
+  <div class="modal-box deal-modal-box deal-offer-box">
+    <button class="modal-close" onclick="closeOfferComposer()" aria-label="Close"><i class="fas fa-xmark"></i></button>
+    <h3 id="dealOfferTitle" class="deal-modal-title">Send a deal offer</h3>
+    <p id="dealOfferSub" class="deal-modal-sub"></p>
+    <div class="form-group">
+      <label for="dealOfferPrice">Price (₹)</label>
+      <input data-rupee type="text" id="dealOfferPrice" class="deal-price-input" inputmode="numeric" autocomplete="off" oninput="dlFormatRupeeInput(this)" onkeydown="if(event.key==='Enter') submitOfferComposer()">
+    </div>
+    <div class="form-group">
+      <label for="dealOfferNote">Note <span class="deal-optional">optional</span></label>
+      <textarea id="dealOfferNote" rows="2" maxlength="500" placeholder="e.g. Price includes new tyres"></textarea>
+    </div>
+    <p id="dealOfferInfo" class="deal-small"></p>
+    <p id="dealOfferError" class="auth-error hidden"></p>
+    <button id="dealOfferSubmit" class="btn-primary full-width" onclick="submitOfferComposer()">Send offer</button>
+  </div>
+</div>
+
+<div id="dealModal" class="modal-overlay hidden">
+  <div class="modal-box deal-modal-box">
+    <button class="modal-close" onclick="closeTopModal('deal')" aria-label="Close"><i class="fas fa-xmark"></i></button>
+    <div id="dealModalBody"></div>
+  </div>
+</div>
+
+<div id="dealLoanModal" class="modal-overlay hidden">
+  <div class="modal-box deal-modal-box">
+    <button class="modal-close" onclick="closeLoanForm()" aria-label="Close"><i class="fas fa-xmark"></i></button>
+    <!-- After sending: the confirmation (deals.js dlLoanDoneHtml) -->
+    <div id="dealLoanDone" class="hidden"></div>
+    <div id="dealLoanFormArea">
+    <h3 class="deal-modal-title">Apply for the loan</h3>
+    <p class="deal-modal-sub">Agreed price <strong id="dealLoanPrice"></strong> <span id="dealLoanType"></span></p>
+    <!-- The buyer chooses the lender (NBFC). The application and the verified
+         documents are emailed to that lender only (deals.js openLoanForm). -->
+    <div class="form-group deal-loan-lender">
+      <label for="dealLoanLender">Choose your lender</label>
+      <select id="dealLoanLender" onchange="dlLoanLenderChanged()"><option value="">Loading lenders...</option></select>
+      <small id="dealLoanLenderHint" class="deal-loan-lender-hint">Your application and verified documents are sent only to the lender you choose.</small>
+    </div>
+    <div id="dealLoanExisting"></div>
+    <div class="form-group">
+      <label for="dealLoanDown">Down payment (₹)</label>
+      <input data-rupee type="text" id="dealLoanDown" inputmode="numeric" placeholder="e.g. 50,000" autocomplete="off" oninput="dlFormatRupeeInput(this); calcDealLoan()">
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="dealLoanTenure">Tenure</label>
+        <select id="dealLoanTenure" onchange="calcDealLoan()">
+          <option value="12">12 months</option><option value="18">18 months</option>
+          <option value="24">24 months</option><option value="36" selected>36 months</option>
+          <option value="48">48 months</option><option value="60">60 months</option>
+        </select>
+      </div>
+      <div class="form-group"><label for="dealLoanRate">Interest (estimate)</label>
+        <select id="dealLoanRate" onchange="calcDealLoan()">
+          <option value="12" selected>12% p.a.</option><option value="10">10% p.a.</option>
+          <option value="14">14% p.a.</option><option value="16">16% p.a.</option>
+        </select>
+      </div>
+    </div>
+    <div class="deal-loan-result">
+      <div><span>Loan</span><strong id="dealLoanAmount">₹0</strong></div>
+      <div><span>EMI / month</span><strong id="dealLoanEmi">₹0</strong></div>
+      <div><span>Total repayable</span><strong id="dealLoanTotal">₹0</strong></div>
+    </div>
+    <p class="deal-loan-assume" role="note"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><span>The interest rate, EMI and totals here are based on assumptions for now, so pick whatever suits you best. The NBFC you choose will contact you about the actual rate, EMI and other details, and confirms them in its Key Fact Statement before you sign anything.</span></p>
+    <div class="form-group"><label for="dealLoanName">Full name</label><input type="text" id="dealLoanName" placeholder="As per Aadhaar" autocomplete="off"></div>
+    <div class="form-row">
+      <div class="form-group"><label for="dealLoanPhone">Phone</label><input type="tel" id="dealLoanPhone" inputmode="tel" maxlength="17" autocomplete="off"></div>
+      <div class="form-group"><label for="dealLoanIncome">Monthly income (₹)</label><input data-rupee type="text" id="dealLoanIncome" inputmode="numeric" placeholder="e.g. 40,000" autocomplete="off" oninput="dlFormatRupeeInput(this)"></div>
+    </div>
+    <p id="dealLoanError" class="auth-error hidden"></p>
+    <button class="btn-primary full-width" onclick="submitDealLoan()">Send application</button>
+    </div>
+  </div>
+</div>
+
+<div id="dealOtpModal" class="modal-overlay hidden">
+  <div class="modal-box deal-modal-box deal-otp-box">
+    <button class="modal-close" onclick="closeTopModal('dealOtp')" aria-label="Close"><i class="fas fa-xmark"></i></button>
+    <h3 class="deal-modal-title"><i class="fas fa-shield-halved"></i> <span id="dealOtpTitle">Confirm with the SMS code</span></h3>
+    <p id="dealOtpSub" class="deal-modal-sub"></p>
+    <!-- Password method (no SMS provider set up): the seller's own account password. -->
+    <input id="dealOtpPassword" aria-label="Your DealBriz password" class="deal-otp-input deal-otp-password hidden" type="password" autocomplete="current-password" placeholder="Your password"
+           onkeydown="if(event.key==='Enter') dlOtpSubmit()">
+    <input id="dealOtpCode" aria-label="6-digit code" class="deal-otp-input" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000"
+           oninput="this.value=this.value.replace(/\D/g,'').slice(0,6)" onkeydown="if(event.key==='Enter') dlOtpSubmit()">
+    <p id="dealOtpError" class="auth-error hidden"></p>
+    <button id="dealOtpSubmit" class="btn-primary full-width" onclick="dlOtpSubmit()">Confirm and lock the deal</button>
+    <button id="dealOtpResend" class="deal-btn deal-btn-quiet deal-btn-wide" onclick="dlOtpSend()">Send the code again</button>
+  </div>
+</div>
+
+<!-- The deal warning: big, centred, English + Hindi. Closes only with its
+     own buttons (not a backdrop click), so it is read before agreeing. -->
+<div id="dealWarnModal" class="modal-overlay hidden">
+  <div class="modal-box deal-warn-box" role="alertdialog" aria-modal="true" aria-labelledby="dealWarnTitle">
+    <div class="deal-warn-icon"><i class="fas fa-triangle-exclamation"></i></div>
+    <h3 id="dealWarnTitle" class="deal-warn-title"></h3>
+    <div id="dealWarnBody" class="deal-warn-body"></div>
+    <label class="deal-warn-check">
+      <input type="checkbox" id="dealWarnCheck" onchange="dlWarnToggle()">
+      <span>I have read this and I understand.<br><span lang="hi">मैंने इसे पढ़ लिया है और मैं समझता/समझती हूँ।</span></span>
+    </label>
+    <div class="deal-warn-actions">
+      <button class="deal-btn" onclick="dlWarnAnswer(false)">Go back <span lang="hi">/ वापस</span></button>
+      <button id="dealWarnGo" class="deal-btn deal-btn-primary" disabled onclick="dlWarnAnswer(true)">Continue <span lang="hi">/ आगे बढ़ें</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- DealLock: a cancel request from the other side, to agree or disagree
+     with (deals.js dlShowCancelRequest). The buttons are filled in by JS. -->
+<div id="dealNoticeModal" class="modal-overlay hidden">
+  <div class="modal-box deal-warn-box deal-notice-box" role="alertdialog" aria-modal="true" aria-labelledby="dealNoticeTitle">
+    <div class="deal-warn-icon"><i class="fas fa-circle-question"></i></div>
+    <h3 id="dealNoticeTitle" class="deal-warn-title"></h3>
+    <div id="dealNoticeBody" class="deal-warn-body"></div>
+    <div id="dealNoticeError" class="auth-error hidden"></div>
+    <div id="dealNoticeActions" class="deal-warn-actions"></div>
+  </div>
+</div>
+
+<!-- DealLock: the site's own confirmation dialog (deals.js dlAsk), used
+     instead of the browser's confirm() popup. -->
+<div id="dealAskModal" class="modal-overlay hidden">
+  <div class="modal-box deal-ask-box" role="alertdialog" aria-modal="true" aria-labelledby="dealAskTitle" aria-describedby="dealAskBody">
+    <div id="dealAskIcon" class="deal-ask-icon"><i class="fas fa-handshake"></i></div>
+    <h3 id="dealAskTitle" class="deal-ask-title"></h3>
+    <div id="dealAskBody" class="deal-ask-body"></div>
+    <div class="deal-ask-actions">
+      <button id="dealAskCancel" class="deal-btn" onclick="dlAskAnswer(false)">Cancel</button>
+      <button id="dealAskOk" class="deal-btn deal-btn-primary" onclick="dlAskAnswer(true)">OK</button>
+    </div>
+  </div>
+</div>
+
+<div id="globalToast" class="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<!-- Runtime config: point the frontend at a different backend without
+     editing api-client.js. Leave empty to use the same origin the page
+     was served from (correct for the Docker/nginx setup). -->
+<script>
+  window.DEALBRIZ_API_ORIGIN = window.DEALBRIZ_API_ORIGIN || "";
+</script>
+<!-- Error logger loads FIRST so failures in the scripts below are caught. -->
+<script src="/error-logger.js?v=20261003b"></script>
+<script src="/analytics.js?v=20261023a"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="/geo.js?v=20261022c"></script>
+<script src="/api-client.js?v=20261020c"></script>
+<script src="/app.js?v=20261023e"></script>
+<!-- DealLock: offers, deals, loan, handover, admin Deals. After app.js (uses its helpers). -->
+<script src="/deals.js?v=20261024a"></script>
+<!-- Homepage How It Works scroll road (needs the #howItWorks markup above). -->
+<script src="/how-it-works.js?v=20261023d"></script>
+<script src="/browse-categories.js?v=20261023a"></script>
+<!-- Lottie motion graphics -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie_light.min.js" defer></script>
+<script src="/lottie-init.js?v=20261026a" defer></script>
+<div id="reportModal" class="modal-overlay hidden">
+  <div class="modal-box" data-enter-flow>
+    <button class="modal-close" onclick="closeReportModal()"><i class="fa fa-times"></i></button>
+    <h3 id="reportTitle" style="margin:0 0 6px">Report this seller</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 14px">
+      Reports go to the DealBriz moderation team. Please only report genuine concerns.
+    </p>
+    <div class="form-group">
+      <label>Reason <span class="req">*</span></label>
+      <select id="reportReason">
+        <option value="">Select a reason...</option>
+        <option value="fraud_scam">Fraud or scam</option>
+        <option value="fake_listing">Fake or misleading listing</option>
+        <option value="counterfeit">Counterfeit goods</option>
+        <option value="harassment">Harassment or abusive behaviour</option>
+        <option value="prohibited_item">Prohibited item</option>
+        <option value="payment_issue">Payment problem</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>What happened? (optional)</label>
+      <textarea id="reportDetails" rows="4" maxlength="2000"
+                placeholder="Add any details that would help our team investigate."></textarea>
+    </div>
+    <div id="reportError" class="auth-error hidden"></div>
+    <button class="btn-primary" style="width:100%;margin-top:12px" data-enter-submit onclick="submitReport()">
+      <i class="fas fa-flag"></i> Submit Report
+    </button>
+  </div>
+</div>
+
+<div id="locationModal" class="modal-overlay hidden">
+  <div class="modal-box loc-box">
+    <button class="modal-close" onclick="closeLocationPicker()"><i class="fa fa-times"></i></button>
+    <h3 style="margin:0 0 6px">Choose your area</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 14px">
+      We'll show listings from this district first.
+    </p>
+    <div class="form-group">
+      <input type="text" id="locSearch" placeholder="Search city or district..." oninput="renderLocationList()" autocomplete="off">
+    </div>
+    <button class="loc-detect" onclick="detectMyLocation()"><i class="fas fa-crosshairs"></i> Use my current location</button>
+    <div id="locList" class="loc-list"></div>
+  </div>
+</div>
+
+<div id="featureModal" class="modal-overlay hidden">
+  <div class="modal-box feature-box">
+    <button class="modal-close" onclick="closeFeatureModal()"><i class="fa fa-times"></i></button>
+    <h3 style="margin:0 0 6px"><i class="fas fa-bolt" style="color:var(--gold)"></i> Show at Top</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 4px" id="featureListingTitle"></p>
+    <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px">
+      Your listing appears above others when buyers browse or search its category.
+    </p>
+    <div id="featurePlans" class="feature-plans"></div>
+    <div id="featureError" class="auth-error hidden"></div>
+    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="confirmFeature()">
+      <i class="fas fa-bolt"></i> <span id="featureConfirmLabel">Show at Top</span>
+    </button>
+    <button id="featureRemoveBtn" class="btn-sm btn-sm-red hidden" style="width:100%;margin-top:8px" onclick="removeFeature()">
+      Stop showing at top
+    </button>
+    <p style="font-size:11px;color:var(--text-light);margin:12px 0 0;line-height:1.5">
+      Promotion affects position only, never which listings a buyer sees. Prices shown are
+      indicative &mdash; payment is not yet enabled, so promotion is currently free.
+    </p>
+  </div>
+</div>
+
+<div id="termsModal" class="modal-overlay hidden">
+  <div class="modal-box terms-box">
+    <button class="modal-close" onclick="closeTermsModal()"><i class="fa fa-times"></i></button>
+    <h3 id="termsModalTitle" style="margin:0 0 4px">Terms of Service</h3>
+    <p id="termsModalMeta" style="font-size:12px;color:var(--text-muted);margin:0 0 16px"></p>
+    <div id="termsModalBody" class="terms-body">
+      <div style="text-align:center;padding:30px;color:var(--text-muted)"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+    </div>
+  </div>
+</div>
+
+<div id="faqEditorModal" class="modal-overlay hidden">
+  <div class="modal-box faq-editor-box">
+    <button class="modal-close" onclick="closeFaqEditor()"><i class="fa fa-times"></i></button>
+    <h3 id="faqEditorTitle" style="margin:0 0 16px">Add FAQ</h3>
+    <div class="form-group">
+      <label for="faqQuestion">Question</label>
+      <input type="text" id="faqQuestion" maxlength="300" placeholder="How do I ...?" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="faqAnswer">Answer</label>
+      <textarea id="faqAnswer" rows="7" placeholder="Supports **bold**, *italic*, __underline__, and - / 1. lists"></textarea>
+    </div>
+    <div class="form-group">
+      <label for="faqKeywords">Search keywords <span class="opt">(helps the chatbot match this)</span></label>
+      <input type="text" id="faqKeywords" maxlength="400" placeholder="sell, post, list, create, upload" autocomplete="off">
+      <small class="field-hint">Words people actually type when asking this, separated by spaces or commas.</small>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label for="faqCategory">Category</label>
+        <select id="faqCategory"></select>
+      </div>
+      <div class="form-group">
+        <label for="faqSortOrder">Sort order</label>
+        <input type="number" id="faqSortOrder" value="0" min="0" autocomplete="off">
+      </div>
+    </div>
+    <label class="toggle-label"><input type="checkbox" id="faqPublished" checked> Published (the chatbot can answer with this)</label>
+    <label class="toggle-label"><input type="checkbox" id="faqShowInHelp" checked> Also show on the public Help Centre page</label>
+    <small class="field-hint">Untick the second box for bulk-imported answers you want the chatbot to know but that would clutter the Help Centre.</small>
+    <div id="faqEditorError" class="auth-error hidden"></div>
+    <input type="hidden" id="faqEditId">
+    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="saveFaq()"><i class="fas fa-save"></i> Save FAQ</button>
+  </div>
+</div>
+
+<div id="blogEditorModal" class="modal-overlay hidden">
+  <div class="modal-box faq-editor-box">
+    <button class="modal-close" onclick="closeBlogEditor()"><i class="fa fa-times"></i></button>
+    <h3 id="blogEditorTitle" style="margin:0 0 16px">New Post</h3>
+    <div class="form-group">
+      <label for="blogTitle">Title</label>
+      <input type="text" id="blogTitle" maxlength="200" placeholder="Post title" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="blogExcerpt">Excerpt <span class="opt">(shown in the list)</span></label>
+      <textarea id="blogExcerpt" rows="2" maxlength="400" placeholder="One or two lines summarising the post"></textarea>
+    </div>
+    <div class="form-group">
+      <label for="blogBody">Body</label>
+      <textarea id="blogBody" rows="10" placeholder="Supports **bold**, *italic*, __underline__, and - / 1. lists"></textarea>
+    </div>
+    <label class="toggle-label"><input type="checkbox" id="blogPublished" checked> Published (visible on the Blog page)</label>
+    <div id="blogEditorError" class="auth-error hidden"></div>
+    <input type="hidden" id="blogEditId">
+    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="saveBlogPost()"><i class="fas fa-save"></i> Save Post</button>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="hb-wrap">
+    <div class="sf-grid">
+      <div>
+        <div class="sf-brand">
+          <div class="brand-icon"><img class="brand-mark" src="logo.png" alt="DealBriz" width="36" height="36"></div>
+          <span class="sf-brand-text">Deal<span>Briz</span></span>
+        </div>
+        <p class="sf-about">India's trusted marketplace for second-hand products with flexible EMI options.</p>
+        <div class="sf-loc"><i class="fas fa-location-dot"></i> Available all over India</div>
+        <div class="sf-social">
+          <!-- target=_blank needs rel="noopener": without it the opened tab
+               gets a window.opener handle back to this page and can redirect
+               it. noreferrer also keeps the referrer out of the request.
+               Links are the bare profile URLs - the ?stkn= and ?si= params on
+               a copied share link are per-session share tokens, not part of
+               the address. -->
+          <a href="https://www.instagram.com/dealbriz" target="_blank" rel="noopener noreferrer" aria-label="DealBriz on Instagram"><i class="fab fa-instagram"></i></a>
+          <a href="https://x.com/dealbriz" target="_blank" rel="noopener noreferrer" aria-label="DealBriz on X"><i class="fab fa-x-twitter"></i></a>
+          <a href="https://www.facebook.com/profile.php?id=61594103578846" target="_blank" rel="noopener noreferrer" aria-label="DealBriz on Facebook"><i class="fab fa-facebook-f"></i></a>
+          <a href="https://www.youtube.com/@dealbriz" target="_blank" rel="noopener noreferrer" aria-label="DealBriz on YouTube"><i class="fab fa-youtube"></i></a>
+        </div>
+      </div>
+      <div class="sf-col">
+        <h4>Marketplace</h4>
+        <a href="#" data-foot="cat:cars" onclick="browseCategory('cars'); return false;">Cars</a>
+        <a href="#" data-foot="cat:phones" onclick="browseCategory('phones'); return false;">Phones</a>
+        <a href="#" data-foot="cat:bikes" onclick="browseCategory('bikes'); return false;">Bikes</a>
+        <a href="#" data-foot="cat:electronics" onclick="browseCategory('electronics'); return false;">Electronics</a>
+        <a href="#" data-foot="cat:furniture" onclick="browseCategory('furniture'); return false;">Furniture</a>
+        <a href="#" data-foot="cat:appliances" onclick="browseCategory('appliances'); return false;">Appliances</a>
+        <a href="#" data-foot="cat:fashion" onclick="browseCategory('fashion'); return false;">Fashion</a>
+        <a href="#" data-foot="cat:property" onclick="browseCategory('property'); return false;">Property</a>
+        <a href="#" data-foot="cat:others" onclick="browseCategory('others'); return false;">Others</a>
+      </div>
+      <div class="sf-col">
+        <h4>Company</h4>
+        <a href="#" data-foot="legal:about" onclick="openLegalPage('about'); return false;">About DealBriz</a>
+        <a href="#" data-foot="legal:safety" onclick="openLegalPage('safety'); return false;">Safety Guidelines</a>
+        <a href="#" class="emi-feature" data-foot="page:partners" onclick="showPage('partners'); return false;">EMI Partners</a>
+        <a href="#" data-foot="page:blog" onclick="showPage('blog'); return false;">Blog</a>
+      </div>
+      <div class="sf-col">
+        <h4>Support</h4>
+        <a href="#" data-foot="page:help" onclick="showPage('help'); return false;">Help Centre</a>
+        <a href="#" data-foot="page:contact" onclick="showPage('contact'); return false;">Contact Us</a>
+        <a href="#" data-foot="legal:privacy" onclick="openLegalPage('privacy'); return false;">Privacy Policy</a>
+        <a href="#" onclick="openLegalPage('terms'); return false;">Terms of Service</a>
+        <a href="#" data-foot="page:reportProblem" onclick="showPage('reportProblem'); return false;">Report a Problem</a>
+      </div>
+    </div>
+    <div class="sf-bottom">
+      <p>© 2026 DealBriz Technologies Pvt. Ltd. All rights reserved.</p>
+      <div class="sf-legal"><a href="#" data-foot="legal:privacy" onclick="openLegalPage('privacy'); return false;">Privacy</a><a href="#" data-foot="legal:terms" onclick="openLegalPage('terms'); return false;">Terms</a><a href="#" data-foot="legal:cookies" onclick="openLegalPage('cookies'); return false;">Cookies</a></div>
+    </div>
+  </div>
+</footer>
+
+<div id="emiUnavailableModal" class="modal-overlay hidden">
+  <div class="modal-box emi-unavailable-box">
+    <button class="modal-close" onclick="closeEmiUnavailableModal()"><i class="fa fa-times"></i></button>
+    <div class="emi-unavailable-icon"><i class="fas fa-map-location-dot"></i></div>
+    <h3 id="emiUnavailableHeading">EMI not available here yet</h3>
+    <p id="emiUnavailableText">EMI is not available in your area yet.</p>
+    <p id="emiUnavailableWhere" class="emi-unavailable-where hidden"></p>
+    <p class="emi-unavailable-note">
+      You can still buy this item directly — message the seller to arrange payment.
+      We're adding financing partners in more areas.
+    </p>
+    <div class="emi-unavailable-actions">
+      <button class="btn-primary" onclick="closeEmiUnavailableModal()">Got it</button>
+      <button class="btn-sm" onclick="closeEmiUnavailableModal(); showPage('help')">Help Centre</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== LEGAL DOC OVERLAY =====
+     Terms and Privacy shown ON TOP of the signup form rather than as a page.
+     Navigating away and back meant preserving and restoring the half-filled
+     form; not navigating at all means there is nothing to preserve. Sits
+     above #authModal (3400) so the form stays visible behind it. -->
+<div id="legalPeekModal" class="modal-overlay hidden">
+  <div class="modal-box legal-peek-box">
+    <div class="legal-peek-head">
+      <div>
+        <strong id="legalPeekTitle">Terms of Service</strong>
+        <span id="legalPeekUpdated"></span>
+      </div>
+      <button class="modal-close" onclick="closeLegalPeek()" aria-label="Close"><i class="fas fa-xmark"></i></button>
+    </div>
+
+    <div class="legal-peek-body" id="legalPeekBody"></div>
+
+    <div class="legal-peek-foot">
+      <a href="#" id="legalPeekFull" onclick="openLegalFull(); return false;">Open full page</a>
+      <button class="btn-primary" onclick="closeLegalPeek()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PERSON INFO (from chat) =====
+     A toast was the wrong container for this: it vanishes, and there is
+     nowhere to put an action. Reporting someone is exactly the moment you
+     are looking at who they are, so the button belongs here. -->
+<div id="partyInfoModal" class="modal-overlay hidden">
+  <div class="modal-box party-info-box">
+    <button class="modal-close" onclick="closePartyInfo()" aria-label="Close"><i class="fas fa-xmark"></i></button>
+
+    <div class="party-info-head">
+      <img id="partyInfoAvatar" src="" alt="">
+      <div>
+        <strong id="partyInfoName">Seller</strong>
+        <span id="partyInfoMeta"></span>
+      </div>
+    </div>
+
+    <div class="party-info-rows" id="partyInfoRows"></div>
+
+    <p class="party-info-note">
+      <i class="fas fa-shield-halved"></i>
+      Meet in a public place and never pay before you have the item.
+    </p>
+
+    <div class="party-info-actions">
+      <button class="btn-secondary" onclick="closePartyInfo()">Close</button>
+      <button class="btn-danger" id="partyInfoReportBtn" onclick="reportFromChat()">
+        <i class="fas fa-flag"></i> Report Seller
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CAMERA CAPTURE =====
+     Live camera via getUserMedia, so "Take a photo" works on desktop too and
+     the user can retake before committing. Requires a SECURE CONTEXT — on
+     plain HTTP the browser refuses, and pickAvatar() falls back to the
+     phone's own camera picker instead. -->
+<div id="cameraModal" class="modal-overlay hidden">
+  <div class="modal-box camera-box">
+    <div class="camera-head">
+      <strong>Take a photo</strong>
+      <button class="modal-close" onclick="closeCamera()" aria-label="Cancel"><i class="fas fa-xmark"></i></button>
+    </div>
+
+    <div class="camera-stage">
+      <video id="cameraVideo" autoplay playsinline muted></video>
+      <div class="camera-ring"></div>
+    </div>
+
+    <p class="camera-hint" id="cameraHint">Line yourself up, then take the shot.</p>
+
+    <div class="camera-actions">
+      <button class="btn-secondary" onclick="closeCamera()">Cancel</button>
+      <button class="btn-secondary hidden" id="cameraFlipBtn" onclick="flipCamera()"><i class="fas fa-camera-rotate"></i> Flip</button>
+      <button class="btn-primary" id="cameraShootBtn" onclick="captureCameraPhoto()"><i class="fas fa-camera"></i> Capture</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== AVATAR CROPPER =====
+     Profile pictures render in a circle, so an uncropped photo gets its
+     edges cut off unpredictably. This lets the user choose what lands inside
+     the circle before anything is uploaded. Output is a square 512px JPEG,
+     which also keeps the upload small. -->
+<div id="avatarCropModal" class="modal-overlay hidden">
+  <div class="modal-box avatar-crop-box">
+    <div class="avatar-crop-head">
+      <strong>Adjust your picture</strong>
+      <button class="modal-close" onclick="closeAvatarCrop()" aria-label="Cancel"><i class="fas fa-xmark"></i></button>
+    </div>
+
+    <div class="avatar-crop-stage" id="avatarCropStage">
+      <canvas id="avatarCropCanvas" width="320" height="320"></canvas>
+      <div class="avatar-crop-ring"></div>
+    </div>
+
+    <label class="avatar-crop-zoom">
+      <i class="fas fa-magnifying-glass-minus"></i>
+      <input type="range" id="avatarZoom" min="1" max="3" step="0.01" value="1" oninput="drawAvatarCrop()">
+      <i class="fas fa-magnifying-glass-plus"></i>
+    </label>
+    <p class="avatar-crop-hint">Drag the photo to reposition it.</p>
+
+    <div class="avatar-crop-actions">
+      <button class="btn-secondary" onclick="closeAvatarCrop()">Cancel</button>
+      <button class="btn-primary" id="avatarCropSave" onclick="saveAvatarCrop()">Save picture</button>
+    </div>
+  </div>
+</div>
+
+<!-- Minimised chat. Shown when the user opens the listing from inside a
+     conversation: the panel hides but the conversation stays live, so
+     tapping this restores it exactly where it was. -->
+<button id="chatMiniBubble" class="chat-mini-bubble hidden" onclick="restoreChat()">
+  <i class="fas fa-comment-dots"></i>
+  <span class="chat-mini-name">Chat</span>
+  <i class="fas fa-chevron-up chat-mini-caret"></i>
+</button>
+
+<!-- ===== SUPPORT CHATBOT ===== -->
+<button id="botFab" class="bot-fab" onclick="toggleBot()" aria-label="Open support chat">
+  <i class="fas fa-headset"></i>
+</button>
+
+<div id="botPanel" class="bot-panel hidden" role="dialog" aria-label="Support assistant">
+  <div class="bot-head">
+    <div class="bot-head-title">
+      <span class="bot-avatar"><i class="fas fa-headset"></i></span>
+      <div>
+        <strong>DealBriz Assistant</strong>
+        <small>Answers from our help centre</small>
+      </div>
+    </div>
+    <button class="bot-close" onclick="toggleBot(false)" aria-label="Close"><i class="fa fa-times"></i></button>
+  </div>
+
+  <div id="botLog" class="bot-log" aria-live="polite"></div>
+
+  <div id="botChips" class="bot-chips"></div>
+
+  <form autocomplete="off" class="bot-input" onsubmit="sendBotMessage(event)">
+    <input type="text" id="botInput" placeholder="Type your question..." autocomplete="off" maxlength="500">
+    <button type="submit" class="bot-send" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
+  </form>
+</div>
+
+</body>
+</html>
