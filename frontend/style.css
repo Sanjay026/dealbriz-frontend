@@ -2529,3 +2529,11 @@ body.on-admin .bot-fab, body.on-admin .bot-panel { display: none; }
 .nav-right .nav-sell.active {
   background: var(--hb-amber-dk);
 }
+
+/* ===== Google sign-in (auth modal) ===== */
+.auth-google { margin: 4px 0 14px; }
+.auth-or { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 12px; margin: 14px 0 2px; }
+.auth-or::before, .auth-or::after { content: ""; flex: 1; height: 1px; background: #E2E8F0; }
+.google-btn { display: flex; justify-content: center; min-height: 44px; }
+.auth-google-note { font-size: 11.5px; color: var(--text-muted); text-align: center; line-height: 1.5; margin: 8px 0 0; }
+.auth-google-note a { color: var(--accent); }

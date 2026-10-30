@@ -110,7 +110,7 @@ async function apiFetch(path, { method = "GET", body, isForm = false, _retry = f
   // and retry, so a user is never logged out mid-action. Never retry the
   // refresh route itself, or a dead session loops forever.
   if (res.status === 401 && !_retry && !path.startsWith("/auth/refresh")
-      && !path.startsWith("/auth/login")) {
+      && !path.startsWith("/auth/login") && !path.startsWith("/auth/google")) {
     if (await refreshSession()) {
       return apiFetch(path, { method, body, isForm, _retry: true });
     }
@@ -136,6 +136,17 @@ const db = {
   async logIn({ email, password }) {
     // The server sets httpOnly cookies; nothing is returned for us to store.
     return apiFetch("/auth/login", { method: "POST", body: { email, password } });
+  },
+
+  // Google sign-in: the page shows Google's button only when the server has
+  // a client id. The ID token from the button is checked by the server,
+  // which then sets the same session cookies as /auth/login.
+  async googleConfig() {
+    return apiFetch("/auth/google/config");
+  },
+
+  async googleSignIn(credential) {
+    return apiFetch("/auth/google", { method: "POST", body: { credential } });
   },
 
   async logOut() {

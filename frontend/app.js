@@ -3125,6 +3125,7 @@ function openModal(hint) {
   // waiting for whoever opens it next — including on a shared machine.
   resetAuthForms();
   pushModal('auth');
+  renderGoogleButtons();
 }
 function closeModal(fromPopstate = false) {
   if (fromPopstate) { hideModal('auth'); return; }
@@ -3500,8 +3501,92 @@ async function handleSignup() {
   }
 }
 
+/* ===== GOOGLE SIGN-IN =====
+   Google Identity Services. The button gives an ID token; the server
+   checks it (backend auth/google.py) and sets the usual session cookies.
+   Nothing is shown until the server reports a client id, so the button
+   never appears half set up. Google's script loads only when the sign-in
+   box is first opened. */
+let googleSignInReady = null;   // Promise<boolean>, made once
+
+function loadGoogleSignIn() {
+  if (googleSignInReady) return googleSignInReady;
+  googleSignInReady = (async () => {
+    const cfg = await db.googleConfig();
+    if (!cfg || !cfg.enabled || !cfg.client_id) return false;
+    if (!(window.google && google.accounts && google.accounts.id)) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://accounts.google.com/gsi/client';
+        s.async = true;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    google.accounts.id.initialize({
+      client_id: cfg.client_id,
+      callback: handleGoogleCredential,
+      ux_mode: 'popup',
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
+    return true;
+  })().catch(err => {
+    console.warn('Google sign-in unavailable:', err);
+    googleSignInReady = null;   // try again next time the box opens
+    return false;
+  });
+  return googleSignInReady;
+}
+
+async function renderGoogleButtons() {
+  const ok = await loadGoogleSignIn();
+  document.querySelectorAll('[data-google-slot]').forEach(el => el.classList.toggle('hidden', !ok));
+  if (!ok) return;
+  [['googleLoginBtn', 'signin_with'], ['googleSignupBtn', 'signup_with']].forEach(([id, text]) => {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.rendered) return;
+    google.accounts.id.renderButton(el, {
+      type: 'standard', theme: 'outline', size: 'large', shape: 'pill',
+      text, logo_alignment: 'center', width: 300,
+    });
+    el.dataset.rendered = '1';
+  });
+}
+
+async function handleGoogleCredential(response) {
+  const onSignup = !document.getElementById('signupForm').classList.contains('hidden');
+  const errEl = document.getElementById(onSignup ? 'signupError' : 'loginError');
+  try {
+    const res = await db.googleSignIn(response && response.credential);
+    await refreshCurrentUser();
+    closeModal();
+    window.dbTrackEvent?.(res.created ? 'sign_up' : 'login', { method: 'google' });
+    showToast(res.created ? `Welcome to DealBriz, ${currentUser.name}!` : `Welcome back, ${currentUser.name}!`, 'success');
+    // Google doesn't give a phone number or pincode, and listings, chat
+    // offers and EMI need them. Ask straight away, unless the person was in
+    // the middle of something (that runs first; the profile can wait).
+    if (pendingAction) {
+      const action = pendingAction; pendingAction = null; setTimeout(action, 100);
+      if (res.needs_profile) setTimeout(() => showToast('Please add your phone number and pincode in My Profile.', 'info'), 2500);
+    } else if (res.needs_profile) {
+      // After closeModal's history step has landed, or that step would
+      // put the address bar back on the previous page.
+      setTimeout(() => {
+        showPage('profile');
+        showToast('Add your phone number and pincode to finish your profile.', 'info');
+      }, 300);
+    }
+  } catch (err) {
+    showAuthError(errEl, err.message || 'Google sign-in failed. Please try again.');
+  }
+}
+
 async function handleLogout() {
   try { await db.logOut(); } catch {}
+  // Google: don't pick this account silently next time the box opens.
+  try { window.google?.accounts?.id?.disableAutoSelect(); } catch {}
   currentUser = null; savedItems = new Set();
   updateUserUIAfterLogout();
   showToast('Logged out.', 'info');

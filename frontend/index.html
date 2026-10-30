@@ -20,7 +20,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=20261030a">
+<link rel="stylesheet" href="/style.css?v=20261030b">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="/home.css?v=20261030a">
@@ -51,6 +51,13 @@
     <div id="loginForm" class="auth-form" data-enter-flow>
       <h2>Welcome Back</h2>
       <p class="auth-sub">Sign in to continue</p>
+      <div class="auth-google hidden" data-google-slot>
+        <div class="google-btn" id="googleLoginBtn"></div>
+        <p class="auth-google-note">New to DealBriz? Continuing with Google creates your account, and means you agree to the
+          <a href="/terms" onclick="openLegalFromAuth('terms'); return false;">Terms of Service</a> and
+          <a href="/privacy" onclick="openLegalFromAuth('privacy'); return false;">Privacy Policy</a>.</p>
+        <div class="auth-or"><span>or sign in with email</span></div>
+      </div>
       <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="off"></div>
       <div class="form-group"><label>Password</label><div class="password-wrap"><input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••"><button type="button" class="pw-toggle" onclick="togglePassword('loginPassword', this)"><i class="fas fa-eye-slash"></i></button></div></div>
       <a href="#" class="forgot-link" onclick="openForgotPassword(); return false;">Forgot password?</a>
@@ -60,6 +67,13 @@
     <div id="signupForm" class="auth-form hidden" data-enter-flow>
       <h2>Create Account</h2>
       <p class="auth-sub">Join DealBriz today</p>
+      <div class="auth-google hidden" data-google-slot>
+        <div class="google-btn" id="googleSignupBtn"></div>
+        <p class="auth-google-note">By continuing with Google you agree to the
+          <a href="/terms" onclick="openLegalFromAuth('terms'); return false;">Terms of Service</a> and
+          <a href="/privacy" onclick="openLegalFromAuth('privacy'); return false;">Privacy Policy</a>.</p>
+        <div class="auth-or"><span>or sign up with email</span></div>
+      </div>
       <div class="form-row">
         <div class="form-group"><label>First Name</label><input type="text" id="signupFirstName" placeholder="John" autocomplete="off"></div>
         <div class="form-group"><label>Last Name</label><input type="text" id="signupLastName" placeholder="Doe" autocomplete="off"></div>
@@ -1171,8 +1185,8 @@
 <script src="/analytics.js?v=20261023a"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="/geo.js?v=20261022c"></script>
-<script src="/api-client.js?v=20261020c"></script>
-<script src="/app.js?v=20261030a"></script>
+<script src="/api-client.js?v=20261030a"></script>
+<script src="/app.js?v=20261030b"></script>
 <script src="/deals.js?v=20261029a"></script>
 <script src="/how-it-works.js?v=20261027a"></script>
 <script src="/browse-categories.js?v=20261027a"></script>
