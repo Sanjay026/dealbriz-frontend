@@ -309,7 +309,12 @@ body.on-home .nav-chat-glow:hover {
 }
 .buy-header .cat-scroll {
   border-bottom: none; padding: 0; background: transparent;
-  flex: 1; min-width: 0; justify-content: flex-end;
+  flex: 1; min-width: 0;
+  /* Pills start next to the back arrow. They used to be pushed right with
+     justify-content: flex-end, which left a gap on wide screens and, on a
+     phone, made the row overflow to the LEFT, where scrolling can't reach,
+     so All / Cars / Phones were cut off. */
+  justify-content: flex-start;
 }
 .back-btn { background: none; border: none; font-size: 18px; color: var(--text); padding: 4px 8px; flex-shrink: 0; }
 /* No overflow:hidden here — it clipped the suggestions dropdown, which is
@@ -1178,13 +1183,20 @@ body.admin-sidebar-open .admin-sidebar-scrim { opacity: 1; pointer-events: auto;
   .footer-links { grid-template-columns: repeat(4, 1fr); gap: 28px; margin-bottom: 28px; }
 
   /* Buy page */
-  .buy-header { padding: 10px 40px; }
+  /* The header, filter bar and count line up with the listings grid
+     (max 1280px, centred, 40px inside). The bars keep their full-width
+     background and only their content is inset. */
+  .buy-header, .filter-bar, .buy-results-count {
+    padding-left: max(40px, calc((100% - 1280px) / 2 + 40px));
+    padding-right: max(40px, calc((100% - 1280px) / 2 + 40px));
+  }
+  .buy-header { padding-top: 10px; padding-bottom: 10px; }
   .buy-search-wrap { max-width: 560px; }
   @media (min-width: 1080px) { .buy-search-mobile { display: none; } }
-  .filter-bar { padding: 10px 40px; }
+  .filter-bar { padding-top: 10px; padding-bottom: 10px; }
   .filter-panel { padding: 16px 40px; }
-  .filter-panel-inner { max-width: 1280px; margin: 0 auto; grid-template-columns: repeat(4, 1fr); }
-  .buy-results-count { padding: 12px 40px; }
+  .filter-panel-inner { max-width: 1200px; margin: 0 auto; grid-template-columns: repeat(4, 1fr); }   /* 1280 minus the grid's 40px insets, so it lines up */
+  .buy-results-count { padding-top: 12px; padding-bottom: 12px; }
   .listings-grid { padding: 0 40px 24px; max-width: 1280px; margin: 0 auto; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
   .listing-img { height: 170px; }
 
