@@ -1504,6 +1504,14 @@ body.admin-sidebar-open .admin-sidebar-scrim { opacity: 1; pointer-events: auto;
   padding: 13px; text-align: center; font-size: 13.5px; font-weight: 700;
 }
 
+/* Seller's own listing: unique views */
+.pdp-views { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-top: 10px; }
+.pdp-views-main { display: flex; align-items: center; gap: 12px; }
+.pdp-views-main i { width: 38px; height: 38px; border-radius: 10px; background: var(--accent-light); color: var(--accent); display: grid; place-items: center; font-size: 16px; }
+.pdp-views-main strong { display: block; font-size: 22px; line-height: 1.1; color: var(--text); }
+.pdp-views-main span { font-size: 12.5px; color: var(--text-muted); font-weight: 600; }
+.pdp-views-sub { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+
 .pdp-seller { background: var(--white); border: 1px solid var(--border); border-radius: 16px; padding: 18px 17px; }
 .pdp-seller-top { display: flex; align-items: center; gap: 13px; }
 .pdp-seller-avatar {

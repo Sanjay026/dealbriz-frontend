@@ -1566,9 +1566,15 @@ async function openListing(id) {
         ${isOwnListing ? `
           <div class="pdp-own"><i class="fas fa-circle-info"></i> ${p.dealStage === 'reserved' ? 'This is your listing. A buyer has locked a deal on it.'
             : p.dealStage === 'pending' ? 'This is your listing. A buyer is in a deal on it.' : 'This is your listing'}</div>
+          <div class="pdp-views" id="pdpOwnViews" aria-live="polite">
+            <div class="pdp-views-main"><i class="fas fa-eye"></i>
+              <div><strong data-views-total>${Number(p.views) || 0}</strong><span>Views</span></div></div>
+            <div class="pdp-views-sub" data-views-sub>Each person is counted once, however often they open it.</div>
+          </div>
           <div class="pdp-actions">
             ${p.dealStage ? `<button class="pdp-btn pdp-btn-amber" onclick="openDealForProduct('${p.id}')"><i class="fas fa-handshake"></i> View deal</button>` : ''}
             <button class="pdp-btn pdp-btn-blue" onclick="closeProductModal(); editListing('${p.id}')"><i class="fas fa-pen"></i> Edit Listing</button>
+            ${p.status !== 'removed' ? `<button class="pdp-icon-btn" onclick="shareListing('${p.id}')" aria-label="Share your listing" title="Share your listing"><i class="fas fa-share-nodes"></i></button>` : ''}
           </div>` : `
           ${p.dealStage === 'reserved' ? `<div class="pdp-reserved-note"><i class="fas fa-lock"></i> Reserved: another buyer has locked a deal on this listing. You can still message the seller.</div>`
             : p.dealStage === 'pending' ? `<div class="pdp-reserved-note"><i class="fas fa-handshake"></i> Another buyer is in a deal on this listing (documents being checked). You can still message the seller.</div>` : ''}
@@ -1606,9 +1612,26 @@ async function openListing(id) {
     <div class="pdp-similar" id="pdpSimilar"></div>`;
 
   loadSellerMeta(p.sellerId);
+  if (isOwnListing) loadOwnListingViews(p.id);
   loadSimilarProducts(p);
 }
 
+
+/* The seller's own listing: how many people viewed it. The number in the
+   listing data shows at once; this fetches the fresh total plus the last 7
+   days and 24 hours. Each person counts once (backend product_views). */
+async function loadOwnListingViews(id) {
+  try {
+    const v = await db.getMyListingViews(id);
+    const box = document.getElementById('pdpOwnViews');
+    if (!box || !currentProduct || currentProduct.id !== id) return;
+    const n = Number(v.total) || 0;
+    box.querySelector('[data-views-total]').textContent = n.toLocaleString('en-IN');
+    box.querySelector('[data-views-sub]').textContent = n === 0
+      ? 'No one has viewed it yet. Each person is counted once.'
+      : `${(Number(v.last_7_days) || 0).toLocaleString('en-IN')} in the last 7 days · ${(Number(v.last_24_hours) || 0).toLocaleString('en-IN')} today. Each person is counted once.`;
+  } catch { /* keep the number already shown */ }
+}
 
 /* Seller context, fetched separately so the modal renders immediately.
    Only shows facts we actually store — no ratings or verification badges,
@@ -1653,7 +1676,12 @@ async function shareListing(id) {
     if (navigator.share) { await navigator.share({ title, url }); return; }
     await navigator.clipboard.writeText(url);
     showToast('Link copied to clipboard.', 'success');
-  } catch { /* user dismissed the share sheet — nothing to report */ }
+  } catch (err) {
+    // Closing the share sheet is not an error. Anything else (clipboard
+    // blocked, share refused) used to fail silently, so the button looked dead.
+    if (err && err.name === 'AbortError') return;
+    showToast("Couldn't share. Copy the link from the address bar.", 'error');
+  }
 }
 
 function renderGalleryImage(p) {
@@ -2814,7 +2842,7 @@ async function renderMyListings() {
         ${typeof ldBadgeHtml === 'function' && (p.emiEligible || ['checking', 'verified'].includes(p.docsState)) ? ldBadgeHtml(p.docsState) : ''}
         <div class="my-listing-title">${escapeHtml(p.title)}</div>
         <div class="my-listing-price">₹${formatNum(p.price)}</div>
-        <div class="my-listing-meta">${escapeHtml(p.pincode)} · ${Number(p.views) || 0} views</div>
+        <div class="my-listing-meta">${escapeHtml(p.pincode)} · <i class="fas fa-eye"></i> ${(Number(p.views) || 0).toLocaleString('en-IN')} ${Number(p.views) === 1 ? 'view' : 'views'}</div>
         ${p.isFeatured ? `<div class="featured-note"><i class="fas fa-bolt"></i> Showing at top until ${new Date(p.featuredUntil).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</div>` : ''}
         <div class="my-listing-actions">
           <button class="btn-sm btn-sm-blue" onclick="openListing('${p.id}')">View</button>

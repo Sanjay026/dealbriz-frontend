@@ -302,6 +302,11 @@ const db = {
     return apiFetch(`/buy/${id}/view`, { method: "POST" });
   },
 
+  // The seller's own listing: people who viewed it (each person once).
+  async getMyListingViews(id) {
+    return apiFetch(`/my-listings/${encodeURIComponent(id)}/views`);
+  },
+
   /* ============ SELL (create listing, image upload) ============ */
 
   async createProduct(product) {
