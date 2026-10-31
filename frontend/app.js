@@ -961,30 +961,6 @@ function browseAllCategories() {
   setTimeout(() => setCatDirect('all'), 50);
 }
 
-async function initHomeCatPills() {
-  const scroll = document.getElementById('homeCatPillsScroll');
-  if (!scroll) return;
-  try {
-    const res = await fetch(API_BASE + '/categories');
-    if (!res.ok) return;
-    const cats = await res.json();
-    const active = cats.filter(c => c.is_active).sort((a, b) => a.sort_order - b.sort_order);
-    let html = '<button class="hb-cat-pill active" data-cat="all" onclick="homeCatPillClick(this,\'all\')">All</button>';
-    for (const c of active) {
-      html += `<button class="hb-cat-pill" data-cat="${c.slug}" onclick="homeCatPillClick(this,'${c.slug}')"><i class="fas ${c.icon}"></i> ${c.label}</button>`;
-    }
-    scroll.innerHTML = html;
-    document.getElementById('homeCatPills').classList.add('loaded');
-  } catch { /* keep empty if API unreachable */ }
-}
-
-function homeCatPillClick(el, cat) {
-  document.querySelectorAll('.hb-cat-pill').forEach(p => p.classList.remove('active'));
-  el.classList.add('active');
-  if (cat === 'all') { browseAllCategories(); return; }
-  browseCategory(cat);
-}
-
 function browseEmiListings() {
   if (!emiVisibleHere()) { showToast('EMI is not available in your area yet.', 'info'); return; }
   showPage('buy');
@@ -5739,7 +5715,6 @@ document.addEventListener('DOMContentLoaded', () => {
   recalcHomeEmi();
   loadHomeCategoryCounts();
   initHomeMap();
-  initHomeCatPills();
 });
 
 /* ===== LOCATION / AREA SELECTION ===== */

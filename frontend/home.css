@@ -366,39 +366,6 @@
 /* --------------------------------------------------------- SECTIONS */
 #homePage .hb-section { padding: 76px 0; }
 #homePage .hb-section.tint { background: var(--hb-panel); }
-/* ------------------------------------------ CATEGORY PILL BAR */
-.hb-cat-pills {
-  background: #fff; border-bottom: 1px solid var(--hb-line);
-  position: sticky; top: var(--nav-h); z-index: 90;
-  display: none;
-}
-.hb-cat-pills.loaded {
-  display: block;
-}
-.hb-cat-pills .hb-wrap { padding-top: 0; padding-bottom: 0; }
-.hb-cat-pills-scroll {
-  display: flex; gap: 8px; padding: 10px 0;
-  overflow-x: auto; scrollbar-width: none;
-}
-.hb-cat-pills-scroll::-webkit-scrollbar { display: none; }
-.hb-cat-pill {
-  flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 18px; border-radius: 999px;
-  border: 1.5px solid var(--hb-line); background: #fff; color: #475569;
-  font-size: 13.5px; font-weight: 600; font-family: var(--hb-font);
-  cursor: pointer; white-space: nowrap;
-  transition: background .16s, color .16s, border-color .16s;
-}
-.hb-cat-pill:hover { border-color: #CBD5E1; background: #F8FAFC; }
-.hb-cat-pill.active { background: var(--hb-blue); border-color: var(--hb-blue); color: #fff; }
-.hb-cat-pill i { font-size: 13px; opacity: 0.7; }
-.hb-cat-pill.active i { opacity: 1; }
-.hb-cat-pill .hb-cat-count {
-  font-size: 11px; font-weight: 700; opacity: 0.5;
-  margin-left: 2px;
-}
-.hb-cat-pill.active .hb-cat-count { opacity: 0.8; }
-
 /* A barely-there blue wash so the frosted category panes have something to
    refract; it fades into the white hero above and the navy EMI band below. */
 #homePage .hb-section--cats {

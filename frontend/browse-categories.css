@@ -38,10 +38,12 @@
 
 /* ---------- grid: 5 on top, 5 below ---------- */
 .dbz-cats__grid {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--gap);
+  /* minmax(0, 1fr), not 1fr: a plain 1fr column won't shrink below its
+     content, so from 761px to ~800px the fifth tile ran off the screen. */
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--gap);
   list-style: none; margin: 0; padding: 0;
 }
-.dbz-cats__grid > li { display: flex; }
+.dbz-cats__grid > li { display: flex; container-type: inline-size; }   /* the tile name below sizes itself to this box (cqi) */
 
 /* ---------- tile base ---------- */
 .dbz-tile {
@@ -85,6 +87,12 @@
 .dbz-tile__name {
   position: relative; z-index: 1;
   font-weight: 800; font-size: clamp(18px, 2.4vw, 44px);
+  /* Same size as before wherever it fits, smaller only when the longest
+     names would run past the tile: tiles stop growing at the 1280px
+     content width, so on wide screens 2.4vw (up to 44px) cut off
+     "Electronics" and "Appliances". Browsers without container units
+     keep the line above. */
+  font-size: clamp(14px, min(2.4vw, calc((100cqi - 40px) / 5)), 44px);
   line-height: 1.1; letter-spacing: -.02em;
   white-space: nowrap;
 }

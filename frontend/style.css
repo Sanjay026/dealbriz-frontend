@@ -861,7 +861,8 @@ body.on-home .nav-chat-glow:hover {
 .my-listing-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .my-listing-price { font-size: 16px; font-weight: 800; color: var(--navy); margin-bottom: 4px; }
 .my-listing-meta { font-size: 12px; color: var(--text-muted); }
-.my-listing-actions { display: flex; gap: 6px; margin-top: 8px; }
+.my-listing-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }   /* wraps on phones instead of running off the edge */
+.my-listing-actions .btn-sm { white-space: nowrap; }
 .btn-sm { padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; border: none; cursor: pointer; }
 .btn-sm-red { background: #FEE2E2; color: var(--red); }
 .btn-sm-blue { background: var(--accent-light); color: var(--accent); }
@@ -1653,12 +1654,14 @@ body.admin-sidebar-open .admin-sidebar-scrim { opacity: 1; pointer-events: auto;
 .admin-terms-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
 .admin-terms-head h3 { font-size: 18px; font-weight: 800; margin: 0; color: var(--text); }
 .admin-terms-meta { font-size: 12px; color: var(--text-muted); }
+/* Block, not flex: as a flex box every text run and <strong> in the note
+   became its own column. The icon hangs in the left padding instead. */
 .admin-terms-note {
-  display: flex; gap: 9px; align-items: flex-start;
+  display: block; position: relative;
   background: var(--accent-light); color: #1E40AF; border-radius: var(--radius-sm);
-  padding: 11px 14px; font-size: 12.5px; line-height: 1.55; margin: 0 0 16px;
+  padding: 11px 14px 11px 36px; font-size: 12.5px; line-height: 1.55; margin: 0 0 16px;
 }
-.admin-terms-note i { margin-top: 2px; flex-shrink: 0; }
+.admin-terms-note > i:first-child { position: absolute; left: 14px; top: 14px; }
 .admin-terms-textarea {
   width: 100%; min-height: 420px; resize: vertical;
   border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px;
