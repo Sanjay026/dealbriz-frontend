@@ -973,3 +973,159 @@ body.on-buy .nav-buy-search input::placeholder { color: #94A3B8; }
    nav. On pages that now end in the footer it just leaves a gap, so the
    footer supplies its own spacing instead. */
 body.show-footer .page:not(.hidden) { padding-bottom: 0; }
+
+/* ============================================================
+   DARK MODE — home page overrides
+   ============================================================ */
+:root[data-theme="dark"] {
+  --hb-text:  #E2E8F0;
+  --hb-muted: #94A3B8;
+  --hb-ink:   #060B18;
+  --hb-line:  #2A2D37;
+  --hb-panel: #141720;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --hb-text:  #E2E8F0;
+    --hb-muted: #94A3B8;
+    --hb-ink:   #060B18;
+    --hb-line:  #2A2D37;
+    --hb-panel: #141720;
+  }
+}
+
+/* Hero gradient */
+:root[data-theme="dark"] #homePage { background: #0F1117; }
+:root[data-theme="dark"] #homePage .hb-hero {
+  background: linear-gradient(180deg, #0F1117 0%, #111520 40%, #141A28 100%);
+}
+:root[data-theme="dark"] #homePage .hb-hero::after {
+  background: linear-gradient(to bottom, transparent 0%, #141A28 30%, #131822 100%);
+}
+:root[data-theme="dark"] #homePage .hb-section--cats::before {
+  background: linear-gradient(to bottom, transparent 0%, #131822 100%);
+}
+:root[data-theme="dark"] #homePage .hb-section--cats::after {
+  background: linear-gradient(to bottom, #131822 0%, #131822 70%, #0F1117 100%);
+}
+
+/* Hero search bar */
+:root[data-theme="dark"] #homePage .hb-hero-search { background: #1A1D27; box-shadow: 0 4px 30px rgba(0,0,0,0.4); }
+:root[data-theme="dark"] #homePage .hb-hero-loc { border-right-color: var(--hb-line); }
+:root[data-theme="dark"] #homePage .hb-hero-search input { color: var(--hb-text); }
+:root[data-theme="dark"] #homePage .hb-hero-search input::placeholder { color: #6B7585; }
+
+/* Badge */
+:root[data-theme="dark"] #homePage .hb-badge { background: #2A2418; border-color: #3A3020; color: #D4A64A; }
+
+/* Stats */
+:root[data-theme="dark"] #homePage .hb-stat-div { background: var(--hb-line); }
+
+/* Superpowers */
+:root[data-theme="dark"] #homePage .hb-superpowers { background: var(--hb-panel); }
+:root[data-theme="dark"] #homePage .hb-sp-badge { background: var(--accent-light, #1A2440); border-color: #253050; color: var(--hb-blue); }
+:root[data-theme="dark"] #homePage .hb-sp-header h2 { color: var(--hb-text); }
+:root[data-theme="dark"] #homePage .hb-sp-header p { color: var(--hb-muted); }
+:root[data-theme="dark"] #homePage .hb-sp-card {
+  background: #1A1D27; border-color: var(--hb-line);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+:root[data-theme="dark"] #homePage .hb-sp-card:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.25); border-color: #3A5090; }
+:root[data-theme="dark"] #homePage .hb-sp-card:nth-child(2):hover { border-color: #2A6050; }
+:root[data-theme="dark"] #homePage .hb-sp-card h3 { color: var(--hb-text); }
+:root[data-theme="dark"] #homePage .hb-sp-card > p { color: var(--hb-muted); }
+:root[data-theme="dark"] #homePage .hb-sp-footer { border-top-color: var(--hb-line); }
+:root[data-theme="dark"] #homePage .hb-sp-footer > span:first-child { color: var(--hb-muted); }
+:root[data-theme="dark"] #homePage .hb-sp-val { color: var(--hb-text); }
+:root[data-theme="dark"] #homePage .hb-sp-tag--green { background: #0D2818; color: #34D399; border-color: #1A4030; }
+:root[data-theme="dark"] #homePage .hb-sp-tag--blue { background: #1A2440; color: #7BA3F7; border-color: #253060; }
+:root[data-theme="dark"] #homePage .hb-sp-tag--slate { background: #1E212B; color: #8B95A5; border-color: #2A2D37; }
+
+/* Sell band card (the white card on the dark sell band) */
+:root[data-theme="dark"] #homePage .hb-sell-card { background: #1A1D27; color: var(--hb-text); }
+:root[data-theme="dark"] #homePage .hb-sell-card-head { border-bottom-color: var(--hb-line); }
+
+/* "How It Works" toggle */
+:root[data-theme="dark"] .dbz-how__toggle { background: #1A1D27; border-color: var(--hb-line); }
+:root[data-theme="dark"] .dbz-how__toggle button { color: var(--hb-muted); }
+:root[data-theme="dark"] .dbz-how__toggle button:hover { color: var(--hb-text); }
+
+/* Live map badge */
+:root[data-theme="dark"] #homePage .hb-live { background: #0D2818; color: #34D399; }
+
+/* Light navbar on home — override for dark mode */
+:root[data-theme="dark"] body.on-home .navbar {
+  background: rgba(19,22,31,0.7);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border-bottom-color: var(--hb-line);
+}
+:root[data-theme="dark"] body.on-home .nav-icon-btn { background: #1E212B; color: var(--hb-muted); }
+:root[data-theme="dark"] body.on-home .nav-icon-btn:hover { background: #282B36; }
+:root[data-theme="dark"] body.on-home .nav-signin-btn { background: #1E212B; border-color: var(--hb-line); color: var(--hb-text); }
+:root[data-theme="dark"] body.on-home .nav-desktop-links a { color: var(--hb-muted); }
+:root[data-theme="dark"] body.on-home .nav-desktop-links a:hover { color: var(--hb-blue); }
+:root[data-theme="dark"] body.on-home .nav-loc { background: #1E212B; color: var(--hb-text); border-color: var(--hb-line); }
+:root[data-theme="dark"] body.on-home .nav-loc:hover { background: #282B36; }
+
+/* Light navbar on buy — override for dark mode */
+:root[data-theme="dark"] body.on-buy .navbar {
+  background: rgba(19,22,31,0.7);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border-bottom-color: var(--hb-line);
+}
+:root[data-theme="dark"] body.on-buy .nav-icon-btn { background: #1E212B; color: var(--hb-muted); }
+:root[data-theme="dark"] body.on-buy .nav-icon-btn:hover { background: #282B36; }
+:root[data-theme="dark"] body.on-buy .nav-buy-search { background: #1E212B; border-color: var(--hb-line); }
+
+/* Map container */
+:root[data-theme="dark"] #homePage .hb-map-canvas { background: #1A1D27; }
+:root[data-theme="dark"] #homePage .hb-map-zoom button { background: #1A1D27; color: var(--hb-text); border-color: var(--hb-line); }
+:root[data-theme="dark"] #homePage .hb-map-zoom button:hover { background: var(--hb-panel); }
+:root[data-theme="dark"] #homePage .hb-map-browse { background: #1A1D27; border-color: var(--hb-line); }
+:root[data-theme="dark"] #homePage .hb-map-browse:hover { background: #1A2440; }
+
+/* Auto dark (OS preference) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) #homePage { background: #0F1117; }
+  :root:not([data-theme="light"]) #homePage .hb-hero { background: linear-gradient(180deg, #0F1117 0%, #111520 40%, #141A28 100%); }
+  :root:not([data-theme="light"]) #homePage .hb-hero::after { background: linear-gradient(to bottom, transparent 0%, #141A28 30%, #131822 100%); }
+  :root:not([data-theme="light"]) #homePage .hb-section--cats::before { background: linear-gradient(to bottom, transparent 0%, #131822 100%); }
+  :root:not([data-theme="light"]) #homePage .hb-section--cats::after { background: linear-gradient(to bottom, #131822 0%, #131822 70%, #0F1117 100%); }
+  :root:not([data-theme="light"]) #homePage .hb-hero-search { background: #1A1D27; box-shadow: 0 4px 30px rgba(0,0,0,0.4); }
+  :root:not([data-theme="light"]) #homePage .hb-hero-loc { border-right-color: var(--hb-line); }
+  :root:not([data-theme="light"]) #homePage .hb-hero-search input { color: var(--hb-text); }
+  :root:not([data-theme="light"]) #homePage .hb-hero-search input::placeholder { color: #6B7585; }
+  :root:not([data-theme="light"]) #homePage .hb-badge { background: #2A2418; border-color: #3A3020; color: #D4A64A; }
+  :root:not([data-theme="light"]) #homePage .hb-stat-div { background: var(--hb-line); }
+  :root:not([data-theme="light"]) #homePage .hb-superpowers { background: var(--hb-panel); }
+  :root:not([data-theme="light"]) #homePage .hb-sp-badge { background: var(--accent-light, #1A2440); border-color: #253050; color: var(--hb-blue); }
+  :root:not([data-theme="light"]) #homePage .hb-sp-header h2 { color: var(--hb-text); }
+  :root:not([data-theme="light"]) #homePage .hb-sp-card { background: #1A1D27; border-color: var(--hb-line); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  :root:not([data-theme="light"]) #homePage .hb-sp-card:hover { box-shadow: 0 20px 50px rgba(0,0,0,0.25); border-color: #3A5090; }
+  :root:not([data-theme="light"]) #homePage .hb-sp-card h3 { color: var(--hb-text); }
+  :root:not([data-theme="light"]) #homePage .hb-sp-card > p { color: var(--hb-muted); }
+  :root:not([data-theme="light"]) #homePage .hb-sp-footer { border-top-color: var(--hb-line); }
+  :root:not([data-theme="light"]) #homePage .hb-sp-val { color: var(--hb-text); }
+  :root:not([data-theme="light"]) #homePage .hb-sp-tag--green { background: #0D2818; color: #34D399; border-color: #1A4030; }
+  :root:not([data-theme="light"]) #homePage .hb-sp-tag--blue { background: #1A2440; color: #7BA3F7; border-color: #253060; }
+  :root:not([data-theme="light"]) #homePage .hb-sp-tag--slate { background: #1E212B; color: #8B95A5; border-color: #2A2D37; }
+  :root:not([data-theme="light"]) #homePage .hb-sell-card { background: #1A1D27; color: var(--hb-text); }
+  :root:not([data-theme="light"]) #homePage .hb-sell-card-head { border-bottom-color: var(--hb-line); }
+  :root:not([data-theme="light"]) .dbz-how__toggle { background: #1A1D27; border-color: var(--hb-line); }
+  :root:not([data-theme="light"]) .dbz-how__toggle button { color: var(--hb-muted); }
+  :root:not([data-theme="light"]) #homePage .hb-live { background: #0D2818; color: #34D399; }
+  :root:not([data-theme="light"]) body.on-home .navbar { background: rgba(19,22,31,0.7); border-bottom-color: var(--hb-line); }
+  :root:not([data-theme="light"]) body.on-home .nav-icon-btn { background: #1E212B; color: var(--hb-muted); }
+  :root:not([data-theme="light"]) body.on-home .nav-icon-btn:hover { background: #282B36; }
+  :root:not([data-theme="light"]) body.on-home .nav-signin-btn { background: #1E212B; border-color: var(--hb-line); color: var(--hb-text); }
+  :root:not([data-theme="light"]) body.on-home .nav-desktop-links a { color: var(--hb-muted); }
+  :root:not([data-theme="light"]) body.on-home .nav-loc { background: #1E212B; color: var(--hb-text); border-color: var(--hb-line); }
+  :root:not([data-theme="light"]) body.on-buy .navbar { background: rgba(19,22,31,0.7); border-bottom-color: var(--hb-line); }
+  :root:not([data-theme="light"]) body.on-buy .nav-icon-btn { background: #1E212B; color: var(--hb-muted); }
+  :root:not([data-theme="light"]) body.on-buy .nav-buy-search { background: #1E212B; border-color: var(--hb-line); }
+  :root:not([data-theme="light"]) #homePage .hb-map-canvas { background: #1A1D27; }
+  :root:not([data-theme="light"]) #homePage .hb-map-zoom button { background: #1A1D27; color: var(--hb-text); border-color: var(--hb-line); }
+  :root:not([data-theme="light"]) #homePage .hb-map-browse { background: #1A1D27; border-color: var(--hb-line); }
+}

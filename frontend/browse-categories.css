@@ -213,3 +213,16 @@
   .is-open .dbz-panel__art,
   .is-open .dbz-wheel { animation: none; }
 }
+
+/* --- Dark mode --- */
+:root[data-theme="dark"] .dbz-tile__icon { background: #1A2440; }
+:root[data-theme="dark"] .dbz-cats__all { background: #1A1D27; color: var(--hb-text, #E2E8F0); border-color: #2A2D37; }
+:root[data-theme="dark"] .dbz-cats__all:hover { border-color: #3A3D47; }
+:root[data-theme="dark"] .dbz-panel__cta { background: #1A1D27; color: var(--hb-text, #E2E8F0); }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .dbz-tile__icon { background: #1A2440; }
+  :root:not([data-theme="light"]) .dbz-cats__all { background: #1A1D27; color: var(--hb-text, #E2E8F0); border-color: #2A2D37; }
+  :root:not([data-theme="light"]) .dbz-cats__all:hover { border-color: #3A3D47; }
+  :root:not([data-theme="light"]) .dbz-panel__cta { background: #1A1D27; color: var(--hb-text, #E2E8F0); }
+}

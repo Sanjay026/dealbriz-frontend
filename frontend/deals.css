@@ -644,3 +644,57 @@ label.deal-btn { position: relative; overflow: hidden; }
 .restrict-countdown { color: #B91C1C; font-weight: 700; font-variant-numeric: tabular-nums; }
 .deal-ban-banner [data-countdown], .deal-bar-ban [data-countdown] { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .notif-countdown { color: #B91C1C !important; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* --- Dark mode --- */
+:root[data-theme="dark"] .deal-card { background: var(--white); }
+:root[data-theme="dark"] .deal-card-note { background: #1E212B; }
+:root[data-theme="dark"] .chat-system { background: #1E212B; color: var(--text-muted); }
+:root[data-theme="dark"] .deal-next { background: linear-gradient(180deg, var(--accent-light), var(--white) 70%); }
+:root[data-theme="dark"] .deal-step-dot { background: var(--white); border-color: var(--border); }
+:root[data-theme="dark"] .deal-timeline li::before { background: var(--white); }
+:root[data-theme="dark"] .deal-code-card { background: var(--white); }
+:root[data-theme="dark"] .deal-warn-box { background: var(--white); }
+:root[data-theme="dark"] .deal-warn-lang { background: #2A2418; border-color: #3A3020; }
+:root[data-theme="dark"] .deal-warn-lang[lang="hi"] { background: #2A1A1A; border-color: #3A2020; }
+:root[data-theme="dark"] .deal-warn-check { border-color: var(--border); }
+:root[data-theme="dark"] .deal-warn-check:has(input:checked) { border-color: var(--accent); background: var(--accent-light); }
+:root[data-theme="dark"] .deal-ask-box { background: var(--white); }
+:root[data-theme="dark"] .deal-ask-note { background: #1E212B; }
+:root[data-theme="dark"] .deal-list-item { background: var(--white); }
+:root[data-theme="dark"] .deal-tab { background: var(--white); }
+:root[data-theme="dark"] .deal-cancel-req { background: #2A2418; border-color: #3A3020; }
+:root[data-theme="dark"] .deal-cancel-req.is-theirs { background: #2A1A1A; border-color: #3A2020; }
+:root[data-theme="dark"] .deal-next-docs { border-color: #7C3AED; background: linear-gradient(180deg, #1A1530, var(--white) 70%); }
+:root[data-theme="dark"] .deal-loan-assume { background: #2A2418; border-color: #D97706; color: #FCD34D; }
+:root[data-theme="dark"] .deal-loan-assume strong { color: #FCD34D; }
+:root[data-theme="dark"] .deal-ban-banner { background: #2A1A1A; color: #FCA5A5; border-color: #3A2020; }
+:root[data-theme="dark"] .deal-doc-row-rejected { border-color: #5A2020; background: #2A1A1A; }
+:root[data-theme="dark"] .deal-type { background: #1E212B; color: var(--text-muted); }
+:root[data-theme="dark"] .deal-type-vehicle { background: #1A2440; color: #7BA3F7; }
+:root[data-theme="dark"] .deal-type-personal { background: #2A1830; color: #F0ABCD; }
+:root[data-theme="dark"] .lender-firm { background: var(--white); border-color: var(--border); }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .deal-card { background: var(--white); }
+  :root:not([data-theme="light"]) .deal-card-note { background: #1E212B; }
+  :root:not([data-theme="light"]) .chat-system { background: #1E212B; color: var(--text-muted); }
+  :root:not([data-theme="light"]) .deal-next { background: linear-gradient(180deg, var(--accent-light), var(--white) 70%); }
+  :root:not([data-theme="light"]) .deal-step-dot { background: var(--white); border-color: var(--border); }
+  :root:not([data-theme="light"]) .deal-timeline li::before { background: var(--white); }
+  :root:not([data-theme="light"]) .deal-code-card { background: var(--white); }
+  :root:not([data-theme="light"]) .deal-warn-box { background: var(--white); }
+  :root:not([data-theme="light"]) .deal-warn-lang { background: #2A2418; border-color: #3A3020; }
+  :root:not([data-theme="light"]) .deal-warn-lang[lang="hi"] { background: #2A1A1A; border-color: #3A2020; }
+  :root:not([data-theme="light"]) .deal-ask-box { background: var(--white); }
+  :root:not([data-theme="light"]) .deal-ask-note { background: #1E212B; }
+  :root:not([data-theme="light"]) .deal-list-item { background: var(--white); }
+  :root:not([data-theme="light"]) .deal-tab { background: var(--white); }
+  :root:not([data-theme="light"]) .deal-cancel-req { background: #2A2418; border-color: #3A3020; }
+  :root:not([data-theme="light"]) .deal-next-docs { border-color: #7C3AED; background: linear-gradient(180deg, #1A1530, var(--white) 70%); }
+  :root:not([data-theme="light"]) .deal-loan-assume { background: #2A2418; border-color: #D97706; color: #FCD34D; }
+  :root:not([data-theme="light"]) .deal-ban-banner { background: #2A1A1A; color: #FCA5A5; border-color: #3A2020; }
+  :root:not([data-theme="light"]) .deal-type { background: #1E212B; color: var(--text-muted); }
+  :root:not([data-theme="light"]) .deal-type-vehicle { background: #1A2440; color: #7BA3F7; }
+  :root:not([data-theme="light"]) .deal-type-personal { background: #2A1830; color: #F0ABCD; }
+  :root:not([data-theme="light"]) .lender-firm { background: var(--white); border-color: var(--border); }
+}

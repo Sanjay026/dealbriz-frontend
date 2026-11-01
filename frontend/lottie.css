@@ -36,8 +36,10 @@
 
 .dbz-tile:hover .lottie-tile-anim,
 .dbz-tile:focus-visible .lottie-tile-anim { opacity: 1; }
-.dbz-tile:hover .dbz-tile__icon > svg,
-.dbz-tile:focus-visible .dbz-tile__icon > svg {
+/* Only hide the static icon SVG when a lottie animation has actually
+   rendered inside the tile (the lottie container gets an <svg> child). */
+.dbz-tile:hover .dbz-tile__icon:has(.lottie-tile-anim svg) > svg,
+.dbz-tile:focus-visible .dbz-tile__icon:has(.lottie-tile-anim svg) > svg {
   opacity: 0 !important; transition: opacity 0.3s ease;
 }
 

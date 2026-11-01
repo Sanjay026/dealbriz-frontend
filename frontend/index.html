@@ -38,6 +38,9 @@
   gtag('js', new Date());
   gtag('config', 'G-M2WVWHBX5H', { send_page_view: false });
 </script>
+<script>
+(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches){document.documentElement.setAttribute('data-theme','dark');t='dark';}if(t==='dark'){var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content','#0F1117');}}catch(e){}})();
+</script>
 </head>
 <body>
 
@@ -260,6 +263,9 @@
       <a href="/#how-it-works" onclick="goHowItWorks(); return false;">Why DealBriz</a>
     </div>
     <div class="nav-actions">
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+        <i class="fas fa-moon"></i>
+      </button>
             <button class="nav-icon-btn nav-badge-btn nav-chat-glow" id="navChatBtn" onclick="openChatsFromNav()"
               aria-label="Chats" title="Chats">
         <svg class="nav-chat-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1516,6 +1522,30 @@
     <button type="submit" class="bot-send" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
   </form>
 </div>
+
+<script>
+function toggleTheme() {
+  var html = document.documentElement;
+  var current = html.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  try { localStorage.setItem('theme', next); } catch(e) {}
+  updateThemeIcon(next);
+  var meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', next === 'dark' ? '#0F1117' : '#0A1628');
+}
+function updateThemeIcon(theme) {
+  var btn = document.getElementById('themeToggle');
+  if (!btn) return;
+  var i = btn.querySelector('i');
+  if (theme === 'dark') { i.className = 'fas fa-sun'; }
+  else { i.className = 'fas fa-moon'; }
+}
+(function() {
+  var t = document.documentElement.getAttribute('data-theme') || 'light';
+  updateThemeIcon(t);
+})();
+</script>
 
 </body>
 </html>
