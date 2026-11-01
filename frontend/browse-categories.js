@@ -157,7 +157,7 @@
   // Categories now come from Admin -> Categories (app.js rebuilds the
   // tiles). "phones" is drawn with the mobiles art; a new category with no
   // art of its own gets the "others" box.
-  const ALIAS = { phones: 'mobiles' };
+  const ALIAS = { phones: 'mobiles', electronics: 'laptops' };   // electronics: laptop drawing, not the Others boxes
   const svgFor = (slug) => {
     const a = ART[slug] || ART[ALIAS[slug]] || ART.others;
     if (!a) return '';
