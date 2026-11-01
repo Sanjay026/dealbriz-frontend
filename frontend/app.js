@@ -358,6 +358,7 @@ async function refreshCurrentUser() {
         lastName: profile.last_name,
         phone: profile.phone,
         pincode: profile.city,
+        location: profile.location || '',
         avatarUrl: profile.avatar_url,
         isAdmin: profile.is_admin || profile.is_staff || false,
         roles: profile.roles || [],
@@ -3680,6 +3681,12 @@ async function renderProfilePage() {
   document.getElementById('profileEmail').value = currentUser.email;
   document.getElementById('profilePhone').value = currentUser.phone || '';
   document.getElementById('profilePincode').value = currentUser.pincode || '';
+  const locEl = document.getElementById('profileLocation');
+  locEl.value = currentUser.location || '';
+  // A saved location still follows the pincode if the pincode is changed;
+  // typing in the box (oninput) stops that for this visit.
+  locEl.dataset.auto = '1';
+  if (!locEl.value) profilePincodeChanged();
   document.getElementById('statSavedCount').textContent = savedItems.size;
   try {
     myListingsCache = (await db.getMyListings()).map(normalizeListing);
@@ -3710,6 +3717,7 @@ async function saveProfileDetails() {
   const ln=document.getElementById('profileLastName').value.trim();
   const ph=document.getElementById('profilePhone').value.trim();
   const pc=document.getElementById('profilePincode').value.trim();
+  const loc=document.getElementById('profileLocation').value.trim();
   if(!fn||!ln||!ph||!pc){showProfileMsg('profileDetailsMsg','Please fill all fields.','error');return;}
   if(!isValidIndianPhone(ph)){showProfileMsg('profileDetailsMsg','Enter a valid 10-digit mobile number.','error');return;}
   if(pc.length!==6||isNaN(pc)){showProfileMsg('profileDetailsMsg','Enter a valid 6-digit pincode.','error');return;}
@@ -3721,15 +3729,50 @@ async function saveProfileDetails() {
     fn === (currentUser.name || '') &&
     ln === (currentUser.lastName || '') &&
     ph === (currentUser.phone || '') &&
-    pc === (currentUser.pincode || '');
+    pc === (currentUser.pincode || '') &&
+    loc === (currentUser.location || '');
   if (unchanged) { showProfileMsg('profileDetailsMsg','No changes to save.','error'); return; }
 
   try {
-    await db.updateProfile({first_name:fn,last_name:ln,phone:ph,city:pc});
-    currentUser.name=fn; currentUser.lastName=ln; currentUser.phone=ph; currentUser.pincode=pc;
+    await db.updateProfile({first_name:fn,last_name:ln,phone:ph,city:pc,location:loc});
+    currentUser.name=fn; currentUser.lastName=ln; currentUser.phone=ph; currentUser.pincode=pc; currentUser.location=loc;
     updateUserUI(); showProfileMsg('profileDetailsMsg','Profile updated!','success');
     document.getElementById('profileSidebarName').textContent=`${fn} ${ln}`;
-  } catch { showProfileMsg('profileDetailsMsg','Update failed. Try again.','error'); }
+  } catch (err) { showProfileMsg('profileDetailsMsg', err.message || 'Update failed. Try again.', 'error'); return; }
+  // Only after a successful save: let the message be read, then go home
+  // (unless they've already moved to another page in that second).
+  setTimeout(() => {
+    if (!document.getElementById('profilePage').classList.contains('hidden')) showPage('home');
+  }, 1000);
+}
+
+/* Profile Location follows the pincode: once 6 digits are in, the area is
+   looked up (post office + district from the pincode table, else the
+   built-in map in geo.js) and filled in. Typing in Location stops that. */
+let profileLocTimer = null;
+function profilePincodeChanged() {
+  const pinEl = document.getElementById('profilePincode');
+  const locEl = document.getElementById('profileLocation');
+  if (!pinEl || !locEl) return;
+  const pc = pinEl.value.replace(/\D/g, '');
+  clearTimeout(profileLocTimer);
+  if (pc.length !== 6 || locEl.dataset.auto === '0') return;
+  profileLocTimer = setTimeout(async () => {
+    let name = '';
+    try {
+      const data = await db.searchLocations(pc, 5);
+      const r = (data && data.results || []).find(x => x.pincode === pc);
+      if (r) name = [r.office_name, r.district].filter(Boolean).join(', ');
+    } catch { /* fall back to geo.js below */ }
+    if (!name && typeof dbLookupPincode === 'function') {
+      const g = dbLookupPincode(pc);
+      if (g) name = [g.locality, g.district].filter(Boolean).join(', ') || g.state || '';
+    }
+    // Still the same pincode, and still not typed over?
+    if (!name || pinEl.value.replace(/\D/g, '') !== pc || locEl.dataset.auto === '0') return;
+    locEl.value = name;
+    locEl.dataset.auto = '1';
+  }, 300);
 }
 
 async function changePassword() {
@@ -5568,7 +5611,7 @@ let siteCategories = [
   ['cars', 'Cars', 'fa-car-side', '🚗'], ['phones', 'Phones', 'fa-mobile-screen-button', '📱'],
   ['bikes', 'Bikes', 'fa-motorcycle', '🏍️'], ['electronics', 'Electronics', 'fa-laptop', '💻'],
   ['furniture', 'Furniture', 'fa-couch', '🛋️'], ['appliances', 'Appliances', 'fa-blender', '🧊'],
-  ['fashion', 'Fashion', 'fa-shirt', '👗'], ['property', 'Property', 'fa-building', '🏢'],
+  ['fashion', 'Fashion', 'fa-shirt', '👗'],
   ['others', 'Others', 'fa-box-open', '📦'],
 ].map(([slug, label, icon, emoji]) => ({ slug, label, icon, emoji, listing_count: null }));
 

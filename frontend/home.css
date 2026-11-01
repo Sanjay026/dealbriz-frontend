@@ -403,6 +403,11 @@
   position: relative;
   z-index: 1;
 }
+/* The categories' background (::after above) reaches 76px into the next
+   section to blend into it. On phones that section only has 48px of top
+   padding, so the blend covered the top of "How DealBriz Works". Lifting
+   the section keeps the blend behind it (it has no background of its own). */
+#homePage .hb-section--how { position: relative; z-index: 2; }
 #homePage .hb-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 34px; }
 #homePage .hb-head h2 {
   font-size: clamp(28px, 4.6vw, 40px); font-weight: 800;

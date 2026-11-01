@@ -122,19 +122,6 @@
       <rect x="196" y="188" width="34" height="30" rx="4" fill="${S}" stroke="${L}" stroke-width="3"/>
       <rect x="148" y="62" width="20" height="11" rx="3" fill="${Y}" transform="rotate(-18 158 67)"/>
       <path d="M96 118l34 40M244 118l-34 40" stroke="${S}" stroke-width="4"/>`],
-
-    property: ['0 0 380 300', `${shadow(190, 288, 150)}
-      <rect x="268" y="58" width="26" height="50" fill="${G}"/>
-      <path d="M72 140L190 44l118 96v124q0 14-14 14H86q-14 0-14-14z" fill="#fff"/>
-      <path d="M40 150L190 32l150 118-22 24L190 70 62 174z" fill="${G}"/>
-      <rect x="162" y="196" width="56" height="82" rx="6" fill="${GL}"/>
-      <circle cx="206" cy="240" r="4" fill="${Y}"/>
-      <rect x="96" y="170" width="46" height="46" rx="6" fill="${GL}"/>
-      <path d="M119 170v46M96 193h46" stroke="${S}" stroke-width="4"/>
-      <rect x="238" y="170" width="46" height="46" rx="6" fill="${GL}"/>
-      <path d="M261 170v46M238 193h46" stroke="${S}" stroke-width="4"/>
-      <rect x="148" y="278" width="84" height="10" rx="4" fill="${S}"/>`],
-
     antique: ['0 0 340 300', `${shadow(170, 288, 120)}
       <rect x="110" y="40" width="120" height="160" rx="12" fill="#fff"/>
       <rect x="120" y="52" width="100" height="136" rx="8" fill="${S}"/>
@@ -185,159 +172,15 @@
   const grid = root.querySelector('#homeCatGrid') || tiles[0]?.parentElement?.parentElement;
   // Each tile's hand-drawn line icon, kept by slug so rebuilt tiles reuse it.
   const ICONS = {};
+  // Tile picture = the picture the opened panel shows (ART), whole and
+  // centred, on the same light card for every category.
+  const applyTileIcon = (iconEl, slug) => {
+    iconEl.style.background = '';
+    iconEl.innerHTML = svgFor(slug);
+  };
   tiles.forEach(t => { ICONS[t.dataset.slug] = t.querySelector('.dbz-tile__icon')?.innerHTML || ''; });
   const iconFor = (slug) => ICONS[slug] || ICONS[ALIAS[slug]] || ICONS.others || '';
 
-  const TILE_ART = {
-    cars: { blue: true, img: 'car-flat.svg' },
-    mobiles: { blue: false, vb: '0 0 140 200', svg:
-      `<rect x="30" y="16" width="72" height="140" rx="14" fill="#2C3E50"/>
-      <rect x="34" y="22" width="64" height="128" rx="10" fill="#ECF0F1"/>
-      <rect x="52" y="22" width="28" height="9" rx="4.5" fill="#2C3E50"/>
-      <circle cx="66" cy="26.5" r="2.5" fill="#3D566E"/>
-      <rect x="40" y="36" width="14" height="3" rx="1.5" fill="#BDC3C7"/>
-      <rect x="80" y="36" width="12" height="3" rx="1.5" fill="#BDC3C7"/>
-      <rect x="40" y="44" width="52" height="32" rx="6" fill="#E74C3C"/>
-      <rect x="46" y="50" width="28" height="4" rx="2" fill="#fff" opacity=".3"/>
-      <rect x="46" y="58" width="16" height="4" rx="2" fill="#fff" opacity=".2"/>
-      <circle cx="82" cy="56" r="6" fill="#fff" opacity=".15"/>
-      <rect x="40" y="82" width="52" height="9" rx="4.5" fill="#D5D8DC"/>
-      <circle cx="86" cy="86.5" r="3" fill="#95A5A6"/>
-      <rect x="40" y="98" width="23" height="23" rx="6" fill="#F1C40F"/>
-      <rect x="69" y="98" width="23" height="23" rx="6" fill="#2ECC71"/>
-      <rect x="40" y="127" width="23" height="10" rx="3" fill="#3498DB"/>
-      <rect x="69" y="127" width="23" height="10" rx="3" fill="#BDC3C7"/>
-      <rect x="52" y="144" width="28" height="3" rx="1.5" fill="#BDC3C7"/>` },
-    bikes: { blue: true, img: 'bike-sport.svg' },
-    electronics: { blue: false, vb: '0 0 160 150', svg:
-      `<rect x="14" y="14" width="132" height="86" rx="6" fill="#2C3E50"/>
-      <rect x="18" y="18" width="124" height="78" rx="3" fill="#ECF0F1"/>
-      <circle cx="28" cy="26" r="3" fill="#E74C3C"/><circle cx="37" cy="26" r="3" fill="#F1C40F"/><circle cx="46" cy="26" r="3" fill="#2ECC71"/>
-      <rect x="22" y="34" width="56" height="38" rx="4" fill="#E74C3C" opacity=".9"/>
-      <rect x="22" y="34" width="56" height="38" rx="4" fill="url(#eg)"/>
-      <polygon points="42,44 42,62 58,53" fill="#FFF" opacity=".85"/>
-      <rect x="84" y="34" width="54" height="17" rx="3" fill="#3498DB"/>
-      <path d="M98,42 L104,36 L110,40 L118,34 L126,42 L126,51 L84,51Z" fill="#2980B9"/>
-      <circle cx="94" cy="40" r="4" fill="#F1C40F" opacity=".7"/>
-      <rect x="84" y="56" width="25" height="16" rx="3" fill="#F1C40F"/>
-      <rect x="113" y="56" width="25" height="16" rx="3" fill="#2ECC71"/>
-      <rect x="22" y="78" width="80" height="4" rx="2" fill="#D5D8DC"/>
-      <rect x="22" y="86" width="50" height="4" rx="2" fill="#D5D8DC"/>
-      <rect x="58" y="100" width="44" height="10" rx="2" fill="#7F8C8D"/>
-      <path d="M46,110 L114,110 L108,118 Q106,122 100,122 L60,122 Q54,122 52,118Z" fill="#95A5A6"/>
-      <rect x="68" y="110" width="24" height="4" rx="2" fill="#7F8C8D"/>` },
-    furniture: { blue: true, vb: '0 0 160 150', svg:
-      `<path d="M130,4 Q142,4 142,18 L142,50" stroke="#7F8C8D" stroke-width="5" fill="none" stroke-linecap="round"/>
-      <path d="M116,6 L144,6 L138,36 L122,36Z" fill="#F1C40F"/>
-      <path d="M118,8 L142,8 L138,32 L122,32Z" fill="#F7DC6F" opacity=".5"/>
-      <line x1="130" y1="36" x2="130" y2="42" stroke="#7F8C8D" stroke-width="1.5"/>
-      <circle cx="130" cy="44" r="2.5" fill="#D4AC0D"/>
-      <rect x="36" y="52" width="104" height="54" rx="18" fill="#E67E22"/>
-      <path d="M50,62 Q88,56 126,62" stroke="#D35400" stroke-width="2" fill="none" opacity=".5"/>
-      <rect x="80" y="42" width="52" height="28" rx="8" fill="#E74C3C" transform="rotate(-4 106 56)"/>
-      <path d="M84,66 L88,76M92,67 L96,77M100,66 L104,76M108,65 L112,75" stroke="#C0392B" stroke-width="2" stroke-linecap="round"/>
-      <ellipse cx="72" cy="78" rx="26" ry="14" fill="#1ABC9C"/>
-      <ellipse cx="72" cy="76" rx="22" ry="10" fill="#16A085" opacity=".4"/>
-      <rect x="20" y="66" width="28" height="46" rx="14" fill="#D35400"/>
-      <rect x="128" y="66" width="28" height="46" rx="14" fill="#D35400"/>
-      <rect x="22" y="72" width="24" height="36" rx="12" fill="#E67E22" opacity=".6"/>
-      <rect x="130" y="72" width="24" height="36" rx="12" fill="#E67E22" opacity=".6"/>
-      <rect x="38" y="104" width="100" height="16" rx="8" fill="#D35400"/>
-      <rect x="54" y="118" width="8" height="16" rx="2" fill="#7F6C55"/>
-      <rect x="114" y="118" width="8" height="16" rx="2" fill="#7F6C55"/>` },
-    appliances: { blue: false, vb: '0 0 140 160', svg:
-      `<rect x="20" y="6" width="100" height="136" rx="12" fill="#ECF0F1" stroke="#D5D8DC" stroke-width="1.5"/>
-      <rect x="20" y="6" width="100" height="32" rx="12" fill="#BDC3C7"/>
-      <rect x="20" y="26" width="100" height="12" fill="#BDC3C7"/>
-      <rect x="32" y="14" width="40" height="16" rx="4" fill="#2C3E50"/>
-      <rect x="36" y="18" width="20" height="4" rx="2" fill="#5DADE2"/>
-      <rect x="36" y="24" width="12" height="3" rx="1.5" fill="#3498DB"/>
-      <circle cx="96" cy="22" r="10" fill="#F4F6F7" stroke="#D5D8DC" stroke-width="2"/>
-      <line x1="96" y1="14" x2="96" y2="22" stroke="#7F8C8D" stroke-width="1.5" stroke-linecap="round"/>
-      <circle cx="80" cy="22" r="4" fill="#D5D8DC"/>
-      <circle cx="70" cy="86" r="40" fill="#34495E"/>
-      <circle cx="70" cy="86" r="36" fill="#2C3E50"/>
-      <circle cx="70" cy="86" r="30" fill="#5DADE2"/>
-      <path d="M46,92 Q58,78 70,92 T94,92 L94,116 Q82,108 70,116 Q58,108 46,116Z" fill="#85C1E9" opacity=".6"/>
-      <path d="M50,68 Q62,54 76,60" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none" opacity=".25"/>
-      <circle cx="70" cy="86" r="6" fill="#ABB2B9"/>
-      <circle cx="70" cy="86" r="2" fill="#566573"/>
-      <rect x="32" y="140" width="16" height="6" rx="2" fill="#95A5A6"/>
-      <rect x="92" y="140" width="16" height="6" rx="2" fill="#95A5A6"/>` },
-    fashion: { blue: true, vb: '0 0 160 160', svg:
-      `<path d="M52,28 Q80,8 108,28 L128,76 L112,84 L104,60 L104,130 L56,130 L56,60 L48,84 L32,76Z" fill="#27AE60"/>
-      <path d="M58,34 Q80,18 102,34" fill="#1E8449" opacity=".3"/>
-      <path d="M52,28 L80,42 L108,28 Q80,14 52,28Z" fill="#2C3E50"/>
-      <path d="M72,26 L80,42 L88,26Z" fill="#95A5A6"/>
-      <line x1="80" y1="42" x2="80" y2="130" stroke="#1E8449" stroke-width="2.5"/>
-      <circle cx="66" cy="78" r="6" fill="#F1C40F" opacity=".7"/>
-      <path d="M60,96 L100,96" stroke="#1E8449" stroke-width="1.5" opacity=".4"/>
-      <rect x="100" y="82" width="48" height="62" rx="6" fill="#E74C3C"/>
-      <rect x="100" y="82" width="48" height="10" rx="6" fill="#C0392B"/>
-      <path d="M116,82 Q116,68 124,68 Q132,68 132,82" stroke="#fff" stroke-width="2.5" fill="none"/>
-      <ellipse cx="68" cy="148" rx="28" ry="10" fill="#F39C12"/>
-      <path d="M44,144 Q54,134 68,132 Q82,134 92,144" fill="#2C3E50"/>
-      <line x1="44" y1="142" x2="92" y2="142" stroke="#F1C40F" stroke-width="1.5"/>
-      <ellipse cx="124" cy="152" rx="24" ry="8" fill="#2C3E50"/>
-      <path d="M104,148 Q112,140 124,138 Q136,140 144,148" fill="#E74C3C"/>
-      <line x1="104" y1="148" x2="144" y2="148" stroke="#fff" stroke-width="1.5"/>` },
-    property: { blue: false, vb: '0 0 150 160', svg:
-      `<rect x="96" y="18" width="14" height="28" fill="#566573"/>
-      <rect x="98" y="14" width="10" height="6" fill="#7F8C8D"/>
-      <rect x="30" y="52" width="80" height="96" fill="#F6D365"/>
-      <rect x="30" y="52" width="80" height="8" fill="#E8C84A" opacity=".5"/>
-      <polygon points="8,52 70,8 132,52" fill="#2C3E50"/>
-      <polygon points="8,52 70,8 70,36 22,60" fill="#34495E" opacity=".3"/>
-      <rect x="48" y="68" width="18" height="16" rx="2" fill="#5DADE2"/>
-      <line x1="57" y1="68" x2="57" y2="84" stroke="#F6D365" stroke-width="2"/>
-      <line x1="48" y1="76" x2="66" y2="76" stroke="#F6D365" stroke-width="2"/>
-      <rect x="78" y="68" width="18" height="16" rx="2" fill="#5DADE2"/>
-      <line x1="87" y1="68" x2="87" y2="84" stroke="#F6D365" stroke-width="2"/>
-      <line x1="78" y1="76" x2="96" y2="76" stroke="#F6D365" stroke-width="2"/>
-      <rect x="58" y="108" width="24" height="40" rx="3" fill="#E74C3C"/>
-      <rect x="58" y="108" width="24" height="6" rx="3" fill="#C0392B"/>
-      <circle cx="78" cy="130" r="2.5" fill="#F1C40F"/>
-      <path d="M30,148 L110,148" stroke="#D4AC0D" stroke-width="1"/>
-      <circle cx="22" cy="112" r="22" fill="#27AE60"/>
-      <circle cx="16" cy="106" r="16" fill="#2ECC71" opacity=".5"/>
-      <rect x="18" y="130" width="8" height="18" fill="#795548"/>
-      <rect x="14" y="130" width="16" height="3" rx="1" fill="#6D4C41"/>` },
-    others: { blue: true, vb: '0 0 160 160', svg:
-      `<line x1="120" y1="90" x2="118" y2="150" stroke="#fff" stroke-width="1.5" opacity=".3"/>
-      <ellipse cx="120" cy="56" rx="30" ry="36" fill="#E74C3C"/>
-      <ellipse cx="112" cy="46" rx="8" ry="14" fill="#fff" opacity=".12"/>
-      <path d="M114,92 L120,98 L126,92Z" fill="#C0392B"/>
-      <line x1="50" y1="60" x2="48" y2="150" stroke="#fff" stroke-width="1.5" opacity=".3"/>
-      <ellipse cx="50" cy="36" rx="22" ry="28" fill="#3498DB"/>
-      <ellipse cx="44" cy="28" rx="6" ry="10" fill="#fff" opacity=".12"/>
-      <path d="M44,64 L50,70 L56,64Z" fill="#2980B9"/>
-      <rect x="56" y="100" width="56" height="42" rx="5" fill="#9B59B6"/>
-      <rect x="52" y="92" width="64" height="14" rx="5" fill="#8E44AD"/>
-      <rect x="80" y="92" width="8" height="50" fill="#F1C40F"/>
-      <line x1="52" y1="99" x2="116" y2="99" stroke="#F1C40F" stroke-width="3"/>
-      <ellipse cx="74" cy="88" rx="10" ry="7" fill="#F1C40F"/>
-      <ellipse cx="94" cy="88" rx="10" ry="7" fill="#F1C40F"/>
-      <circle cx="84" cy="90" r="4" fill="#D4AC0D"/>
-      <polygon points="20,120 28,108 36,120 34,132 22,132" fill="#F1C40F"/>
-      <polygon points="28,108 22,98 34,98" fill="#F1C40F" opacity=".7"/>` },
-  };
-
-  const applyTileIcon = (iconEl, slug) => {
-    const key = TILE_ART[slug] ? slug : (ALIAS[slug] && TILE_ART[ALIAS[slug]] ? ALIAS[slug] : null);
-    if (key) {
-      const a = TILE_ART[key];
-      if (a.img) {
-        iconEl.innerHTML = `<img src="${a.img}" alt="${key}">`;
-      } else {
-        iconEl.innerHTML = `<svg viewBox="${a.vb}" xmlns="http://www.w3.org/2000/svg">${a.svg}</svg>`;
-      }
-      iconEl.style.background = a.blue ? 'var(--blue)' : '';
-    } else {
-      iconEl.style.background = '';
-      const a = ART[slug] || ART[ALIAS[slug]] || ART.others;
-      if (a) iconEl.innerHTML = `<svg viewBox="${a[0]}" xmlns="http://www.w3.org/2000/svg">${a[1]}</svg>`;
-    }
-  };
   tiles.forEach(t => {
     const iconEl = t.querySelector('.dbz-tile__icon');
     if (iconEl) applyTileIcon(iconEl, t.dataset.slug);

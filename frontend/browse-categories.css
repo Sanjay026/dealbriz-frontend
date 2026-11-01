@@ -36,11 +36,11 @@
 
 .dbz-cats__stage { position: relative; }
 
-/* ---------- grid: 5 on top, 5 below ---------- */
+/* ---------- grid: 4 on top, 4 below ---------- */
 .dbz-cats__grid {
   /* minmax(0, 1fr), not 1fr: a plain 1fr column won't shrink below its
-     content, so from 761px to ~800px the fifth tile ran off the screen. */
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--gap);
+     content, so on narrow screens the last tile ran off the screen. */
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--gap);
   list-style: none; margin: 0; padding: 0;
 }
 .dbz-cats__grid > li { display: flex; container-type: inline-size; }   /* the tile name below sizes itself to this box (cqi) */
@@ -48,7 +48,7 @@
 /* ---------- tile base ---------- */
 .dbz-tile {
   position: relative; display: flex; flex-direction: column;
-  width: 100%; aspect-ratio: 3 / 4;
+  width: 100%; aspect-ratio: 1 / 1;   /* 4 across: square keeps two rows a sensible height */
   border: 0; border-radius: var(--radius);
   background: linear-gradient(180deg, var(--blue) 60%, var(--blue-dk) 100%);
   color: #fff;
@@ -65,16 +65,20 @@
   box-shadow: 0 4px 16px rgba(37, 99, 235, .15);
 }
 
-/* white card area on top with illustration */
+/* light card area on top with the illustration, the same on every tile */
 .dbz-tile__icon {
-  position: relative; z-index: 1; flex: 1;
+  position: relative; z-index: 1; flex: 1; min-height: 0;
   width: calc(100% - 12px); margin: 6px 6px 0;
   background: #f0f3ff; border-radius: calc(var(--radius) - 4px);
   overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
 }
+/* The whole picture, centred and never cropped (it was offset to the
+   bottom-right and cut off). It shrinks to fit the card either way. */
 .dbz-tile__icon svg {
-  position: absolute; right: -5%; bottom: -10%;
-  width: 80%; height: auto;
+  position: static; display: block;
+  width: 80%; height: 80%; max-width: 80%; max-height: 80%;
+  aspect-ratio: auto !important;
   filter: drop-shadow(0 4px 10px rgba(0,0,0,.1));
 }
 .dbz-tile__icon img {
@@ -191,7 +195,7 @@
 @media (max-width: 760px) {
   .dbz-cats__all { padding: 6px 12px; font-size: 14px; }
   .dbz-cats__grid {
-    grid-template-columns: repeat(5, minmax(124px, 38vw)); gap: 12px;
+    grid-template-columns: repeat(4, minmax(124px, 38vw)); gap: 12px;
     overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 24px;
     scrollbar-width: none; margin: 0 -24px; padding: 0 24px 4px;
   }

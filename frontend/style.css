@@ -934,6 +934,7 @@ body.on-home .nav-chat-glow:hover {
 .profile-nav-btn { flex-shrink: 0; background: var(--bg); border: 1.5px solid var(--border); padding: 8px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
 .profile-nav-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
 .profile-card { background: white; border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
+.profile-optional { font-weight: 400; color: var(--text-muted); font-size: 0.9em; }
 .profile-msg { font-size: 13px; padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 12px; }
 .success-msg { background: #D1FAE5; color: #065F46; border: 1px solid #A7F3D0; }
 .error-msg { background: #FEE2E2; color: #991B1B; border: 1px solid #FECACA; }

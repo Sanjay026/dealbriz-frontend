@@ -225,6 +225,7 @@ const db = {
     if (updates.last_name !== undefined) payload.last_name = updates.last_name;
     if (updates.phone !== undefined) payload.phone = updates.phone;
     if (updates.city !== undefined) payload.city = updates.city;
+    if (updates.location !== undefined) payload.location = updates.location;
     return apiFetch("/profile", { method: "PUT", body: payload });
   },
 
