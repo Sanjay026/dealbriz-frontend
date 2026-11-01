@@ -395,8 +395,8 @@
   top: 120px;
   left: 0;
   right: 0;
-  bottom: 0;
-  background: #F8FAFF;
+  bottom: -76px;
+  background: linear-gradient(to bottom, #F8FAFF 0%, #F8FAFF 70%, #fff 100%);
   z-index: 0;
 }
 #homePage .hb-section--cats .hb-wrap {
