@@ -848,6 +848,14 @@ function markNavActive(page) {
     else                       active = target === page;
     a.classList.toggle('is-active', active);
   });
+  // The phone's bottom bar. "Account" covers the pages reached from it.
+  const account = ['profile', 'mylistings', 'myads', 'emi-status', 'mychats'];
+  document.querySelectorAll('.bottom-nav a[data-bnav]').forEach(a => {
+    const target = a.getAttribute('data-bnav');
+    const active = target === 'account' ? account.includes(page) : target === page;
+    a.classList.toggle('is-active', active);
+    if (active) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
 }
 
 function showPage(page, fromPopstate = false, fromHistory = false) {

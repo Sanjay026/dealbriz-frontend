@@ -1406,6 +1406,14 @@ function dealDocRowHtml(d, item, canUpload, accept) {
            <input type="file" accept="${accept}" class="deal-file" onchange="dealUploadDoc('${dlEsc(item.type)}', this)">
          </label>`;
   }
+  // The uploader can open their own file again (never the other side's).
+  if (doc && !doc.file_deleted && st !== 'missing' && st !== 'rejected' && d.can_view_own_doc_files && item.party === d.my_role) {
+    const pid = (d.product || {}).id || d.product_id || '';
+    const view = item.source === 'listing'
+      ? `ldViewDoc('${dlEsc(pid)}','${dlEsc(doc.id)}')`
+      : `dlViewDoc('${dlEsc(d.id)}','${dlEsc(doc.id)}')`;
+    actions = `<button type="button" class="deal-btn deal-btn-sm" onclick="${view}"><i class="fas fa-eye"></i> View</button>` + actions;
+  }
   return `
     <li class="deal-doc deal-doc-row-${dlEsc(st)}${item.required ? '' : ' is-extra'}">
       <div class="deal-doc-main">
@@ -1437,7 +1445,7 @@ function dealDocsHtml(d) {
 
   const rules = dealRulesCache || {};
   const accept = dlDocAccept();
-  const privacy = `<p class="deal-small"><i class="fas fa-lock"></i> Private: once uploaded, only DealBriz admins and the lender can open them. A photo or a PDF, up to ${rules.doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
+  const privacy = `<p class="deal-small"><i class="fas fa-lock"></i> Private: once uploaded, only you, DealBriz admins and the lender can open them. A photo or a PDF, up to ${rules.doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
 
   if (role === 'seller') {
     const docs = all.filter(x => x.party === 'seller');
@@ -3546,7 +3554,7 @@ function sellDocsReset() {
   if (body) body.innerHTML = '';
 }
 
-const SELL_DOCS_PRIVACY = () => `<p class="deal-small"><i class="fas fa-lock"></i> Private: never shown on the ad. Only DealBriz admins and the lender can open them. A photo or a PDF, up to ${(dealRulesCache || {}).doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
+const SELL_DOCS_PRIVACY = () => `<p class="deal-small"><i class="fas fa-lock"></i> Private: never shown on the ad. Only you, DealBriz admins and the lender can open them. A photo or a PDF, up to ${(dealRulesCache || {}).doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
 
 async function sellDocsRender() {
   await dlRules();
@@ -3694,6 +3702,9 @@ function sellDocsRenderEdit() {
              <i class="fas fa-upload"></i> ${st === 'missing' ? 'Upload' : 'Replace'}
              <input type="file" accept="${accept}" class="deal-file sell-doc-file" onchange="sellDocsUploadEdit('${dlEsc(item.type)}', this)">
            </label>`;
+    }
+    if (doc && !doc.file_deleted && st !== 'missing' && st !== 'rejected' && v.can_view_own_files) {
+      actions = `<button type="button" class="deal-btn deal-btn-sm" onclick="ldViewDoc('${dlEsc(v.product_id)}','${dlEsc(doc.id)}')"><i class="fas fa-eye"></i> View</button>` + actions;
     }
     return `
       <li class="deal-doc deal-doc-row-${dlEsc(st)}${item.required ? '' : ' is-extra'}">
