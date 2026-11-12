@@ -325,7 +325,7 @@ async function dlRules() {
   if (dealRulesCache) return dealRulesCache;
   try { dealRulesCache = await dealsApi.rules(); } catch { dealRulesCache = null; }
   return dealRulesCache || { offer_valid_hours: 48, max_counter_rounds: 3, reservation_days: 7, confirm_hours: 24,
-    cancel_limit: 3, ban_days: 7, categories: [], doc_types: [], doc_max_mb: 8, doc_extensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'] };
+    cancel_limit: 3, ban_days: 7, categories: [], doc_types: [], doc_max_mb: 1.5, doc_extensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'] };
 }
 
 /* =====================================================
@@ -1448,7 +1448,7 @@ function dealDocsHtml(d) {
 
   const rules = dealRulesCache || {};
   const accept = dlDocAccept();
-  const privacy = `<p class="deal-small"><i class="fas fa-lock"></i> Private: once uploaded, only you, DealBriz admins and the lender can open them. A photo or a PDF, up to ${rules.doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
+  const privacy = `<p class="deal-small"><i class="fas fa-lock"></i> Private: once uploaded, only you, DealBriz admins and the lender can open them. A photo or a PDF, up to ${rules.doc_max_mb || 1.5} MB each (large photos are shrunk for you).</p>`;
 
   if (role === 'seller') {
     const docs = all.filter(x => x.party === 'seller');
@@ -1603,7 +1603,7 @@ async function dealPickAadhaarSide(key, input) {
    { file } or { error }. */
 async function dlJoinAadhaar(front, back, name = 'aadhaar-front-back.jpg') {
   const rules = dealRulesCache || {};
-  const maxBytes = (rules.doc_max_mb || 8) * 1024 * 1024;
+  const maxBytes = (rules.doc_max_mb || 1.5) * 1024 * 1024;
   const load = async (f) => { try { return await createImageBitmap(f); } catch { return null; } };
   const a = await load(front);
   const b = await load(back);
@@ -1627,13 +1627,10 @@ async function dlJoinAadhaar(front, back, name = 'aadhaar-front-back.jpg') {
   ctx.drawImage(a, 0, 0, w, ha);
   ctx.drawImage(b, 0, ha + gap, w, hb);
   a.close && a.close(); b.close && b.close();
-  let blob = null;
-  for (const q of [0.85, 0.7, 0.55]) {
-    blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', q));
-    if (blob && blob.size <= maxBytes) break;
-  }
+  // Fits the joined image under the limit (1.5 MB), smaller if it has to be.
+  const blob = await dlShrinkToFit(canvas, maxBytes, 3200);
   if (!blob) return { error: 'The photos could not be joined. Please try again.' };
-  if (blob.size > maxBytes) return { error: `The two photos are too big together. Files can be up to ${rules.doc_max_mb || 8} MB.` };
+  if (blob.size > maxBytes) return { error: `The two photos are too big together. Files can be up to ${rules.doc_max_mb || 1.5} MB.` };
   return { file: new File([blob], name, { type: 'image/jpeg' }) };
 }
 
@@ -3508,14 +3505,42 @@ function dlDocAccept() {
    to read, usually under 1.5 MB). PDFs go as they are.
    Resolves to { file } or { error }. */
 const DL_DOC_MAX_SIDE = 2400;
+
+/* Draws `src` (an ImageBitmap or canvas) as a JPEG of at most `maxBytes`:
+   at most `maxSide` px (DL_DOC_MAX_SIDE unless given), quality 0.85 -> 0.55, then 80% smaller each
+   round down to 1000 px. Resolves to the smallest blob made (null if the
+   browser couldn't encode). */
+async function dlShrinkToFit(src, maxBytes, maxSide = DL_DOC_MAX_SIDE) {
+  let side = Math.min(maxSide, Math.max(src.width, src.height));
+  let best = null;
+  for (;;) {
+    const scale = Math.min(1, side / Math.max(src.width, src.height));
+    const w = Math.max(1, Math.round(src.width * scale));
+    const h = Math.max(1, Math.round(src.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);   // transparent PNGs: white, not black
+    ctx.drawImage(src, 0, 0, w, h);
+    for (const q of [0.85, 0.75, 0.65, 0.55]) {
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', q));
+      if (!blob) continue;
+      if (!best || blob.size < best.size) best = blob;
+      if (blob.size <= maxBytes) return blob;
+    }
+    if (side <= 1000) return best;
+    side = Math.max(1000, Math.round(side * 0.8));
+  }
+}
+
 async function dlPrepareDocFile(file) {
   const rules = dealRulesCache || {};
-  const maxBytes = (rules.doc_max_mb || 8) * 1024 * 1024;
+  const maxBytes = (rules.doc_max_mb || 1.5) * 1024 * 1024;
   const name = file.name || 'document';
   const ext = (name.includes('.') ? name.split('.').pop() : '').toLowerCase();
   const isPdf = file.type === 'application/pdf' || ext === 'pdf';
   if (isPdf) {
-    if (file.size > maxBytes) return { error: `This PDF is too big. Files can be up to ${rules.doc_max_mb || 8} MB. Try a smaller scan, or a photo of the page.` };
+    if (file.size > maxBytes) return { error: `This PDF is too big. Files can be up to ${rules.doc_max_mb || 1.5} MB. Try a smaller scan, or a photo of the page.` };
     return { file: ext === 'pdf' ? file : new File([file], name + '.pdf', { type: 'application/pdf' }) };
   }
   const isHeic = /hei[cf]/.test(file.type) || ext === 'heic' || ext === 'heif';
@@ -3525,24 +3550,19 @@ async function dlPrepareDocFile(file) {
   try { bmp = await createImageBitmap(file); } catch { bmp = null; }
   if (!bmp) {
     if (isHeic) return { error: 'This photo is in HEIC format, which this browser can’t convert. Take a screenshot of it, or set the camera to “Most compatible” (JPG), and upload that.' };
-    if (file.size > maxBytes) return { error: `That file is too big. Files can be up to ${rules.doc_max_mb || 8} MB.` };
+    if (file.size > maxBytes) return { error: `That file is too big. Files can be up to ${rules.doc_max_mb || 1.5} MB.` };
     return { file };   // let the server decide what it is
   }
-  const small = file.size <= 1.5 * 1024 * 1024 && Math.max(bmp.width, bmp.height) <= DL_DOC_MAX_SIDE
+  const small = file.size <= maxBytes && Math.max(bmp.width, bmp.height) <= DL_DOC_MAX_SIDE
     && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type);
   if (small) { bmp.close && bmp.close(); return { file }; }
-  const scale = Math.min(1, DL_DOC_MAX_SIDE / Math.max(bmp.width, bmp.height));
-  const w = Math.max(1, Math.round(bmp.width * scale));
-  const h = Math.max(1, Math.round(bmp.height * scale));
-  const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);   // transparent PNGs: white, not black
-  ctx.drawImage(bmp, 0, 0, w, h);
+  // Redrawn as a JPEG, lowering the quality and then the size step by step
+  // until it fits the limit (1.5 MB), so a phone photo is never refused for
+  // its size. Stops at 1000 px on the long side, still readable for an RC.
+  const blob = await dlShrinkToFit(bmp, maxBytes);
   bmp.close && bmp.close();
-  const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
-  if (!blob) return file.size <= maxBytes ? { file } : { error: `That file is too big. Files can be up to ${rules.doc_max_mb || 8} MB.` };
-  if (blob.size > maxBytes) return { error: `That photo is too big even after shrinking it. Files can be up to ${rules.doc_max_mb || 8} MB.` };
+  if (!blob) return file.size <= maxBytes ? { file } : { error: `That file is too big. Files can be up to ${rules.doc_max_mb || 1.5} MB.` };
+  if (blob.size > maxBytes) return { error: `That photo is too big even after shrinking it. Files can be up to ${rules.doc_max_mb || 1.5} MB.` };
   const base = name.replace(/\.[^.]*$/, '') || 'document';
   return { file: new File([blob], base + '.jpg', { type: 'image/jpeg' }) };
 }
@@ -3550,7 +3570,7 @@ async function dlPrepareDocFile(file) {
 /* A clear message for a failed upload. */
 function dlUploadErrorText(err) {
   const m = (err && err.message) || '';
-  if (/\(413\)/.test(m)) return `That file is too big. Files can be up to ${(dealRulesCache || {}).doc_max_mb || 8} MB.`;
+  if (/\(413\)/.test(m)) return `That file is too big. Files can be up to ${(dealRulesCache || {}).doc_max_mb || 1.5} MB.`;
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'The upload didn’t reach DealBriz. Check your internet connection and try again.';
   return m || 'Upload failed. Please try again.';
 }
@@ -3560,7 +3580,10 @@ function dlUploadErrorText(err) {
 // edit:   { mode, pid, cat, view, busy }
 let sellDocsState = { mode: 'create', files: {} };
 
-/* "Offer EMI option" (under the categories) is ticked and visible here. */
+/* The listing offers EMI and EMI is available here. The seller no longer
+   chooses (the "Offer EMI option" box was removed from the Sell form on
+   12 Nov 2026): the hidden box is ticked for a new ad and holds the
+   listing's own setting while editing. */
 function sellEmiOn() {
   const cb = document.getElementById('sellEmiEligible');
   if (!cb || !cb.checked) return false;
@@ -3600,8 +3623,12 @@ function sellDocsReset() {
 }
 
 /* The RC has two sides: one picker each, joined into one image (front on
-   top) like the Aadhaar card. The DigiLocker / mParivahan PDF or a single
-   file is still accepted. */
+   top) like the Aadhaar card.
+
+   12 Nov 2026: the seller must tick a consent before any RC can be chosen
+   (RC only; the insurance policy and other documents don't ask), and the
+   "Or upload the RC PDF (DigiLocker / mParivahan)" choice was removed from
+   the Sell form: the RC is two photos. */
 let sellRcParts = { front: null, back: null };
 
 function sellRcReset() {
@@ -3609,9 +3636,49 @@ function sellRcReset() {
   sellRcParts = { front: null, back: null };
 }
 
+const SELL_RC_CONSENT_TEXT = 'I am the registered owner of this vehicle, or have the owner’s permission, and I agree to DealBriz and its lending partners using this RC to verify the vehicle for EMI and DealLock. It is never shown on the ad.';
+
+function sellRcConsentHtml() {
+  const on = !!sellDocsState.rcConsent;
+  return `
+    <label class="sell-rc-consent${on ? ' is-on' : ''}">
+      <input type="checkbox" ${on ? 'checked' : ''} onchange="sellRcSetConsent(this.checked)">
+      <span><strong>Consent</strong> ${dlEsc(SELL_RC_CONSENT_TEXT)}</span>
+    </label>`;
+}
+
+function sellRcSetConsent(on) {
+  const st = sellDocsState;
+  st.rcConsent = !!on;
+  // Taken back before the ad is posted: the RC picked under it goes too, so
+  // nothing is sent without consent. (While editing, a saved RC stays; only
+  // new uploads are locked again.)
+  if (!on && st.mode === 'create' && (st.files.rc || sellRcParts.front || sellRcParts.back)) {
+    sellRcReset();
+    delete st.files.rc;
+    if (st.checks) delete st.checks.rc;
+    showToast('RC removed. Tick the consent again to add it.', 'info');
+  }
+  if (st.mode === 'edit') sellDocsRenderEdit(); else sellDocsRender();
+}
+
+function sellRcNeedConsent() {
+  showToast('Please tick the consent first.', 'info');
+  document.querySelector('.sell-rc-consent input')?.focus();
+}
+
 function sellRcPickHtml(st) {
+  const consent = !!sellDocsState.rcConsent;
   const side = (key, label) => {
     const part = sellRcParts[key];
+    if (!consent) {
+      return `
+      <button type="button" class="deal-aadhaar-side is-locked" data-side="${key}" onclick="sellRcNeedConsent()">
+        <i class="fas fa-lock"></i>
+        <span>${label}</span>
+        <small>Tick the consent first</small>
+      </button>`;
+    }
     return `
       <label class="deal-aadhaar-side${part ? ' is-set' : ''}" data-side="${key}">
         ${part ? `<img src="${dlEsc(part.url)}" alt="">` : `<i class="fas ${key === 'front' ? 'fa-id-card' : 'fa-address-card'}"></i>`}
@@ -3625,23 +3692,22 @@ function sellRcPickHtml(st) {
   const whole = sellDocsState.mode === 'edit' ? "sellDocsUploadEdit('rc', this)" : "sellDocsPick('rc', this)";
   const hasFile = st !== 'missing' && st !== 'rejected';
   return `
+    ${sellRcConsentHtml()}
     <div class="deal-aadhaar-pick">${side('front', 'Front side')}${side('back', 'Back side')}</div>
-    ${one && !both ? `<div class="deal-doc-hint"><i class="fas fa-circle-info"></i> Now add the ${sellRcParts.front ? 'back' : 'front'} side. Both ${sellDocsState.mode === 'edit' ? 'upload' : 'are added'} together.</div>` : ''}
-    ${hasFile
+    ${consent && one && !both ? `<div class="deal-doc-hint"><i class="fas fa-circle-info"></i> Now add the ${sellRcParts.front ? 'back' : 'front'} side. Both ${sellDocsState.mode === 'edit' ? 'upload' : 'are added'} together.</div>` : ''}
+    ${consent && hasFile
       ? `<label class="deal-btn deal-btn-sm deal-rc-replace">
            <i class="fas fa-arrows-rotate"></i> Replace
-           <input type="file" accept="${dlDocAccept()}" class="deal-file sell-doc-file" onchange="${whole}">
+           <input type="file" accept="image/*" class="deal-file sell-doc-file" onchange="${whole}">
          </label>`
-      : `<label class="deal-aadhaar-pdf">
-           <i class="fas fa-file-pdf"></i> Or upload the RC PDF (DigiLocker / mParivahan)
-           <input type="file" accept="application/pdf,.pdf" class="deal-file sell-doc-file" onchange="${whole}">
-         </label>`}`;
+      : ''}`;
 }
 
 async function sellRcPickSide(key, input) {
   const file = input.files && input.files[0];
   input.value = '';
   if (!file) return;
+  if (!sellDocsState.rcConsent) { sellRcNeedConsent(); return; }
   const st = sellDocsState;
   const edit = st.mode === 'edit';
   const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
@@ -3674,7 +3740,9 @@ async function sellRcPickSide(key, input) {
   if (sellDocsState === st) sellDocsRender();
 }
 
-const SELL_DOCS_PRIVACY = () => `<p class="deal-small"><i class="fas fa-lock"></i> Private: never shown on the ad. Only you, DealBriz admins and the lender can open them. A photo or a PDF, up to ${(dealRulesCache || {}).doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
+const SELL_RC_HINT = 'Clear photos of the front and the back of the RC. They are joined into one image.';
+
+const SELL_DOCS_PRIVACY = () => `<p class="deal-small"><i class="fas fa-lock"></i> Private: never shown on the ad. Only you, DealBriz admins and the lender can open them. A photo or a PDF, up to ${(dealRulesCache || {}).doc_max_mb || 1.5} MB each (large photos are shrunk for you).</p>`;
 
 async function sellDocsRender() {
   await dlRules();
@@ -3709,7 +3777,7 @@ async function sellDocsRender() {
         <div class="deal-doc-main">
           <div class="deal-doc-name">${dlEsc(dlDocLabel(type))}</div>
           ${f ? `<div class="deal-doc-hint"><i class="fas fa-paperclip"></i> ${dlEsc(f.name)}</div>`
-              : `<div class="deal-doc-hint">${dlEsc(dlDocHint(type))}</div>`}
+              : `<div class="deal-doc-hint">${dlEsc(rc ? SELL_RC_HINT : dlDocHint(type))}</div>`}
           ${!f && (sellDocsState.errors || {})[type] ? `<div class="deal-doc-reason"><i class="fas fa-circle-exclamation"></i> ${dlEsc(sellDocsState.errors[type])}</div>` : ''}
           ${rc ? sellRcPickHtml(f ? 'ready' : 'missing') : ''}
         </div>
@@ -3727,7 +3795,7 @@ async function sellDocsRender() {
       </li>`;
   }).join('');
   body.innerHTML = `
-    <p class="sell-docs-intro">You’re offering EMI, so add the ${cat === 'bikes' ? 'bike' : 'vehicle'}’s RC and insurance policy. The RC is checked as soon as you add it; the insurance policy is checked by DealBriz or the lender after you post. A buyer’s deal can only lock after they’re verified.</p>
+    <p class="sell-docs-intro">Buyers can pay for this ${cat === 'bikes' ? 'bike' : 'vehicle'} in EMIs through DealBriz, so add its RC and insurance policy. The RC is checked as soon as you add it; the insurance policy is checked by DealBriz or the lender after you post. A buyer’s deal can only lock after they’re verified.</p>
     <ul class="deal-doc-list">${rows}</ul>
     ${SELL_DOCS_PRIVACY()}`;
 }
@@ -3736,6 +3804,7 @@ async function sellDocsPick(type, input) {
   const file = input.files && input.files[0];
   input.value = '';
   if (!file) return;
+  if (type === 'rc' && !sellDocsState.rcConsent) { sellRcNeedConsent(); return; }
   if (type === 'rc') sellRcReset();   // one whole file replaces any half-picked photos
   return sellDocsPickFile(type, file);
 }
@@ -3824,7 +3893,9 @@ async function sellDocsUploadAfterCreate(pid) {
   if (sellDocsState.mode !== 'create') return;
   const cat = typeof selectedSellCat !== 'undefined' ? selectedSellCat : '';
   const need = cat && sellEmiOn() ? sellDocsNeeded(cat) : [];
-  const files = need.map(t => [t, sellDocsState.files[t]]).filter(([, f]) => f);
+  // The RC only goes with the seller's consent (it can't be picked without it).
+  const files = need.map(t => [t, sellDocsState.files[t]])
+    .filter(([t, f]) => f && (t !== 'rc' || sellDocsState.rcConsent));
   if (!files.length) return;
   const failed = [];
   for (const [type, file] of files) {
@@ -3917,6 +3988,7 @@ async function sellDocsUploadEdit(type, input) {
   const file = input.files && input.files[0];
   input.value = '';
   if (!file) return;
+  if (type === 'rc' && !sellDocsState.rcConsent) { sellRcNeedConsent(); return; }
   if (type === 'rc') sellRcReset();   // one whole file replaces any half-picked photos
   return sellDocsUploadEditFile(type, file);
 }

@@ -618,6 +618,31 @@
           <button class="btn-sm btn-sm-blue" onclick="adminCatAdd()"><i class="fas fa-plus"></i> Add</button>
         </div>
         <p id="adminCatError" class="auth-error hidden"></p>
+
+        <!-- SELL FORM LISTS (app.js renderAdminSellLists, /api/admin/sell-options) -->
+        <h4 class="cat-add-title">Sell form lists</h4>
+        <p class="admin-terms-note">
+          <i class="fas fa-circle-info"></i>
+          <span>The <strong>Brand</strong> list of each category and the choices of the dropdown fields (Colour, Fuel type, Storage…) on the sell form, on the website and in the app.
+          One entry per line, in the order sellers see them. The sell form always adds <strong>Others</strong> to Brand and <strong>Other</strong> to Colour, so a seller can type a value that isn't listed.
+          Removing an entry doesn't change listings that already use it. <strong>Reset to default</strong> brings back the built-in list.</span>
+        </p>
+        <div class="sell-lists">
+          <div class="sell-lists-pick">
+            <label for="sellListSelect">List</label>
+            <select id="sellListSelect" onchange="adminSellListPick()"></select>
+            <span id="sellListBadge" class="setting-badge"></span>
+          </div>
+          <textarea id="sellListValues" rows="12" spellcheck="false" aria-label="Entries, one per line" oninput="adminSellListCount()"></textarea>
+          <div class="sell-lists-foot">
+            <small id="sellListCount"></small>
+            <div class="sell-lists-actions">
+              <button class="btn-sm" id="sellListResetBtn" onclick="adminSellListReset()"><i class="fas fa-rotate-left"></i> Reset to default</button>
+              <button class="btn-sm btn-sm-blue" onclick="adminSellListSave()"><i class="fas fa-save"></i> Save list</button>
+            </div>
+          </div>
+          <p id="adminSellListError" class="auth-error hidden"></p>
+        </div>
       </div>
     </div>
 

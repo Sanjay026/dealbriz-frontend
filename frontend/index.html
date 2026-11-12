@@ -20,7 +20,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=20261112c">
+<link rel="stylesheet" href="/style.css?v=20261112d">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="/home.css?v=20261111a">
@@ -631,7 +631,7 @@
     <button class="filter-toggle-btn" onclick="toggleFilters()"><i class="fas fa-sliders-h"></i> Filters</button>
         <button class="filter-clear-btn hidden" id="clearFiltersBtn" onclick="clearBuyFilters()"><i class="fas fa-xmark"></i> Clear</button>
     <div class="filter-chips" id="activeFilterChips"></div>
-    <select class="sort-select" id="buySortSelect" onchange="applyBuyFilters()">
+    <select class="sort-select" id="buySortSelect" onchange="onBuySortChange()" aria-label="Sort listings">
       <option value="recommended" selected>Recommended</option>
       <option value="newest">Newest</option>
       <option value="price_asc">Price ↑</option>
@@ -708,8 +708,10 @@
         <div class="sell-cat-item" data-cat="fashion" onclick="selectSellCat(this,'fashion')"><i class="fas fa-tshirt"></i><span>Fashion</span></div>
         <div class="sell-cat-item" data-cat="others" onclick="selectSellCat(this,'others')"><i class="fas fa-box-open"></i><span>Others</span></div>
       </div>
-            <label class="toggle-label emi-feature sell-emi-toggle"><input type="checkbox" id="sellEmiEligible" checked onchange="if (typeof sellDocsRender === 'function') sellDocsRender()">
-        <span><strong>Offer EMI option</strong><small>Buyers can pay in monthly instalments through DealBriz’s lending partners.</small></span></label>
+            <!-- The "Offer EMI option" choice was removed from the form (12 Nov 2026): a new ad
+           offers EMI wherever DealBriz has it. Kept as a hidden box so an edited listing keeps
+           its own setting (app.js editListing / handleSellSubmit, deals.js sellEmiOn). -->
+      <input type="checkbox" id="sellEmiEligible" checked hidden aria-hidden="true" tabindex="-1">
     </div>
 
         <div class="sell-section hidden" id="sellDocs">
@@ -719,9 +721,10 @@
 
         <div class="sell-section">
       <h3><span class="sell-step">3</span> Item Details</h3>
-      <div class="form-group"><label>Title <span class="req">*</span></label><input type="text" id="sellTitle" placeholder="e.g. Honda City 2021 – Single Owner" maxlength="80" autocomplete="off"></div>
-      <div class="form-group"><label>Description <span class="req">*</span></label>
-        <textarea id="sellDesc" rows="5" placeholder="Describe your item — condition, age, reason for selling, any defects. Be honest for faster sale."></textarea>
+      <div class="form-group"><label for="sellTitle">Title <span class="req">*</span></label><input type="text" id="sellTitle" placeholder="e.g. Honda City 2021 – Single Owner" maxlength="80" autocomplete="off"></div>
+      <div class="form-group"><label for="sellDesc">Description <span class="req">*</span></label>
+        <textarea id="sellDesc" rows="5" placeholder="Describe your item — condition, age, reason for selling, any defects. Be honest for faster sale." oninput="updateSellDescCount()" aria-describedby="sellDescCount"></textarea>
+        <small id="sellDescCount" class="sell-field-count" aria-live="polite">0 / 100 words</small>
       </div>
       <div class="form-group"><label>Condition <span class="req">*</span></label>
         <select id="sellCondition">
@@ -732,12 +735,15 @@
           <option value="for_parts">For Parts / Not Working</option>
         </select>
       </div>
-            <div class="form-group combo-group">
-        <label id="sellBrandLabel">Brand / Make</label>
-        <input type="text" id="sellBrand" placeholder="e.g. Samsung, Honda, IKEA" autocomplete="off"
-               onfocus="openComboMenu('sellBrand')" onclick="openComboMenu('sellBrand')"
-               oninput="filterComboMenu('sellBrand')">
-        <div class="combo-menu hidden" id="sellBrand_menu"></div>
+            <!-- Brand: a list per category (Admin -> Categories -> Sell form lists) plus "Others",
+           which shows the text box for typing a brand. The text box (#sellBrand) always holds the
+           value that is saved. app.js renderBrandSuggestions / onSellBrandSelect. -->
+      <div class="form-group" id="sellBrandGroup">
+        <label id="sellBrandLabel" for="sellBrandSelect">Brand / Make</label>
+        <select id="sellBrandSelect" onchange="onSellBrandSelect()">
+          <option value="">Select a category first</option>
+        </select>
+        <input type="text" id="sellBrand" class="sell-other-input hidden" placeholder="Type the brand name" maxlength="50" autocomplete="off" aria-labelledby="sellBrandLabel">
       </div>
             <div class="form-group"><label id="sellModelLabel">Model</label><input type="text" id="sellModel" placeholder="e.g. Figo Aspire, Galaxy S21" autocomplete="off"></div>
 
@@ -746,11 +752,13 @@
 
         <div class="sell-section">
       <h3><span class="sell-step">4</span> Set Your Price</h3>
-      <div class="form-group"><label>Price (₹) <span class="req">*</span></label>
+      <div class="form-group"><label for="sellPrice">Price (₹) <span class="req">*</span></label>
         <div class="price-input-wrap">
           <span class="price-prefix">₹</span>
-                    <input type="number" id="sellPrice" placeholder="0" min="0" step="1" inputmode="numeric" autocomplete="off" oninput="clampNonNegative(this)">
+                    <!-- type="text" + digits-only filter: a number input still accepts e, +, - and "." -->
+          <input type="text" id="sellPrice" placeholder="e.g. 25000" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" oninput="sanitiseSellPrice(this)" aria-describedby="sellPriceHint">
         </div>
+        <small id="sellPriceHint" class="sell-field-count">Between ₹5,000 and ₹1,00,00,000</small>
       </div>
       <label class="toggle-label"><input type="checkbox" id="sellNegotiable"> Price is negotiable</label>
       <label class="toggle-label" style="margin-top:10px"><input type="checkbox" id="sellFeature"> <i class="fas fa-bolt" style="color:var(--gold)"></i> Show at top for 7 days <small style="color:var(--text-light)">(free while in beta)</small></label>
@@ -759,7 +767,7 @@
         <div class="sell-section">
       <h3><span class="sell-step">5</span> Location</h3>
       <div class="form-group"><label>Pincode <span class="req">*</span></label>
-        <input type="text" id="sellPincode" placeholder="e.g. 132001" maxlength="6" oninput="lookupPincode(this.value)" autocomplete="off">
+        <input type="text" id="sellPincode" placeholder="e.g. 132001" maxlength="6" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/\D/g, '').slice(0, 6); lookupPincode(this.value)" autocomplete="off">
         <small id="pincodeResult" class="pincode-result"></small>
       </div>
       <div class="form-group"><label>Exact Location / Landmark</label>
@@ -1205,10 +1213,10 @@
 <script src="/analytics.js?v=20261023a"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="/geo.js?v=20261022c"></script>
-<script src="/api-client.js?v=20261112c"></script>
+<script src="/api-client.js?v=20261112d"></script>
 <script src="/track.js?v=20261030a"></script>
-<script src="/app.js?v=20261112c"></script>
-<script src="/deals.js?v=20261112c"></script>
+<script src="/app.js?v=20261112d"></script>
+<script src="/deals.js?v=20261112d"></script>
 <script src="/how-it-works.js?v=20261027a"></script>
 <script src="/browse-categories.js?v=20261102b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie_light.min.js" defer></script>

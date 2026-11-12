@@ -251,17 +251,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('touchend', endCropDrag);
   }
 
-  // Close any open year combo when clicking outside it.
+  // Close an open year picker (sell form) when clicking outside it.
   document.addEventListener('click', (e) => {
-    if (e.target.closest('.combo-group')) return;
-    document.querySelectorAll('.combo-menu').forEach(m => m.classList.add('hidden'));
+    // composedPath, not e.target.closest: the arrows re-draw the picker, so
+    // by the time the click reaches here the button is no longer in the page.
+    if (e.composedPath().some(n => n.classList && n.classList.contains('year-group'))) return;
+    document.querySelectorAll('.year-picker:not(.hidden)').forEach(p => closeYearPicker(p.id.replace(/_picker$/, '')));
   });
 
-  // Escape closes the combo without closing the whole sell form.
+  // Escape closes the year picker without closing the whole sell form.
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    const open = document.querySelector('.combo-menu:not(.hidden)');
-    if (open) { open.classList.add('hidden'); e.stopPropagation(); }
+    const open = document.querySelector('.year-picker:not(.hidden)');
+    if (open) {
+      const id = open.id.replace(/_picker$/, '');
+      closeYearPicker(id);
+      document.getElementById(id)?.focus();
+      e.stopPropagation();
+    }
   }, true);
 
   // Close the avatar menu when clicking anywhere else.
@@ -1089,9 +1096,19 @@ function updateClearFiltersBtn() {
 }
 
 function applyBuyFilters() {
+  buySmartQuery = '';       // the grid now shows the filtered list, not a search
   buyPageNum = 1;
   updateClearFiltersBtn();
   fetchBuyPage();
+}
+
+/* The Sort box. During a natural-language search the search is run again in
+   the new order; otherwise the filtered list is fetched again. Both go to the
+   server, so the order holds across every page, not just the one shown. */
+function onBuySortChange() {
+  const q = (document.getElementById('buySearchInput')?.value || '').trim();
+  if (buySmartQuery && q === buySmartQuery.trim()) runSmartSearch(buySmartQuery, { stay: true });
+  else applyBuyFilters();
 }
 
 /* Fetches and displays buyPageNum from the server. The grid always shows
@@ -2487,17 +2504,22 @@ async function editListing(id, viaAdmin = false) {
   selectedSellCat = p.category;
   renderSellCategories(p.category);
   document.querySelectorAll('.sell-cat-item').forEach(i => i.classList.toggle('selected', i.dataset.cat === p.category));
-  // Awaited: renderSellAttributes fetches the field definitions, and without
-  // awaiting it the code below could finish before the inputs exist.
-  renderBrandSuggestions(p.category);
+  applySellPlaceholders(p.category);
+  // Awaited: renderSellAttributes fetches the field definitions and the
+  // category's brand list, and without awaiting it the code below could
+  // finish before the inputs exist.
   await renderSellAttributes(p.category, p.attributes || {});
 
   document.getElementById('sellTitle').value = p.title || '';
   document.getElementById('sellDesc').value = p.description || '';
+  updateSellDescCount();
   document.getElementById('sellCondition').value = p.condition || '';
-  document.getElementById('sellBrand').value = p.brand || '';
+  setSellBrandValue(p.brand || '');
   document.getElementById('sellModel').value = p.model || '';
-  document.getElementById('sellPrice').value = p.price || '';
+  document.getElementById('sellPrice').value = p.price ? String(Math.round(Number(p.price))) : '';
+  // What the listing had, so an edit that leaves the price or description
+  // as it is isn't refused by the newer limits (₹5,000 minimum, 100 words).
+  sellEditOriginal = { price: Number(p.price) || 0, description: (p.description || '').trim() };
   document.getElementById('sellPincode').value = p.pincode || '';
   document.getElementById('sellLandmark').value = p.landmark || '';
   document.getElementById('sellNegotiable').checked = !!p.negotiable;
@@ -2529,12 +2551,18 @@ function setSellFormMode(mode) {
 function resetSellForm() {
   sellPhotos = [];
   selectedSellCat = '';
+  sellEditOriginal = null;
+  sellAttrToken++;           // a field load still in flight must not fill the emptied form
+  sellAttrDefs = [];
   const attrBox = document.getElementById('sellAttributes');
   if (attrBox) attrBox.innerHTML = '';
   document.querySelectorAll('.sell-cat-item').forEach(i => i.classList.remove('selected'));
   ['sellTitle','sellDesc','sellBrand','sellModel','sellPincode','sellLandmark','sellPrice'].forEach(id => {
     document.getElementById(id).value = '';
   });
+  renderBrandSuggestions('', []);
+  applySellPlaceholders('');
+  updateSellDescCount();
   document.getElementById('sellCondition').value = '';
   document.getElementById('sellNegotiable').checked = false;
   // Offered by default: a seller unticks it if they don't want EMI.
@@ -2548,15 +2576,16 @@ function resetSellForm() {
 }
 
 
-/* ===== BRAND SUGGESTIONS BY CATEGORY =====
-   Rendered into a <datalist>, not a <select>, on purpose: this is a
-   second-hand marketplace, and a fixed dropdown would block anyone selling a
-   brand not on the list. The datalist offers the common ones while leaving
-   the field free text.
+/* ===== BRAND (per category, with "Others") =====
+   A dropdown of the category's brands plus "Others". Picking "Others" shows
+   a text box for typing a brand that isn't on the list, so a second-hand
+   seller is never blocked. The text box (#sellBrand) always holds the value
+   that is saved: picking a brand from the list writes it there too.
 
-   Deliberately not read from existing listings the way search's brand
-   vocabulary is — with a handful of listings that list would be nearly
-   empty, which is exactly when a seller most needs the prompt. */
+   The lists come from the server with the category's fields
+   (GET /api/sell/attributes/<cat> -> "brands"), and admins edit them in
+   Admin -> Categories -> Sell form lists. CATEGORY_BRANDS is only the
+   fallback for when the server didn't send a list (an older backend). */
 const CATEGORY_BRANDS = {
   cars: ['Maruti Suzuki', 'Hyundai', 'Tata', 'Mahindra', 'Honda', 'Toyota', 'Kia',
          'Renault', 'Volkswagen', 'Skoda', 'Ford', 'MG', 'Nissan', 'Jeep',
@@ -2577,44 +2606,242 @@ const CATEGORY_BRANDS = {
   others: [],
 };
 
-/* Fills the brand field's datalist for the chosen category. Property gets no
-   list — "brand" is meaningless for a flat — so the field is relabelled to
-   something that is (the builder or society name). */
-function renderBrandSuggestions(cat) {
-  const list = document.getElementById('sellBrand_menu');
+const SELL_OTHER = '__other__';
+let sellBrandList = [];
+
+/* Fills the Brand dropdown for `cat`. `brands` is the server's list; when it
+   isn't an array the built-in fallback is used. A category with no brands
+   (Others, or one an admin left empty) shows the text box on its own. */
+function renderBrandSuggestions(cat, brands) {
+  const select = document.getElementById('sellBrandSelect');
   const input = document.getElementById('sellBrand');
   const label = document.getElementById('sellBrandLabel');
-  if (!list || !input) return;
+  if (!select || !input) return;
 
-  const brands = CATEGORY_BRANDS[cat] || [];
-  // this.textContent, not the value inlined into the onclick: escapeHtml
-  // turns the apostrophe in "Levi's" into &#39;, which the browser decodes
-  // back to ' before JS parses the attribute — breaking the call. Reading
-  // the button's own text sidesteps quoting entirely.
-  list.innerHTML = brands.map(b =>
-    `<button type="button" class="combo-opt" onclick="pickComboValue('sellBrand', this.textContent)">${escapeHtml(b)}</button>`
-  ).join('');
-  if (!brands.length) list.classList.add('hidden');
+  sellBrandList = Array.isArray(brands) ? brands.slice() : (CATEGORY_BRANDS[cat] || []).slice();
+  const isProperty = cat === 'property';
+  if (label) label.textContent = isProperty ? 'Builder / Society' : 'Brand / Make';
 
-  if (cat === 'property') {
-    if (label) label.textContent = 'Builder / Society';
-    input.placeholder = 'e.g. DLF, Omaxe';
+  if (!cat) {
+    select.innerHTML = '<option value="">Select a category first</option>';
+    select.disabled = true;
+    select.classList.remove('hidden');
+    input.classList.add('hidden');
+    input.value = '';
+    label?.setAttribute('for', 'sellBrandSelect');
+    return;
+  }
+  select.disabled = false;
+  if (!sellBrandList.length) {
+    // Nothing to pick from: just the text box.
+    select.innerHTML = '';
+    select.classList.add('hidden');
+    input.classList.remove('hidden');
+    input.placeholder = isProperty ? 'e.g. DLF, Omaxe' : 'Type the brand name (optional)';
+    label?.setAttribute('for', 'sellBrand');
+    return;
+  }
+  select.innerHTML = '<option value="">Select brand</option>'
+    + sellBrandList.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join('')
+    + `<option value="${SELL_OTHER}">Others</option>`;
+  select.classList.remove('hidden');
+  select.value = '';
+  input.classList.add('hidden');
+  input.value = '';
+  input.placeholder = 'Type the brand name';
+  label?.setAttribute('for', 'sellBrandSelect');
+}
+
+function onSellBrandSelect() {
+  const select = document.getElementById('sellBrandSelect');
+  const input = document.getElementById('sellBrand');
+  if (!select || !input) return;
+  if (select.value === SELL_OTHER) {
+    input.value = '';
+    input.classList.remove('hidden');
+    input.focus();
   } else {
-    if (label) label.textContent = 'Brand / Make';
-    input.placeholder = brands.length
-      ? `e.g. ${brands.slice(0, 3).join(', ')}`
-      : 'e.g. Samsung, Honda, IKEA';
+    input.value = select.value;
+    input.classList.add('hidden');
   }
 }
 
+/* Puts a saved brand back (editing a listing): picked in the list when it's
+   on it (ignoring case), otherwise "Others" with the brand typed in. */
+function setSellBrandValue(brand) {
+  const select = document.getElementById('sellBrandSelect');
+  const input = document.getElementById('sellBrand');
+  if (!input) return;
+  const value = String(brand || '').trim();
+  input.value = value;
+  if (!select || select.classList.contains('hidden') || !sellBrandList.length) return;
+  const match = sellBrandList.find(b => b.toLowerCase() === value.toLowerCase());
+  if (!value) { select.value = ''; input.classList.add('hidden'); return; }
+  if (match) {
+    select.value = match;
+    input.value = match;
+    input.classList.add('hidden');
+  } else {
+    select.value = SELL_OTHER;
+    input.classList.remove('hidden');
+  }
+}
+
+/* ===== SELL FORM: PLACEHOLDERS BY CATEGORY =====
+   The examples in the Title, Description, Model and Price boxes follow the
+   chosen category, so a phone seller isn't shown "Honda City 2021". */
+const SELL_PLACEHOLDERS = {
+  '': {
+    title: 'e.g. Honda City 2021 – Single Owner',
+    desc: 'Describe your item — condition, age, reason for selling, any defects. Be honest for faster sale.',
+    model: 'e.g. Figo Aspire, Galaxy S21',
+    price: 'e.g. 25000',
+  },
+  cars: {
+    title: 'e.g. Maruti Swift VXI 2019 – Single Owner',
+    desc: 'e.g. Well maintained, all services at the authorised centre, new tyres, no accidents. Selling because I’m upgrading.',
+    model: 'e.g. Swift VXI, Creta SX',
+    price: 'e.g. 450000',
+  },
+  bikes: {
+    title: 'e.g. Royal Enfield Classic 350 2021',
+    desc: 'e.g. Single owner, regular servicing, new battery, all papers clear. Selling because I’m moving.',
+    model: 'e.g. Classic 350, Splendor Plus',
+    price: 'e.g. 85000',
+  },
+  phones: {
+    title: 'e.g. iPhone 13 128 GB – Blue',
+    desc: 'e.g. No scratches, battery health 88%, box and charger included, bill available.',
+    model: 'e.g. iPhone 13, Galaxy S21',
+    price: 'e.g. 35000',
+  },
+  electronics: {
+    title: 'e.g. Dell Inspiron 15 Laptop – i5, 8 GB RAM',
+    desc: 'e.g. Works perfectly, small scratch on the lid, original charger and bill included.',
+    model: 'e.g. Inspiron 15, Bravia 43"',
+    price: 'e.g. 25000',
+  },
+  furniture: {
+    title: 'e.g. 3-Seater Fabric Sofa – Grey',
+    desc: 'e.g. 2 years old, no stains or tears, solid wood frame. Buyer arranges pickup.',
+    model: 'e.g. 3-seater, King-size bed',
+    price: 'e.g. 12000',
+  },
+  appliances: {
+    title: 'e.g. LG 260 L Double-Door Fridge',
+    desc: 'e.g. Cooling perfectly, 3 years old, no dents, bill available. Selling because I’m relocating.',
+    model: 'e.g. GL-T292, 7 kg front load',
+    price: 'e.g. 15000',
+  },
+  fashion: {
+    title: 'e.g. Nike Air Max Shoes – UK 9',
+    desc: 'e.g. Worn twice, original box and tags, no marks or stains.',
+    model: 'e.g. Air Max 270, 501 Original',
+    price: 'e.g. 6000',
+  },
+  property: {
+    title: 'e.g. 2 BHK Flat in Sector 7',
+    desc: 'e.g. East-facing, 2nd floor, covered parking, 24-hour water. Ready to move in.',
+    model: 'e.g. Tower B, Flat 302',
+    price: 'e.g. 4500000',
+  },
+  others: {
+    title: 'e.g. Yamaha F310 Acoustic Guitar',
+    desc: 'e.g. Describe the item — condition, age, what’s included, any defects.',
+    model: 'e.g. F310',
+    price: 'e.g. 8000',
+  },
+};
+
+function applySellPlaceholders(cat) {
+  const ph = SELL_PLACEHOLDERS[cat] || SELL_PLACEHOLDERS.others;
+  const base = cat ? ph : SELL_PLACEHOLDERS[''];
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.placeholder = text; };
+  set('sellTitle', base.title);
+  set('sellDesc', base.desc);
+  set('sellModel', base.model);
+  set('sellPrice', base.price);
+}
+
+/* Switching to a different category empties what was filled in below it
+   (title, condition, brand, model, the category's own fields, the vehicle
+   documents, the price options, location and contact choice). Only the
+   description and the price stay. Photos are above the category and stay. */
+function clearSellFieldsForCategoryChange() {
+  ['sellTitle', 'sellModel', 'sellBrand', 'sellPincode', 'sellLandmark'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const cond = document.getElementById('sellCondition');
+  if (cond) cond.value = '';
+  ['sellNegotiable', 'sellFeature'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.checked = false;
+  });
+  const phone = document.getElementById('sellShowPhone');
+  if (phone) phone.value = 'chat_only';
+  const pin = document.getElementById('pincodeResult');
+  if (pin) pin.textContent = '';
+  const landmark = document.getElementById('sellLandmark');
+  if (landmark) landmark.placeholder = 'e.g. Near Sector 7 Market';
+  document.getElementById('sellError')?.classList.add('hidden');
+  // New ad: the documents picked for the old category go too. While editing,
+  // the documents are already saved on the listing and are left alone.
+  if (sellDocsStateMode() === 'create' && typeof sellDocsReset === 'function') sellDocsReset();
+}
+
+function sellDocsStateMode() {
+  return (typeof sellDocsState !== 'undefined' && sellDocsState) ? sellDocsState.mode : 'create';
+}
+
 function selectSellCat(el, cat) {
+  const previous = selectedSellCat;
+  if (previous === cat) return;   // same category clicked again: nothing changes
   document.querySelectorAll('.sell-cat-item').forEach(i => i.classList.remove('selected'));
   el.classList.add('selected');
+  if (previous) clearSellFieldsForCategoryChange();
   selectedSellCat = cat;
+  applySellPlaceholders(cat);
+  renderBrandSuggestions(cat);          // fallback list at once; the server's list replaces it
   renderSellAttributes(cat);
-  renderBrandSuggestions(cat);
   // DealLock: a car or bike needs its documents (deals.js).
   if (typeof sellDocsRender === 'function') sellDocsRender();
+}
+
+/* ===== SELL FORM: PRICE AND DESCRIPTION LIMITS =====
+   Same limits as the server (backend validation.py). They apply to a new
+   ad, and to an edit that changes the price or the description, so an
+   older listing outside them can still be edited otherwise. */
+const SELL_PRICE_MIN = 5000;
+const SELL_PRICE_MAX = 10000000;      // ₹1,00,00,000 (one crore)
+const SELL_DESC_MAX_WORDS = 100;
+let sellEditOriginal = null;          // { price, description } of the listing being edited
+
+/* Digits only (no e, +, -, . or spaces), no leading zeros, at most 8 digits. */
+function sanitiseSellPrice(input) {
+  let v = String(input.value || '').replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  if (v.length > 8) v = v.slice(0, 8);
+  if (input.value !== v) input.value = v;
+  const hint = document.getElementById('sellPriceHint');
+  if (!hint) return;
+  const n = Number(v);
+  const inr = (x) => Number(x).toLocaleString('en-IN');
+  const range = `Between ₹${inr(SELL_PRICE_MIN)} and ₹${inr(SELL_PRICE_MAX)}`;
+  hint.textContent = v ? `₹${inr(n)} · ${range}` : range;
+  hint.classList.toggle('is-over', !!v && (n < SELL_PRICE_MIN || n > SELL_PRICE_MAX));
+}
+
+function sellWordCount(text) {
+  const t = String(text || '').trim();
+  return t ? t.split(/\s+/).length : 0;
+}
+
+function updateSellDescCount() {
+  const el = document.getElementById('sellDescCount');
+  if (!el) return;
+  const n = sellWordCount(document.getElementById('sellDesc')?.value);
+  el.textContent = `${n} / ${SELL_DESC_MAX_WORDS} words`;
+  el.classList.toggle('is-over', n > SELL_DESC_MAX_WORDS);
 }
 
 function handlePhotoUpload(e) {
@@ -2683,15 +2910,35 @@ async function handleSellSubmit() {
   const title = document.getElementById('sellTitle').value.trim();
   const desc = document.getElementById('sellDesc').value.trim();
   const condition = document.getElementById('sellCondition').value;
-  const price = parseFloat(document.getElementById('sellPrice').value);
+  const priceText = document.getElementById('sellPrice').value.trim();
+  const price = Number(priceText);
   const pincode = document.getElementById('sellPincode').value.trim();
+  // Limits apply to a new ad, and to an edit that changes the value (an
+  // older listing outside them can still be edited otherwise; the server
+  // does the same).
+  const orig = isEdit ? sellEditOriginal : null;
+  const descWords = sellWordCount(desc);
+  const brandSelect = document.getElementById('sellBrandSelect');
+  const brandOtherEmpty = brandSelect && !brandSelect.classList.contains('hidden')
+    && brandSelect.value === SELL_OTHER && !document.getElementById('sellBrand').value.trim();
+  const otherMissing = sellAttrOtherMissing();
 
   if (!selectedSellCat) { showAuthError(errEl, 'Please select a category.'); return; }
   if (!title) { showAuthError(errEl, 'Please enter a title.'); return; }
   if (!desc) { showAuthError(errEl, 'Please add a description.'); return; }
+  if (descWords > SELL_DESC_MAX_WORDS && (!orig || desc !== orig.description)) {
+    showAuthError(errEl, `Please keep the description to ${SELL_DESC_MAX_WORDS} words or fewer (it has ${descWords}).`);
+    return;
+  }
   if (!condition) { showAuthError(errEl, 'Please select item condition.'); return; }
-  if (!price || price <= 0) { showAuthError(errEl, 'Please enter a valid price.'); return; }
-  if (!pincode || pincode.length !== 6) { showAuthError(errEl, 'Please enter a valid 6-digit pincode.'); return; }
+  if (brandOtherEmpty) { showAuthError(errEl, 'You chose "Others" for the brand: please type the brand name.'); return; }
+  if (otherMissing) { showAuthError(errEl, `You chose "Other" for ${otherMissing}: please type it.`); return; }
+  if (!/^\d+$/.test(priceText) || !price) { showAuthError(errEl, 'Please enter the price in rupees, numbers only.'); return; }
+  if (!orig || price !== orig.price) {
+    if (price < SELL_PRICE_MIN) { showAuthError(errEl, `The price must be at least ₹${SELL_PRICE_MIN.toLocaleString('en-IN')}.`); return; }
+    if (price > SELL_PRICE_MAX) { showAuthError(errEl, `The price can't be more than ₹${SELL_PRICE_MAX.toLocaleString('en-IN')}.`); return; }
+  }
+  if (!/^\d{6}$/.test(pincode)) { showAuthError(errEl, 'Please enter a valid 6-digit pincode.'); return; }
   // DealLock: posting a car or bike needs the loan answer and every
   // vehicle document (they upload right after the ad is saved).
   const docsProblem = (!isEdit && typeof sellDocsProblem === 'function') ? sellDocsProblem() : null;
@@ -2758,8 +3005,9 @@ async function handleSellSubmit() {
       ai_description: desc,
       ai_image_url: imageUrl,
       extra_images: extraImages,
-      // A new ad only offers EMI if the seller could see (and kept) the
-      // option: where EMI isn't available the box is hidden.
+      // The seller no longer chooses (the "Offer EMI option" box was removed):
+      // a new ad offers EMI wherever DealBriz offers it here, and an edit
+      // keeps the listing's own setting (the hidden box holds it).
       emi_eligible: document.getElementById('sellEmiEligible').checked
         && (isEdit || typeof emiVisibleHere !== 'function' || emiVisibleHere()),
       negotiable: document.getElementById('sellNegotiable').checked,
@@ -2805,6 +3053,9 @@ async function handleSellSubmit() {
     }
 
     invalidateListingCache(editingListingId);
+    // The form stays open after an edit: what was just saved is now "the
+    // listing's own" price and description for the limits above.
+    if (isEdit) sellEditOriginal = { price, description: desc };
     // DealLock: a changed category can change which documents the listing needs.
     if (isEdit && typeof sellDocsLoadForEdit === 'function') sellDocsLoadForEdit(editingListingId, editingViaAdmin);
 
@@ -4161,7 +4412,7 @@ let adminHtmlLoaded = false;
 async function loadAdminHtml() {
   if (adminHtmlLoaded) return;
   try {
-    const resp = await fetch('/admin.html?v=20261112c');
+    const resp = await fetch('/admin.html?v=20261112d');
     if (!resp.ok) throw new Error(resp.status);
     const html = await resp.text();
     document.getElementById('adminPage').innerHTML = html;
@@ -4418,7 +4669,7 @@ function adminLoadSection(section) {
   if (section === 'emiareas') run(renderAdminEmiAreas);
   if (section === 'dashboard') run(renderAdminDashboardCharts);
   if (section === 'analytics') run(renderAdminAnalytics);
-  if (section === 'categories') run(renderAdminCategories);
+  if (section === 'categories') { run(renderAdminCategories); run(renderAdminSellLists); }
   if (section === 'products') run(fillAdminCategorySelect);
   return Promise.allSettled(jobs);
 }
@@ -4624,6 +4875,131 @@ async function adminCatAfterChange(toast) {
   if (toast) showToast(toast, 'success');
   await renderAdminCategories();
   await loadCategories();   // the site's own menus, tiles and footer
+  // A category added, renamed or deleted changes the Brands lists.
+  await renderAdminSellLists({ keepEdits: true });
+}
+
+/* ===== ADMIN: SELL FORM LISTS (/api/admin/sell-options) =====
+   Brands per category and the dropdown fields' choices, edited one list at a
+   time as one entry per line. The server cleans what's saved (trims, drops
+   duplicates and "Other"), and the sell form reads the lists from
+   /api/sell/attributes/<category>. */
+let adminSellLists = [];
+let adminSellListKey = '';
+
+function adminSellListError(msg) {
+  const el = document.getElementById('adminSellListError');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.classList.toggle('hidden', !msg);
+}
+
+function adminSellListCurrent() {
+  return adminSellLists.find(l => l.key === adminSellListKey) || null;
+}
+
+function adminSellListLines() {
+  return (document.getElementById('sellListValues')?.value || '')
+    .split('\n').map(v => v.trim()).filter(Boolean);
+}
+
+/* Unsaved changes in the box? Compared entry by entry, ignoring blank lines. */
+function adminSellListDirty() {
+  const l = adminSellListCurrent();
+  if (!l) return false;
+  return adminSellListLines().join('\n') !== (l.values || []).join('\n');
+}
+
+async function renderAdminSellLists({ keepEdits = false } = {}) {
+  const sel = document.getElementById('sellListSelect');
+  if (!sel) return;
+  const pending = keepEdits && adminSellListDirty() ? document.getElementById('sellListValues').value : null;
+  let res;
+  try { res = await db.adminGetSellOptions(); }
+  catch (err) { adminSellListError(err.message || 'Could not load the sell form lists.'); return; }
+  adminSellListError('');
+  adminSellLists = Array.isArray(res?.lists) ? res.lists : [];
+  if (!adminSellLists.some(l => l.key === adminSellListKey)) adminSellListKey = adminSellLists[0]?.key || '';
+  adminSellListFillSelect();
+  adminSellListShow();
+  if (pending != null) { document.getElementById('sellListValues').value = pending; adminSellListCount(); }
+}
+
+function adminSellListFillSelect() {
+  const sel = document.getElementById('sellListSelect');
+  if (!sel) return;
+  const groups = [['brands', 'Brands'], ['fields', 'Dropdown fields']];
+  sel.innerHTML = groups.map(([g, label]) => {
+    const items = adminSellLists.filter(l => l.group === g);
+    if (!items.length) return '';
+    return `<optgroup label="${escapeHtml(label)}">${items.map(l =>
+      `<option value="${escapeHtml(l.key)}">${escapeHtml(l.label)}${l.edited ? ' · edited' : ''}</option>`).join('')}</optgroup>`;
+  }).join('');
+  sel.value = adminSellListKey;
+}
+
+function adminSellListShow() {
+  const l = adminSellListCurrent();
+  const box = document.getElementById('sellListValues');
+  const badge = document.getElementById('sellListBadge');
+  const reset = document.getElementById('sellListResetBtn');
+  if (!box) return;
+  box.value = l ? (l.values || []).join('\n') : '';
+  box.disabled = !l;
+  if (badge) {
+    badge.textContent = l ? (l.edited ? 'Edited' : 'Default list') : '';
+    badge.className = `setting-badge ${l && l.edited ? 'is-on' : 'is-off'}`;
+  }
+  if (reset) reset.disabled = !(l && l.edited);
+  adminSellListCount();
+}
+
+function adminSellListCount() {
+  const el = document.getElementById('sellListCount');
+  if (!el) return;
+  const n = adminSellListLines().length;
+  el.textContent = `${n} ${n === 1 ? 'entry' : 'entries'}${adminSellListDirty() ? ' · not saved yet' : ''}`;
+}
+
+function adminSellListPick() {
+  const sel = document.getElementById('sellListSelect');
+  if (!sel) return;
+  if (adminSellListDirty() && !confirm('Discard the changes to this list that aren\'t saved?')) {
+    sel.value = adminSellListKey;
+    return;
+  }
+  adminSellListKey = sel.value;
+  adminSellListError('');
+  adminSellListShow();
+}
+
+async function adminSellListSave() {
+  const l = adminSellListCurrent();
+  if (!l) return;
+  try {
+    const res = await db.adminSaveSellOptionList(l.key, adminSellListLines());
+    l.values = Array.isArray(res?.values) ? res.values : adminSellListLines();
+    l.edited = true;
+    adminSellListError('');
+    adminSellListFillSelect();
+    adminSellListShow();
+    showToast('List saved. The sell form uses it now.', 'success');
+  } catch (err) { adminSellListError(err.message || 'Could not save the list.'); }
+}
+
+async function adminSellListReset() {
+  const l = adminSellListCurrent();
+  if (!l || !l.edited) return;
+  if (!confirm(`Reset "${l.label}" to the built-in list? The entries saved here are replaced.`)) return;
+  try {
+    const res = await db.adminResetSellOptionList(l.key);
+    l.values = Array.isArray(res?.values) ? res.values : (l.default || []);
+    l.edited = false;
+    adminSellListError('');
+    adminSellListFillSelect();
+    adminSellListShow();
+    showToast('List reset to the default.', 'success');
+  } catch (err) { adminSellListError(err.message || 'Could not reset the list.'); }
 }
 
 async function adminCatSave(slug) {
@@ -8173,72 +8549,96 @@ function toggleLogDetail(i) {
    Rendered from the server's definitions rather than a copy in JS, so the
    form, the search parser and the database can't drift apart. These are
    what make "2018 model under 1 lakh km" searchable at all — without them
-   there is nothing to filter on. */
+   there is nothing to filter on.
+
+   The same request brings the category's brand list and the dropdown
+   choices as edited in Admin -> Categories -> Sell form lists. */
 
 let sellAttrDefs = [];
+// Raised on every load and on reset: switching categories quickly must not
+// let an older, slower response fill the form for the wrong category.
+let sellAttrToken = 0;
 
-
-/* Year options, newest first — next year included because dealers list
-   upcoming model years, and bounded by the attribute's own min if it has one
-   rather than a number hardcoded here. */
-function yearOptionsHtml(attr, inputId) {
+/* ===== YEAR PICKER =====
+   Year fields (Year of manufacture, Year of purchase) open a calendar-style
+   grid of years instead of taking typed text: 12 years a page, arrows for
+   earlier and later years, and Clear. Bounded by the field's min and max.
+   "Year of purchase" never goes past the current calendar year, since
+   nobody bought it in the future; "Year of manufacture" may be next year
+   (dealers list next year's models early). */
+function sellYearBounds(attr) {
   const now = new Date().getFullYear();
-  const max = attr.max != null ? Number(attr.max) : now + 1;
+  const purchase = attr.kind === 'purchase_year' || /purchase/i.test(attr.label || '');
+  let max = attr.max != null ? Number(attr.max) : (purchase ? now : now + 1);
+  if (purchase) max = Math.min(max, now);
   const min = attr.min != null ? Number(attr.min) : 1950;
-  let out = '';
-  for (let y = max; y >= min; y--) {
-    out += `<button type="button" class="combo-opt" onclick="pickComboValue('${inputId}', this.textContent)">${y}</button>`;
+  return { min, max: Math.max(min, max) };
+}
+
+const YEAR_PAGE = 12;
+
+function openYearPicker(inputId) {
+  const input = document.getElementById(inputId);
+  const picker = document.getElementById(inputId + '_picker');
+  if (!input || !picker) return;
+  document.querySelectorAll('.year-picker').forEach(p => { if (p !== picker) p.classList.add('hidden'); });
+  if (!picker.classList.contains('hidden')) { closeYearPicker(inputId); return; }
+  const max = Number(input.dataset.max);
+  const chosen = Number(input.value) || max;
+  // Pages end at max, so the newest years are on the first page.
+  const pagesBack = Math.max(0, Math.floor((max - chosen) / YEAR_PAGE));
+  renderYearPicker(inputId, max - pagesBack * YEAR_PAGE);
+  picker.classList.remove('hidden');
+  input.setAttribute('aria-expanded', 'true');
+  (picker.querySelector('.year-cell.is-active') || picker.querySelector('.year-cell:not([disabled])'))?.focus();
+}
+
+function closeYearPicker(inputId) {
+  document.getElementById(inputId + '_picker')?.classList.add('hidden');
+  document.getElementById(inputId)?.setAttribute('aria-expanded', 'false');
+}
+
+/* One page of years, ending at `end`. */
+function renderYearPicker(inputId, end) {
+  const input = document.getElementById(inputId);
+  const picker = document.getElementById(inputId + '_picker');
+  if (!input || !picker) return;
+  const min = Number(input.dataset.min);
+  const max = Number(input.dataset.max);
+  end = Math.min(max, Math.max(min + YEAR_PAGE - 1, end));
+  const start = end - YEAR_PAGE + 1;
+  const chosen = Number(input.value);
+  let cells = '';
+  for (let y = start; y <= end; y++) {
+    const off = y < min || y > max;
+    cells += `<button type="button" class="year-cell${y === chosen ? ' is-active' : ''}" ${off ? 'disabled' : ''}
+      onclick="pickYear('${inputId}', ${y})">${y}</button>`;
   }
-  return out;
+  picker.innerHTML = `
+    <div class="year-picker-head">
+      <button type="button" class="year-nav" aria-label="Earlier years" ${start <= min ? 'disabled' : ''}
+        onclick="renderYearPicker('${inputId}', ${end - YEAR_PAGE})"><i class="fas fa-chevron-left"></i></button>
+      <span>${Math.max(start, min)} – ${end}</span>
+      <button type="button" class="year-nav" aria-label="Later years" ${end >= max ? 'disabled' : ''}
+        onclick="renderYearPicker('${inputId}', ${end + YEAR_PAGE})"><i class="fas fa-chevron-right"></i></button>
+    </div>
+    <div class="year-grid">${cells}</div>
+    <div class="year-picker-foot">
+      <button type="button" class="year-clear" onclick="pickYear('${inputId}', '')">Clear</button>
+    </div>`;
 }
 
-/* ===== COMBO DROPDOWN =====
-   One implementation, used by the brand field and the year field. A plain
-   scrollable div positioned under the input, rather than a native
-   <datalist>: browsers draw a datalist popup wherever they choose — pinned
-   to the side of the window, or flipped upward near the bottom — and no CSS
-   can move it. This is ordinary DOM, so it always opens downward, and typing
-   a value that is not on the list is still allowed.
-
-   Convention: an input with id X has its menu at id X_menu. */
-function openComboMenu(inputId) {
-  document.querySelectorAll('.combo-menu').forEach(m => {
-    if (m.id !== inputId + '_menu') m.classList.add('hidden');
-  });
-  const menu = document.getElementById(inputId + '_menu');
-  if (!menu || !menu.children.length) return;
-  menu.classList.remove('hidden');
-  filterComboMenu(inputId);
-  // Bring the current value into view rather than always starting at the top
-  // — on the year list that is otherwise a long scroll every time.
-  const active = menu.querySelector('.combo-opt.is-active');
-  if (active) active.scrollIntoView({ block: 'center' });
-}
-
-function filterComboMenu(inputId) {
+function pickYear(inputId, year) {
   const input = document.getElementById(inputId);
-  const menu = document.getElementById(inputId + '_menu');
-  if (!input || !menu) return;
-  const q = (input.value || '').trim().toLowerCase();
-  let shown = 0;
-  menu.querySelectorAll('.combo-opt').forEach(btn => {
-    const text = btn.textContent.trim();
-    // Prefix match, not "contains": typing "hy" should offer Hyundai, not
-    // every brand with an h in the middle.
-    const match = !q || text.toLowerCase().startsWith(q);
-    btn.classList.toggle('hidden', !match);
-    btn.classList.toggle('is-active', text.toLowerCase() === q);
-    if (match) shown++;
-  });
-  // An off-list value is valid, so no matches is not an error — close the
-  // menu and let the user finish typing.
-  menu.classList.toggle('hidden', shown === 0);
+  if (input) { input.value = year === '' ? '' : String(year); input.dispatchEvent(new Event('change')); }
+  closeYearPicker(inputId);
+  input?.focus();
 }
 
-function pickComboValue(inputId, value) {
-  const input = document.getElementById(inputId);
-  if (input) { input.value = String(value).trim(); input.dispatchEvent(new Event('change')); }
-  document.getElementById(inputId + '_menu')?.classList.add('hidden');
+/* Enter, Space or Down arrow on the year box opens the picker. */
+function yearInputKey(e, inputId) {
+  if (['Enter', ' ', 'ArrowDown'].includes(e.key)) { e.preventDefault(); openYearPicker(inputId); }
+  else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); pickYear(inputId, ''); }
 }
 
 /* Whole numbers only, never negative. A count of owners or kilometres has no
@@ -8248,86 +8648,130 @@ function clampWholeNumber(input) {
   let v = (input.value || '').replace(/[^0-9]/g, '');
   v = v.replace(/^0+(?=\d)/, '');   // strip leading zeros, keep a lone "0"
   input.value = v;
-  // The year field is a text input (so the combo can drive it), so filter its
-  // list as the digits change.
-  if (input.id && document.getElementById(input.id + '_menu')) filterComboMenu(input.id);
+}
+
+/* Dropdowns that allow "Other" (Colour): picking it shows a text box. */
+function onSellAttrOther(id) {
+  const select = document.getElementById(id);
+  const other = document.getElementById(id + '_other');
+  if (!select || !other) return;
+  const on = select.value === SELL_OTHER;
+  other.classList.toggle('hidden', !on);
+  if (on) other.focus(); else other.value = '';
 }
 
 async function renderSellAttributes(category, existing = {}) {
   const box = document.getElementById('sellAttributes');
   if (!box) return;
+  const token = ++sellAttrToken;
   if (!category) { box.innerHTML = ''; sellAttrDefs = []; return; }
 
   box.innerHTML = `<div class="info-loading"><i class="fas fa-spinner fa-spin"></i> Loading fields...</div>`;
+  let res;
   try {
-    const res = await db.getCategoryAttributes(category);
-    sellAttrDefs = Array.isArray(res?.attributes) ? res.attributes : [];
+    res = await db.getCategoryAttributes(category);
   } catch {
     // A failed load must not block posting — these fields are optional.
+    if (token !== sellAttrToken) return;
     sellAttrDefs = [];
     box.innerHTML = '';
     return;
   }
+  if (token !== sellAttrToken) return;   // a newer category was chosen meanwhile
+  sellAttrDefs = Array.isArray(res?.attributes) ? res.attributes : [];
+
+  // The server's brand list (admin-managed). Keeps a brand already picked or
+  // typed while the list was loading.
+  const brandNow = document.getElementById('sellBrand')?.value || '';
+  renderBrandSuggestions(category, Array.isArray(res?.brands) ? res.brands : undefined);
+  if (brandNow) setSellBrandValue(brandNow);
+
   if (!sellAttrDefs.length) { box.innerHTML = ''; return; }
 
   box.innerHTML = `
     <div class="sell-attrs-head">
       <strong>${escapeHtml(category.charAt(0).toUpperCase() + category.slice(1))} details</strong>
-      <small>Optional, but buyers filter on these \u2014 listings with them get found more often.</small>
+      <small>Optional, but buyers filter on these — listings with them get found more often.</small>
     </div>
     <div class="sell-attrs-grid">
       ${sellAttrDefs.map(a => {
         const val = existing[a.key] != null ? String(existing[a.key]) : '';
         const id = `sellAttr_${a.key}`;
         if (a.type === 'select') {
+          const options = Array.isArray(a.options) ? a.options : [];
+          const allowOther = !!a.allow_other || a.key === 'color';
+          // A saved value that isn't on the list (typed under "Other", or
+          // removed from the list by an admin) comes back as "Other" with
+          // the value typed in. Matched ignoring case.
+          const match = options.find(o => String(o).toLowerCase() === val.toLowerCase());
+          const isOther = !!val && !match && allowOther;
+          const orphan = !!val && !match && !allowOther;   // keep it selectable rather than lose it
           return `<div class="form-group">
             <label for="${id}">${escapeHtml(a.label)}</label>
-            <select id="${id}">
+            <select id="${id}" ${allowOther ? `onchange="onSellAttrOther('${id}')"` : ''}>
               <option value="">Not specified</option>
-              ${(a.options || []).map(o =>
-                `<option value="${escapeHtml(o)}" ${o === val ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}
+              ${options.map(o =>
+                `<option value="${escapeHtml(o)}" ${match === o ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}
+              ${orphan ? `<option value="${escapeHtml(val)}" selected>${escapeHtml(val)}</option>` : ''}
+              ${allowOther ? `<option value="${SELL_OTHER}" ${isOther ? 'selected' : ''}>Other</option>` : ''}
             </select>
+            ${allowOther ? `<input type="text" id="${id}_other" class="sell-other-input${isOther ? '' : ' hidden'}"
+                 maxlength="30" autocomplete="off" placeholder="Type the ${escapeHtml(a.label.toLowerCase())}"
+                 aria-label="${escapeHtml(a.label)}" value="${isOther ? escapeHtml(val) : ''}">` : ''}
           </div>`;
         }
-        // Year uses a custom dropdown, not a <datalist>. The browser draws a
-        // datalist popup wherever it likes — sideways or upward near a
-        // viewport edge — and no CSS can reposition it. This one is ordinary
-        // DOM, so it always opens downward, directly under the input, and
-        // still accepts typing for a year outside the list.
-        const isYear = a.key === 'year';
-        const listAttr = isYear ? ` autocomplete="off" onfocus="openComboMenu('${id}')" onclick="openComboMenu('${id}')"` : '';
-        const yearList = isYear
-          ? `<div class="combo-menu hidden" id="${id}_menu">${yearOptionsHtml(a, id)}</div>`
-          : '';
+        if (a.key === 'year') {
+          const { min, max } = sellYearBounds(a);
+          return `<div class="form-group year-group">
+            <label for="${id}">${escapeHtml(a.label)}</label>
+            <input type="text" id="${id}" class="year-input" readonly inputmode="none" autocomplete="off"
+                   data-min="${min}" data-max="${max}" placeholder="Select year"
+                   aria-haspopup="dialog" aria-expanded="false" value="${escapeHtml(val)}"
+                   onclick="openYearPicker('${id}')" onkeydown="yearInputKey(event, '${id}')">
+            <i class="fas fa-calendar-days year-input-icon" aria-hidden="true"></i>
+            <div class="year-picker hidden" id="${id}_picker" role="dialog" aria-label="Choose ${escapeHtml(a.label.toLowerCase())}"></div>
+          </div>`;
+        }
 
         const type = a.type === 'number' ? 'number' : 'text';
-        // step="1" plus the integer guard below: counts like owners, year and
+        // step="1" plus the integer guard below: counts like owners and
         // kilometres are whole numbers. Without step, browsers accept "2.5
         // owners" and the spinner offers decimals.
         const bounds = a.type === 'number'
           ? `${a.min != null ? `min="${a.min}"` : 'min="0"'} ${a.max != null ? `max="${a.max}"` : ''} step="1" inputmode="numeric" oninput="clampWholeNumber(this)"`
           : '';
-        return `<div class="form-group${isYear ? ' combo-group' : ''}">
+        return `<div class="form-group">
           <label for="${id}">${escapeHtml(a.label)}${a.unit ? ` <span class="opt">(${escapeHtml(a.unit)})</span>` : ''}</label>
-          <input type="${isYear ? 'text' : type}" id="${id}" ${bounds}${listAttr}
+          <input type="${type}" id="${id}" ${bounds}
                  placeholder="${escapeHtml(a.placeholder || '')}" value="${escapeHtml(val)}">
-          ${yearList}
         </div>`;
       }).join('')}
     </div>`;
 }
 
 /* Collects the filled-in fields. Blanks are omitted rather than stored as
-   empty strings, which would otherwise match "colour = nothing" filters. */
+   empty strings, which would otherwise match "colour = nothing" filters.
+   "Other" sends what was typed in its box. */
 function collectSellAttributes() {
   const out = {};
   sellAttrDefs.forEach(a => {
     const el = document.getElementById(`sellAttr_${a.key}`);
     if (!el) return;
-    const v = (el.value || '').trim();
+    let v = (el.value || '').trim();
+    if (v === SELL_OTHER) v = (document.getElementById(`sellAttr_${a.key}_other`)?.value || '').trim();
     if (v) out[a.key] = v;
   });
   return out;
+}
+
+/* "Other" picked but nothing typed: the field's label, else null. */
+function sellAttrOtherMissing() {
+  for (const a of sellAttrDefs) {
+    const el = document.getElementById(`sellAttr_${a.key}`);
+    if (el && el.value === SELL_OTHER
+        && !(document.getElementById(`sellAttr_${a.key}_other`)?.value || '').trim()) return a.label;
+  }
+  return null;
 }
 
 /* ===== NATURAL-LANGUAGE SEARCH =====
@@ -8453,28 +8897,45 @@ document.addEventListener('mousedown', (e) => {
   }
 });
 
-/* Runs the search and shows the results on the Buy page. */
-async function runSmartSearch(query) {
+/* The natural-language search the Buy grid is showing, or '' when it shows
+   the ordinary filtered list. Lets a change of sort order re-run the search
+   instead of silently replacing the results with the unfiltered list. */
+let buySmartQuery = '';
+
+/* Runs the search and shows the results on the Buy page, in the order picked
+   in the Sort box. `stay`: already on the Buy page (a sort change), so don't
+   re-open it, which would reset the category and scroll to the top. */
+async function runSmartSearch(query, { stay = false } = {}) {
+  if (query && query.trim() && !stay) window.dbTrackEvent?.('search', { search_term: query.trim() });
+  // Opening Buy resets its search box and starts loading the plain list
+  // (initBuyPage), so the boxes are filled AFTER it, and the search takes the
+  // fetch token below so that plain list can't land on top of the results.
+  if (!stay) showPage('buy');
   ['navSearchInput', 'homeSearchInput', 'buySearchInput'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = query;
   });
-  if (query && query.trim()) window.dbTrackEvent?.('search', { search_term: query.trim() });
-  showPage('buy');
+  const thisFetch = ++buyFetchToken;
+  buySmartQuery = query;
 
   const grid = document.getElementById('buyListingsGrid');
   if (grid) grid.innerHTML = `<div class="info-loading"><i class="fas fa-spinner fa-spin"></i> Searching...</div>`;
 
   const pincode = selectedArea?.pincode
     || (selectedArea?.prefix ? `${selectedArea.prefix}001` : '');
+  const sort = document.getElementById('buySortSelect')?.value || 'recommended';
 
   let res;
   try {
-    res = await db.smartSearch(query, { page: 1, per_page: buyPerPage || 30, pincode });
+    res = await db.smartSearch(query, { page: 1, per_page: buyPerPage || 30, pincode, sort });
   } catch (err) {
+    if (thisFetch !== buyFetchToken) return;
+    document.getElementById('buyLoading')?.classList.add('hidden');
     if (grid) grid.innerHTML = `<div class="info-loading">${escapeHtml(err.message || 'Search failed.')}</div>`;
     return;
   }
+  if (thisFetch !== buyFetchToken) return;   // a newer search, sort or filter change took over
+  document.getElementById('buyLoading')?.classList.add('hidden');
 
   renderSearchUnderstood(res);
 
@@ -8514,7 +8975,10 @@ function renderSearchUnderstood(res) {
 
   // Nothing in the buyer's own pincode: say so, rather than leaving them to
   // wonder why the top result is from another district.
-  const near = res.nearness;
+  // Only under Recommended: Newest and Price are strict orders, where
+  // nearness just breaks ties, so "showing listings around X first" isn't true.
+  const near = (document.getElementById('buySortSelect')?.value || 'recommended') === 'recommended'
+    ? res.nearness : null;
   const nearNote = (near && near.scope !== 'exact')
     ? (near.scope === 'district'
         ? `Nothing in <strong>${escapeHtml(near.pincode)}</strong> right now &mdash; showing listings around ${escapeHtml(near.district)} first.`

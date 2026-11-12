@@ -605,28 +605,81 @@ body.on-home .nav-chat-glow:hover {
   .legal-peek-foot a { text-align: center; }
 }
 
-/* ===== YEAR COMBO =====
-   A plain positioned div rather than a native <datalist>. Browsers draw a
-   datalist popup wherever they choose — sideways, or upward near the bottom
-   of the viewport — and its position cannot be styled. This is ordinary DOM,
-   so it always opens directly below the input. */
-.combo-group { position: relative; }
-.combo-menu {
-  position: absolute; top: 100%; left: 0; right: 0; z-index: 60;
-  margin-top: 4px; max-height: 240px; overflow-y: auto;
-  background: var(--white); border: 1.5px solid var(--border);
-  border-radius: 10px; box-shadow: 0 10px 28px rgba(15,23,42,0.16);
-  padding: 4px;
+/* ===== SELL FORM: YEAR PICKER =====
+   Year fields open a calendar-style grid of years (app.js openYearPicker),
+   positioned under the box as ordinary DOM so it always opens downward. */
+.year-group { position: relative; }
+.year-input { cursor: pointer; padding-right: 38px !important; background: var(--white); }
+.year-input-icon {
+  position: absolute; right: 13px; top: 38px; color: var(--text-muted);
+  pointer-events: none; font-size: 15px;
 }
-.combo-menu.hidden { display: none; }
-.combo-opt {
-  display: block; width: 100%; text-align: left;
-  padding: 9px 12px; border: none; background: none; border-radius: 7px;
-  font-size: 14px; font-family: inherit; color: var(--text); cursor: pointer;
+.year-picker {
+  position: absolute; top: 100%; left: 0; z-index: 60; width: 100%; max-width: 300px;
+  margin-top: 4px; padding: 10px; background: var(--white);
+  border: 1.5px solid var(--border); border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(15,23,42,0.16);
 }
-.combo-opt:hover { background: var(--accent-light, #EFF6FF); color: var(--accent); }
-.combo-opt.is-active { background: var(--accent); color: #fff; font-weight: 600; }
-.combo-opt.hidden { display: none; }
+.year-picker.hidden { display: none; }
+.year-picker-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 8px; font-weight: 700; font-size: 14px; color: var(--text);
+}
+.year-nav {
+  width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--white); color: var(--text); cursor: pointer;
+}
+.year-nav:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.year-nav:disabled { opacity: .35; cursor: default; }
+.year-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.year-cell {
+  padding: 9px 0; border: 1px solid transparent; border-radius: 8px; background: var(--bg);
+  font-size: 13.5px; font-family: inherit; color: var(--text); cursor: pointer;
+}
+.year-cell:hover:not(:disabled) { background: var(--accent-light, #EFF6FF); color: var(--accent); border-color: var(--accent); }
+.year-cell.is-active { background: var(--accent); color: #fff; font-weight: 700; }
+.year-cell:disabled { opacity: .3; cursor: default; }
+.year-picker-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+.year-clear {
+  border: none; background: none; color: var(--accent); font-weight: 600;
+  font-size: 13px; font-family: inherit; cursor: pointer; padding: 4px 6px;
+}
+
+/* ===== SELL FORM: "OTHER" BOXES, COUNTERS ===== */
+.sell-other-input { margin-top: 8px; }
+.sell-other-input.hidden { display: none; }
+#sellBrandSelect.hidden { display: none; }
+#sellBrandSelect.hidden + #sellBrand { margin-top: 0; }   /* no list: the box stands alone */
+.sell-field-count { display: block; margin-top: 5px; font-size: 12px; color: var(--text-muted); }
+.sell-field-count.is-over { color: var(--red, #DC2626); font-weight: 600; }
+
+/* ===== SELL FORM: RC CONSENT ===== */
+.sell-rc-consent {
+  display: flex; align-items: flex-start; gap: 9px; margin-top: 8px; padding: 10px 12px;
+  border: 1.5px solid #FCD34D; border-radius: 10px; background: #FFFBEB;
+  font-size: 12.5px; line-height: 1.45; color: var(--text); cursor: pointer;
+}
+.sell-rc-consent input { width: 17px; height: 17px; margin-top: 1px; flex-shrink: 0; cursor: pointer; }
+.sell-rc-consent strong { display: block; margin-bottom: 2px; font-size: 13px; }
+.sell-rc-consent.is-on { border-color: #6EE7B7; background: #F0FDF4; }
+.deal-aadhaar-side.is-locked, .deal-aadhaar-side.is-locked:hover {
+  border-color: var(--border); background: var(--bg); color: var(--text-muted);
+  font-family: inherit; width: 100%;
+}
+.deal-aadhaar-side.is-locked > i { color: var(--text-muted); }
+
+/* ===== ADMIN: SELL FORM LISTS ===== */
+.sell-lists { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+.sell-lists-pick { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sell-lists-pick label { font-weight: 600; font-size: 13.5px; }
+.sell-lists-pick select { min-width: 240px; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px; font-family: inherit; }
+#sellListValues {
+  width: 100%; min-height: 220px; padding: 10px 12px; border: 1.5px solid var(--border);
+  border-radius: 10px; font-family: inherit; font-size: 14px; line-height: 1.5; resize: vertical;
+}
+.sell-lists-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.sell-lists-foot small { color: var(--text-muted); }
+.sell-lists-actions { display: flex; gap: 8px; }
 
 /* ===== SIGNUP TERMS ===== */
 .signup-terms {

@@ -158,6 +158,16 @@ const db = {
   async adminGetCategories() {
     return apiFetch("/admin/categories");
   },
+  // Admin -> Categories -> Sell form lists (brands per category, dropdown choices).
+  async adminGetSellOptions() {
+    return apiFetch("/admin/sell-options");
+  },
+  async adminSaveSellOptionList(key, values) {
+    return apiFetch(`/admin/sell-options/${encodeURIComponent(key)}`, { method: "PUT", body: { values } });
+  },
+  async adminResetSellOptionList(key) {
+    return apiFetch(`/admin/sell-options/${encodeURIComponent(key)}`, { method: "DELETE" });
+  },
   async adminCreateCategory(fields) {
     return apiFetch("/admin/categories", { method: "POST", body: fields });
   },
@@ -443,9 +453,11 @@ const db = {
 
   /* ============ SMART SEARCH ============ */
 
-  async smartSearch(q, { page = 1, per_page = 30, pincode = "" } = {}) {
+  async smartSearch(q, { page = 1, per_page = 30, pincode = "", sort = "" } = {}) {
     const params = new URLSearchParams({ q, page, per_page });
     if (pincode) params.set("pincode", pincode);
+    // newest / price_asc / price_desc; "recommended" keeps the relevance order.
+    if (sort && sort !== "recommended") params.set("sort", sort);
     const data = await apiFetch(`/buy/smart-search?${params}`);
     // Same mapping as every other listing endpoint. The raw rows carry
     // "image_url" (often relative), but the cards read the mapped
@@ -615,9 +627,11 @@ const db = {
 
   /* ============ SMART SEARCH ============ */
 
-  async smartSearch(q, { page = 1, per_page = 30, pincode = "" } = {}) {
+  async smartSearch(q, { page = 1, per_page = 30, pincode = "", sort = "" } = {}) {
     const params = new URLSearchParams({ q, page, per_page });
     if (pincode) params.set("pincode", pincode);
+    // newest / price_asc / price_desc; "recommended" keeps the relevance order.
+    if (sort && sort !== "recommended") params.set("sort", sort);
     const data = await apiFetch(`/buy/smart-search?${params}`);
     // Same mapping as every other listing endpoint. The raw rows carry
     // "image_url" (often relative), but the cards read the mapped
