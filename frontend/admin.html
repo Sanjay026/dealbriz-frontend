@@ -529,28 +529,28 @@
     <!-- ANALYTICS SECTION (app.js renderAdminAnalytics, data from track.js) -->
     <div id="adminSection-analytics" class="admin-section hidden">
       <div class="admin-product-filters">
-        <select id="anDays" onchange="renderAdminAnalytics()" aria-label="Period">
+        <select id="anDays" onchange="anPeriodChanged()" aria-label="Period">
           <option value="1">Last 24 hours</option>
           <option value="7">Last 7 days</option>
           <option value="30" selected>Last 30 days</option>
           <option value="90">Last 90 days</option>
           <option value="365">Last 12 months</option>
           <option value="0">All time</option>
+          <option value="custom">Custom range…</option>
         </select>
-        <select id="anCategory" onchange="renderAdminAnalyticsProducts()" aria-label="Category">
+        <div id="anRange" class="an-range hidden">
+          <label>From <input type="datetime-local" id="anFrom"></label>
+          <label>To <input type="datetime-local" id="anTo"></label>
+          <button type="button" class="btn-sm" onclick="renderAdminAnalytics()">Apply</button>
+        </div>
+        <select id="anCategory" onchange="renderAdminAnalytics()" aria-label="Category">
           <option value="">All categories</option>
-        </select>
-        <select id="anSort" onchange="renderAdminAnalyticsProducts()" aria-label="Sort listings">
-          <option value="clicks">Most clicked</option>
-          <option value="impressions">Most seen</option>
-          <option value="ctr">Highest CTR</option>
-          <option value="dwell">Most time spent</option>
         </select>
       </div>
       <div class="an-cards" id="anCards"></div>
       <div class="an-grid">
         <div class="an-box">
-          <h4>Impressions, clicks and visitors per day</h4>
+          <h4>Impressions, clicks and visitors per <span id="anDailyUnit">day</span></h4>
           <div class="an-chart"><canvas id="anDailyChart"></canvas></div>
           <div id="anDailyEmpty" class="an-empty hidden">No activity in this period yet.</div>
         </div>
@@ -571,7 +571,15 @@
         </div>
       </div>
       <div class="an-box">
-        <h4>Listings</h4>
+        <div class="an-box-head">
+          <h4>Listings</h4>
+          <select id="anSort" onchange="renderAdminAnalyticsProducts()" aria-label="Sort listings">
+            <option value="clicks">Most clicked</option>
+            <option value="impressions">Most seen</option>
+            <option value="ctr">Highest CTR</option>
+            <option value="dwell">Most time spent</option>
+          </select>
+        </div>
         <div class="admin-table-wrap">
           <table class="admin-table">
             <thead><tr><th>Listing</th><th>Category</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>Visitors who clicked</th><th>Avg time</th><th>Total time</th></tr></thead>

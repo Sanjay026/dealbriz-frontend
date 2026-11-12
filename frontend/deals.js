@@ -3463,6 +3463,12 @@ const listingDocsApi = {
     form.append('file', file);
     return apiFetch(`/listing-docs/${encodeURIComponent(pid)}/${encodeURIComponent(type)}`, { method: 'POST', body: form, isForm: true });
   },
+  // Model verdict before the ad exists; nothing is stored.
+  check: (type, file) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFetch(`/listing-docs/check/${encodeURIComponent(type)}`, { method: 'POST', body: form, isForm: true });
+  },
   review: (pid, docId, decision, reason) =>
     apiFetch(`/listing-docs/${encodeURIComponent(pid)}/review/${encodeURIComponent(docId)}`, { method: 'POST', body: { decision, reason } }),
   fileUrl: (pid, docId) => `${API_BASE}/listing-docs/${encodeURIComponent(pid)}/files/${encodeURIComponent(docId)}`,
@@ -3617,13 +3623,19 @@ function sellRcPickHtml(st) {
   const one = sellRcParts.front || sellRcParts.back;
   const both = sellRcParts.front && sellRcParts.back;
   const whole = sellDocsState.mode === 'edit' ? "sellDocsUploadEdit('rc', this)" : "sellDocsPick('rc', this)";
+  const hasFile = st !== 'missing' && st !== 'rejected';
   return `
     <div class="deal-aadhaar-pick">${side('front', 'Front side')}${side('back', 'Back side')}</div>
     ${one && !both ? `<div class="deal-doc-hint"><i class="fas fa-circle-info"></i> Now add the ${sellRcParts.front ? 'back' : 'front'} side. Both ${sellDocsState.mode === 'edit' ? 'upload' : 'are added'} together.</div>` : ''}
-    <label class="deal-aadhaar-pdf">
-      <i class="fas fa-file-pdf"></i> ${st === 'missing' ? 'Or upload the RC PDF (DigiLocker / mParivahan)' : 'Or replace it with the RC PDF (DigiLocker / mParivahan)'}
-      <input type="file" accept="application/pdf,.pdf" class="deal-file sell-doc-file" onchange="${whole}">
-    </label>`;
+    ${hasFile
+      ? `<label class="deal-btn deal-btn-sm deal-rc-replace">
+           <i class="fas fa-arrows-rotate"></i> Replace
+           <input type="file" accept="${dlDocAccept()}" class="deal-file sell-doc-file" onchange="${whole}">
+         </label>`
+      : `<label class="deal-aadhaar-pdf">
+           <i class="fas fa-file-pdf"></i> Or upload the RC PDF (DigiLocker / mParivahan)
+           <input type="file" accept="application/pdf,.pdf" class="deal-file sell-doc-file" onchange="${whole}">
+         </label>`}`;
 }
 
 async function sellRcPickSide(key, input) {
@@ -3653,7 +3665,7 @@ async function sellRcPickSide(key, input) {
   }
   if (!edit) {          // posted with the ad; the thumbnails stay so a side can be retaken
     st.files.rc = joined.file;
-    sellDocsRender();
+    sellDocsAutoCheck('rc');
     return;
   }
   const ok = await sellDocsUploadEditFile('rc', joined.file, true);
@@ -3685,6 +3697,13 @@ async function sellDocsRender() {
   const rows = need.map(type => {
     const f = sellDocsState.files[type];
     const rc = type === 'rc';
+    const chk = (sellDocsState.checks || {})[type];
+    const [statusHtml, statusCls] =
+      f && chk === 'checking' ? ['<i class="fas fa-spinner fa-spin"></i> Checking…', 'deal-doc-uploaded']
+      : f && chk === 'verified' ? ['<i class="fas fa-circle-check"></i> Verified', 'deal-doc-approved']
+      : f ? ['Ready', 'deal-doc-uploaded']
+      : chk === 'rejected' ? ['Upload again', 'deal-doc-rejected']
+      : ['Not added', 'deal-doc-missing'];
     return `
       <li class="deal-doc ${f ? 'deal-doc-row-ready' : 'deal-doc-row-missing'}">
         <div class="deal-doc-main">
@@ -3695,19 +3714,20 @@ async function sellDocsRender() {
           ${rc ? sellRcPickHtml(f ? 'ready' : 'missing') : ''}
         </div>
         <div class="deal-doc-side">
-          <span class="deal-doc-status ${f ? 'deal-doc-uploaded' : 'deal-doc-missing'}">${f ? 'Ready' : 'Not added'}</span>
+          <span class="deal-doc-status ${statusCls}">${statusHtml}</span>
           <div class="deal-doc-actions">
             ${rc ? '' : `<label class="deal-btn deal-btn-sm ${f ? '' : 'deal-btn-primary'}">
               <i class="fas fa-paperclip"></i> ${f ? 'Change' : 'Choose file'}
               <input type="file" accept="${accept}" class="deal-file sell-doc-file" onchange="sellDocsPick('${dlEsc(type)}', this)">
             </label>`}
+            ${f ? `<button type="button" class="deal-btn deal-btn-sm" onclick="sellDocsViewLocal('${dlEsc(type)}')"><i class="fas fa-eye"></i> View</button>` : ''}
             ${f ? `<button type="button" class="deal-btn deal-btn-sm deal-btn-quiet" onclick="sellDocsUnpick('${dlEsc(type)}')" aria-label="Remove">Remove</button>` : ''}
           </div>
         </div>
       </li>`;
   }).join('');
   body.innerHTML = `
-    <p class="sell-docs-intro">You’re offering EMI, so add the ${cat === 'bikes' ? 'bike' : 'vehicle'}’s RC and insurance policy. They upload when you post the ad and are checked once by DealBriz or the lender. A buyer’s deal can only lock after they’re verified.</p>
+    <p class="sell-docs-intro">You’re offering EMI, so add the ${cat === 'bikes' ? 'bike' : 'vehicle'}’s RC and insurance policy. The RC is checked as soon as you add it; the insurance policy is checked by DealBriz or the lender after you post. A buyer’s deal can only lock after they’re verified.</p>
     <ul class="deal-doc-list">${rows}</ul>
     ${SELL_DOCS_PRIVACY()}`;
 }
@@ -3726,12 +3746,53 @@ async function sellDocsPickFile(type, file) {
   sellDocsState.errors = { ...(sellDocsState.errors || {}), [type]: prep.error || null };
   if (prep.error) { showToast(prep.error, 'error'); sellDocsRender(); return; }
   sellDocsState.files[type] = prep.file;
+  if (SELL_MODEL_CHECKED.includes(type)) sellDocsAutoCheck(type);
+  else sellDocsRender();
+}
+
+/* Documents the model can read (RC). On a new ad they're checked as soon as
+   they're picked, so the seller sees Verified, or fixes a wrong or blurry
+   file now, instead of finding out after posting. */
+const SELL_MODEL_CHECKED = ['rc'];
+
+async function sellDocsAutoCheck(type) {
+  const st = sellDocsState;
+  const file = st.files[type];
+  if (st.mode !== 'create' || !file) return;
+  st.checks = { ...(st.checks || {}), [type]: 'checking' };
   sellDocsRender();
+  let res;
+  try { res = await listingDocsApi.check(type, file); }
+  catch { res = { status: 'error' }; }
+  if (sellDocsState !== st || st.files[type] !== file) return;   // changed while checking
+  if (res.refused) {
+    delete st.files[type];   // the RC side thumbnails stay, so one side can be retaken
+    st.checks = { ...st.checks, [type]: 'rejected' };
+    st.errors = { ...(st.errors || {}), [type]: res.message || 'This document wasn’t accepted. Upload it again.' };
+  } else {
+    // "error": the model couldn't run; the file is checked after posting instead.
+    st.checks = { ...st.checks, [type]: res.status === 'verified' ? 'verified' : null };
+  }
+  sellDocsRender();
+}
+
+/* "View" on a new ad: the file is still only in the browser, so the
+   preview reads it from there. */
+const sellDocsPreviewUrls = {};
+function sellDocsViewLocal(type) {
+  const f = sellDocsState.files[type];
+  if (!f) return;
+  if (sellDocsPreviewUrls[type]) URL.revokeObjectURL(sellDocsPreviewUrls[type]);
+  const url = sellDocsPreviewUrls[type] = URL.createObjectURL(f);
+  const key = 'local-' + type;
+  dlDocPreviews[key] = { url, label: dlDocLabel(type), pdf: f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '') };
+  dlPreviewDoc(key);
 }
 
 function sellDocsUnpick(type) {
   if (type === 'rc') sellRcReset();
   delete sellDocsState.files[type];
+  if (sellDocsState.checks) delete sellDocsState.checks[type];
   sellDocsRender();
 }
 
@@ -3743,6 +3804,8 @@ function sellDocsProblem() {
   const vehicle = sellDocsIsVehicle(cat);
   const need = sellDocsNeeded(cat);
   if ((!vehicle && !need.length) || !sellEmiOn()) return null;
+  const checking = need.filter(t => (sellDocsState.checks || {})[t] === 'checking');
+  if (checking.length) return `Wait a moment: the ${checking.map(dlDocLabel).join(', ')} is still being checked.`;
   const missing = need.filter(t => !sellDocsState.files[t]);
   if (missing.length) {
     return `Add ${missing.length === 1 ? 'this document' : 'these documents'}: ${missing.map(dlDocLabel).join(', ')}.`;

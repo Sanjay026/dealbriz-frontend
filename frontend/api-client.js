@@ -173,11 +173,12 @@ const db = {
 
   /* ============ ANALYTICS (Admin -> Analytics) ============ */
 
-  async getAnalyticsSummary(days) {
-    return apiFetch(`/admin/analytics/summary?days=${encodeURIComponent(days)}`);
+  // period: { days } or { from, to } (ISO 8601, UTC)
+  async getAnalyticsSummary(period) {
+    return apiFetch(`/admin/analytics/summary?${new URLSearchParams(period)}`);
   },
-  async getAnalyticsProducts(days, { sort = "clicks", category = "", limit = 100 } = {}) {
-    const p = new URLSearchParams({ days, sort, limit });
+  async getAnalyticsProducts(period, { sort = "clicks", category = "", limit = 100 } = {}) {
+    const p = new URLSearchParams({ ...period, sort, limit });
     if (category) p.set("category", category);
     return apiFetch(`/admin/analytics/products?${p}`);
   },

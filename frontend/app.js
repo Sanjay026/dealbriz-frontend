@@ -4161,7 +4161,7 @@ let adminHtmlLoaded = false;
 async function loadAdminHtml() {
   if (adminHtmlLoaded) return;
   try {
-    const resp = await fetch('/admin.html?v=20261030a');
+    const resp = await fetch('/admin.html?v=20261112c');
     if (!resp.ok) throw new Error(resp.status);
     const html = await resp.text();
     document.getElementById('adminPage').innerHTML = html;
@@ -4434,7 +4434,35 @@ function anTime(sec) {
   const m = Math.floor(s / 60), r = s % 60;
   return m < 60 ? `${m}m ${String(r).padStart(2, '0')}s` : `${Math.floor(m / 60)}h ${m % 60}m`;
 }
-function anDays() { return document.getElementById('anDays')?.value || '30'; }
+// datetime-local wants local "YYYY-MM-DDTHH:MM"
+function anLocalInput(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function anPeriodChanged() {
+  const custom = document.getElementById('anDays')?.value === 'custom';
+  document.getElementById('anRange')?.classList.toggle('hidden', !custom);
+  if (!custom) { renderAdminAnalytics(); return; }
+  const from = document.getElementById('anFrom'), to = document.getElementById('anTo');
+  if (!from.value) from.value = anLocalInput(new Date(Date.now() - 24 * 3600 * 1000));
+  if (!to.value) to.value = anLocalInput(new Date());
+  renderAdminAnalytics();
+}
+
+// { days } for a preset, { from, to } in UTC for a custom range; null if the range is invalid
+function anPeriod() {
+  const v = document.getElementById('anDays')?.value || '30';
+  if (v !== 'custom') return { days: v };
+  const from = document.getElementById('anFrom')?.value, to = document.getElementById('anTo')?.value;
+  if (!from) { showToast('Pick a start date and time.', 'error'); return null; }
+  const period = { from: new Date(from).toISOString() };
+  if (to) {
+    if (new Date(to) <= new Date(from)) { showToast('The end must be after the start.', 'error'); return null; }
+    period.to = new Date(to).toISOString();
+  }
+  return period;
+}
 
 async function renderAdminAnalytics() {
   const cards = document.getElementById('anCards');
@@ -4444,9 +4472,12 @@ async function renderAdminAnalytics() {
     catSel.insertAdjacentHTML('beforeend', siteCategories.map(c =>
       `<option value="${escapeHtml(c.slug)}">${escapeHtml(c.label)}</option>`).join(''));
   }
+  const period = anPeriod();
+  if (!period) return;
   cards.innerHTML = `<div class="info-loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>`;
   let s;
-  try { s = await db.getAnalyticsSummary(anDays()); }
+  const cat = document.getElementById('anCategory')?.value || '';
+  try { s = await db.getAnalyticsSummary(cat ? { ...period, category: cat } : period); }
   catch (err) { cards.innerHTML = `<div class="info-loading">${escapeHtml(err.message || 'Could not load analytics.')}</div>`; return; }
   const t = s.totals || {};
   const card = (v, label, icon) => `<div class="an-card"><i class="fas ${icon}"></i><strong>${v}</strong><span>${label}</span></div>`;
@@ -4460,6 +4491,8 @@ async function renderAdminAnalytics() {
   ].join('');
 
   const daily = s.daily || [];
+  const unitEl = document.getElementById('anDailyUnit');
+  if (unitEl) unitEl.textContent = s.granularity === 'hour' ? 'hour' : 'day';
   const empty = !daily.length;
   document.getElementById('anDailyChart').classList.toggle('hidden', empty);
   document.getElementById('anDailyEmpty').classList.toggle('hidden', !empty);
@@ -4467,7 +4500,9 @@ async function renderAdminAnalytics() {
     adminDrawChart('anDailyChart', {
       type: 'line',
       data: {
-        labels: daily.map(d => d.day),
+        labels: daily.map(d => d.at
+          ? new Date(d.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric' })
+          : d.day),
         datasets: [
           { label: 'Impressions', data: daily.map(d => d.impressions), borderColor: ADMIN_CHART_COLORS[0], tension: .25 },
           { label: 'Clicks', data: daily.map(d => d.clicks), borderColor: ADMIN_CHART_COLORS[1], tension: .25 },
@@ -4504,9 +4539,11 @@ async function renderAdminAnalytics() {
 async function renderAdminAnalyticsProducts() {
   const body = document.getElementById('anProductsBody');
   if (!body) return;
+  const period = anPeriod();
+  if (!period) return;
   let res;
   try {
-    res = await db.getAnalyticsProducts(anDays(), {
+    res = await db.getAnalyticsProducts(period, {
       sort: document.getElementById('anSort')?.value || 'clicks',
       category: document.getElementById('anCategory')?.value || '',
     });
@@ -7850,6 +7887,7 @@ let roleDraft = {};   // role -> Set(capabilities), edited but not yet saved
 // those raw would make this screen unreadable for anyone who didn't write it.
 const CAPABILITY_LABELS = {
   'dashboard.view': 'View dashboard & charts',
+  'analytics.view': 'View visitor analytics (clicks, CTR, time spent, devices)',
   'emi.view': 'View EMI applications',
   'emi.review': 'Approve / reject EMI applications',
   'emi.delete': 'Delete EMI applications',
@@ -7876,7 +7914,7 @@ const CAPABILITY_LABELS = {
 };
 
 const CAPABILITY_GROUPS = [
-  ['Overview', ['dashboard.view']],
+  ['Overview', ['dashboard.view', 'analytics.view']],
   ['EMI', ['emi.view', 'emi.review', 'emi.delete']],
   ['Users', ['users.view', 'users.suspend', 'users.delete', 'users.assign_role']],
   ['Listings', ['products.view', 'products.edit', 'products.delete']],
