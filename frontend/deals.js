@@ -307,8 +307,13 @@ MODAL_HIDE.dealNotice = () => {
   if (dlNoticeDeal) dlNoticeSkipped.add('cancel:' + dlNoticeDeal.id);
   dlNoticeDeal = null;
 };
+MODAL_HIDE.docView = () => {
+  document.getElementById('docViewModal')?.classList.add('hidden');
+  const body = document.getElementById('docViewBody');
+  if (body) body.innerHTML = '';   // drop the file so it isn't kept on screen
+};
 document.addEventListener('DOMContentLoaded', () => {
-  [['dealOfferModal', 'dealOffer'], ['dealModal', 'deal'], ['dealLoanModal', 'dealLoan'], ['dealOtpModal', 'dealOtp'], ['dealAskModal', 'dealAsk']].forEach(([id, name]) => {
+  [['dealOfferModal', 'dealOffer'], ['dealModal', 'deal'], ['dealLoanModal', 'dealLoan'], ['dealOtpModal', 'dealOtp'], ['dealAskModal', 'dealAsk'], ['docViewModal', 'docView']].forEach(([id, name]) => {
     document.getElementById(id)?.addEventListener('click', e => {
       if (e.target.id === id) closeTopModal(name);
     });
@@ -1409,10 +1414,8 @@ function dealDocRowHtml(d, item, canUpload, accept) {
   // The uploader can open their own file again (never the other side's).
   if (doc && !doc.file_deleted && st !== 'missing' && st !== 'rejected' && d.can_view_own_doc_files && item.party === d.my_role) {
     const pid = (d.product || {}).id || d.product_id || '';
-    const view = item.source === 'listing'
-      ? `ldViewDoc('${dlEsc(pid)}','${dlEsc(doc.id)}')`
-      : `dlViewDoc('${dlEsc(d.id)}','${dlEsc(doc.id)}')`;
-    actions = `<button type="button" class="deal-btn deal-btn-sm" onclick="${view}"><i class="fas fa-eye"></i> View</button>` + actions;
+    const url = item.source === 'listing' ? listingDocsApi.fileUrl(pid, doc.id) : dealsApi.docFileUrl(d.id, doc.id);
+    actions = dlPreviewBtnHtml(doc, item.label, url) + actions;
   }
   return `
     <li class="deal-doc deal-doc-row-${dlEsc(st)}${item.required ? '' : ' is-extra'}">
@@ -1598,7 +1601,7 @@ async function dealPickAadhaarSide(key, input) {
 
 /* Front on top of back, one JPEG, same width for both. Resolves to
    { file } or { error }. */
-async function dlJoinAadhaar(front, back) {
+async function dlJoinAadhaar(front, back, name = 'aadhaar-front-back.jpg') {
   const rules = dealRulesCache || {};
   const maxBytes = (rules.doc_max_mb || 8) * 1024 * 1024;
   const load = async (f) => { try { return await createImageBitmap(f); } catch { return null; } };
@@ -1631,7 +1634,7 @@ async function dlJoinAadhaar(front, back) {
   }
   if (!blob) return { error: 'The photos could not be joined. Please try again.' };
   if (blob.size > maxBytes) return { error: `The two photos are too big together. Files can be up to ${rules.doc_max_mb || 8} MB.` };
-  return { file: new File([blob], 'aadhaar-front-back.jpg', { type: 'image/jpeg' }) };
+  return { file: new File([blob], name, { type: 'image/jpeg' }) };
 }
 
 /* Opens a private document. The window is opened straight away (inside
@@ -1644,6 +1647,41 @@ async function dlViewDoc(dealId, docId) {
   const url = dealsApi.docFileUrl(dealId, docId);
   if (w) { try { w.opener = null; } catch { /* ignore */ } w.location.href = url; }
   else window.location.href = url;
+}
+
+/* The uploader's own "View": a small preview on the same screen instead of
+   a new tab. An Aadhaar photo is one image with the front above the back,
+   so both sides show together. Tap the picture to enlarge it. */
+const dlDocPreviews = {};
+function dlPreviewBtnHtml(doc, label, url) {
+  dlDocPreviews[doc.id] = { url, label, pdf: /pdf/i.test(doc.content_type || '') || /\.pdf$/i.test(doc.file_name || '') };
+  return `<button type="button" class="deal-btn deal-btn-sm" onclick="dlPreviewDoc('${dlEsc(doc.id)}')"><i class="fas fa-eye"></i> View</button>`;
+}
+
+async function dlPreviewDoc(docId) {
+  const p = dlDocPreviews[docId];
+  const modal = document.getElementById('docViewModal');
+  if (!p || !modal) return;
+  const body = document.getElementById('docViewBody');
+  document.getElementById('docViewTitle').textContent = p.label || 'Document';
+  document.getElementById('docViewFull').href = p.url;
+  body.classList.remove('is-zoomed');
+  body.innerHTML = '<div class="doc-view-wait"><i class="fas fa-spinner fa-spin"></i> Opening...</div>';
+  if (!modalStack.includes('docView')) dlOpenOverlay('docViewModal', 'docView');
+  // The file link carries no token of its own, so make sure the session is fresh.
+  try { await apiFetch('/auth/me'); } catch { /* the file request will say what's wrong */ }
+  if (!modalStack.includes('docView')) return;   // closed while waiting
+  if (p.pdf) {
+    body.innerHTML = `<iframe class="doc-view-pdf" src="${dlEsc(p.url)}" title="${dlEsc(p.label || 'Document')}"></iframe>`;
+    return;
+  }
+  const img = new Image();
+  img.alt = p.label || 'Document';
+  img.className = 'doc-view-img';
+  img.onclick = () => body.classList.toggle('is-zoomed');
+  img.onerror = () => { body.innerHTML = '<div class="doc-view-wait"><i class="fas fa-circle-exclamation"></i> This file couldn\u2019t be opened.</div>'; };
+  img.onload = () => { if (modalStack.includes('docView')) { body.innerHTML = ''; body.appendChild(img); } };
+  img.src = p.url;
 }
 
 function dealLoanHtml(d) {
@@ -3548,10 +3586,80 @@ function sellDocsSection(show, title) {
 }
 
 function sellDocsReset() {
+  sellRcReset();
   sellDocsState = { mode: 'create', files: {} };
   sellDocsSection(false);
   const body = document.getElementById('sellDocsBody');
   if (body) body.innerHTML = '';
+}
+
+/* The RC has two sides: one picker each, joined into one image (front on
+   top) like the Aadhaar card. The DigiLocker / mParivahan PDF or a single
+   file is still accepted. */
+let sellRcParts = { front: null, back: null };
+
+function sellRcReset() {
+  ['front', 'back'].forEach(k => { if (sellRcParts[k]) URL.revokeObjectURL(sellRcParts[k].url); });
+  sellRcParts = { front: null, back: null };
+}
+
+function sellRcPickHtml(st) {
+  const side = (key, label) => {
+    const part = sellRcParts[key];
+    return `
+      <label class="deal-aadhaar-side${part ? ' is-set' : ''}" data-side="${key}">
+        ${part ? `<img src="${dlEsc(part.url)}" alt="">` : `<i class="fas ${key === 'front' ? 'fa-id-card' : 'fa-address-card'}"></i>`}
+        <span>${label}</span>
+        <small>${part ? '<i class="fas fa-check"></i> Added · change' : 'Add photo'}</small>
+        <input type="file" accept="image/*" class="deal-file sell-doc-file" onchange="sellRcPickSide('${key}', this)">
+      </label>`;
+  };
+  const one = sellRcParts.front || sellRcParts.back;
+  const both = sellRcParts.front && sellRcParts.back;
+  const whole = sellDocsState.mode === 'edit' ? "sellDocsUploadEdit('rc', this)" : "sellDocsPick('rc', this)";
+  return `
+    <div class="deal-aadhaar-pick">${side('front', 'Front side')}${side('back', 'Back side')}</div>
+    ${one && !both ? `<div class="deal-doc-hint"><i class="fas fa-circle-info"></i> Now add the ${sellRcParts.front ? 'back' : 'front'} side. Both ${sellDocsState.mode === 'edit' ? 'upload' : 'are added'} together.</div>` : ''}
+    <label class="deal-aadhaar-pdf">
+      <i class="fas fa-file-pdf"></i> ${st === 'missing' ? 'Or upload the RC PDF (DigiLocker / mParivahan)' : 'Or replace it with the RC PDF (DigiLocker / mParivahan)'}
+      <input type="file" accept="application/pdf,.pdf" class="deal-file sell-doc-file" onchange="${whole}">
+    </label>`;
+}
+
+async function sellRcPickSide(key, input) {
+  const file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  const st = sellDocsState;
+  const edit = st.mode === 'edit';
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+  if (isPdf) {          // a PDF picked here is the whole RC
+    sellRcReset();
+    return edit ? sellDocsUploadEditFile('rc', file) : sellDocsPickFile('rc', file);
+  }
+  if (sellRcParts[key]) URL.revokeObjectURL(sellRcParts[key].url);
+  sellRcParts[key] = { file, url: URL.createObjectURL(file) };
+  st.errors = { ...(st.errors || {}), rc: null };
+  if (!(sellRcParts.front && sellRcParts.back)) { sellDocsRender(); return; }
+
+  await dlRules();
+  const joined = await dlJoinAadhaar(sellRcParts.front.file, sellRcParts.back.file, 'rc-front-back.jpg');
+  if (sellDocsState !== st) return;   // the form moved on while joining
+  if (joined.error) {
+    st.errors = { ...(st.errors || {}), rc: joined.error };
+    showToast(joined.error, 'error');
+    sellDocsRender();
+    return;
+  }
+  if (!edit) {          // posted with the ad; the thumbnails stay so a side can be retaken
+    st.files.rc = joined.file;
+    sellDocsRender();
+    return;
+  }
+  const ok = await sellDocsUploadEditFile('rc', joined.file, true);
+  // Kept after a refusal, so the seller can retake just the unclear side.
+  if (ok) sellRcReset();
+  if (sellDocsState === st) sellDocsRender();
 }
 
 const SELL_DOCS_PRIVACY = () => `<p class="deal-small"><i class="fas fa-lock"></i> Private: never shown on the ad. Only you, DealBriz admins and the lender can open them. A photo or a PDF, up to ${(dealRulesCache || {}).doc_max_mb || 8} MB each (large photos are shrunk for you).</p>`;
@@ -3576,6 +3684,7 @@ async function sellDocsRender() {
   const accept = dlDocAccept();
   const rows = need.map(type => {
     const f = sellDocsState.files[type];
+    const rc = type === 'rc';
     return `
       <li class="deal-doc ${f ? 'deal-doc-row-ready' : 'deal-doc-row-missing'}">
         <div class="deal-doc-main">
@@ -3583,14 +3692,15 @@ async function sellDocsRender() {
           ${f ? `<div class="deal-doc-hint"><i class="fas fa-paperclip"></i> ${dlEsc(f.name)}</div>`
               : `<div class="deal-doc-hint">${dlEsc(dlDocHint(type))}</div>`}
           ${!f && (sellDocsState.errors || {})[type] ? `<div class="deal-doc-reason"><i class="fas fa-circle-exclamation"></i> ${dlEsc(sellDocsState.errors[type])}</div>` : ''}
+          ${rc ? sellRcPickHtml(f ? 'ready' : 'missing') : ''}
         </div>
         <div class="deal-doc-side">
           <span class="deal-doc-status ${f ? 'deal-doc-uploaded' : 'deal-doc-missing'}">${f ? 'Ready' : 'Not added'}</span>
           <div class="deal-doc-actions">
-            <label class="deal-btn deal-btn-sm ${f ? '' : 'deal-btn-primary'}">
+            ${rc ? '' : `<label class="deal-btn deal-btn-sm ${f ? '' : 'deal-btn-primary'}">
               <i class="fas fa-paperclip"></i> ${f ? 'Change' : 'Choose file'}
               <input type="file" accept="${accept}" class="deal-file sell-doc-file" onchange="sellDocsPick('${dlEsc(type)}', this)">
-            </label>
+            </label>`}
             ${f ? `<button type="button" class="deal-btn deal-btn-sm deal-btn-quiet" onclick="sellDocsUnpick('${dlEsc(type)}')" aria-label="Remove">Remove</button>` : ''}
           </div>
         </div>
@@ -3606,6 +3716,11 @@ async function sellDocsPick(type, input) {
   const file = input.files && input.files[0];
   input.value = '';
   if (!file) return;
+  if (type === 'rc') sellRcReset();   // one whole file replaces any half-picked photos
+  return sellDocsPickFile(type, file);
+}
+
+async function sellDocsPickFile(type, file) {
   await dlRules();
   const prep = await dlPrepareDocFile(file);
   sellDocsState.errors = { ...(sellDocsState.errors || {}), [type]: prep.error || null };
@@ -3615,6 +3730,7 @@ async function sellDocsPick(type, input) {
 }
 
 function sellDocsUnpick(type) {
+  if (type === 'rc') sellRcReset();
   delete sellDocsState.files[type];
   sellDocsRender();
 }
@@ -3660,6 +3776,7 @@ async function sellDocsUploadAfterCreate(pid) {
 
 /* Edit mode: everything comes from the server and saves at once. */
 async function sellDocsLoadForEdit(pid, viaAdmin = false) {
+  sellRcReset();
   sellDocsState = { mode: 'edit', pid, cat: typeof selectedSellCat !== 'undefined' ? selectedSellCat : '', view: null, busy: null };
   if (viaAdmin) { sellDocsSection(false); return; }   // staff check them from the Deals section
   await dlRules();
@@ -3695,7 +3812,12 @@ function sellDocsRenderEdit() {
     const st = item.status;
     const busy = sellDocsState.busy === item.type;
     let actions = '';
-    if (canUpload && item.required) {
+    let rcPick = '';
+    if (canUpload && item.required && item.type === 'rc') {
+      rcPick = busy
+        ? `<div class="deal-small"><i class="fas fa-spinner fa-spin"></i> Uploading and checking...</div>`
+        : sellRcPickHtml(st);
+    } else if (canUpload && item.required) {
       actions = busy
         ? `<span class="deal-small"><i class="fas fa-spinner fa-spin"></i> Uploading...</span>`
         : `<label class="deal-btn deal-btn-sm ${st === 'missing' || st === 'rejected' ? 'deal-btn-primary' : ''}">
@@ -3704,16 +3826,17 @@ function sellDocsRenderEdit() {
            </label>`;
     }
     if (doc && !doc.file_deleted && st !== 'missing' && st !== 'rejected' && v.can_view_own_files) {
-      actions = `<button type="button" class="deal-btn deal-btn-sm" onclick="ldViewDoc('${dlEsc(v.product_id)}','${dlEsc(doc.id)}')"><i class="fas fa-eye"></i> View</button>` + actions;
+      actions = dlPreviewBtnHtml(doc, item.label, listingDocsApi.fileUrl(v.product_id, doc.id)) + actions;
     }
     return `
       <li class="deal-doc deal-doc-row-${dlEsc(st)}${item.required ? '' : ' is-extra'}">
         <div class="deal-doc-main">
           <div class="deal-doc-name">${dlEsc(item.label)}${item.required ? '' : ' <small>(not needed now)</small>'}</div>
-          ${st !== 'approved' && canUpload ? `<div class="deal-doc-hint">${dlEsc(item.hint)}</div>` : ''}
+          ${st !== 'approved' && canUpload ? `<div class="deal-doc-hint">${dlEsc(rcPick ? 'Add a photo of the front and of the back. They are joined into one image and uploaded together.' : item.hint)}</div>` : ''}
           ${doc && doc.file_name && st !== 'rejected' ? `<div class="deal-doc-hint"><i class="fas fa-paperclip"></i> ${dlEsc(doc.file_name)}</div>` : ''}
           ${st === 'rejected' && doc && doc.reject_reason ? `<div class="deal-doc-reason"><i class="fas fa-circle-exclamation"></i> ${dlEsc(doc.reject_reason)}</div>` : ''}
           ${(sellDocsState.errors || {})[item.type] ? `<div class="deal-doc-reason"><i class="fas fa-circle-exclamation"></i> ${dlEsc(sellDocsState.errors[item.type])}</div>` : ''}
+          ${rcPick}
         </div>
         <div class="deal-doc-side"><span class="deal-doc-status deal-doc-${dlEsc(st)}">${dlEsc(DOC_STATUS_LABEL[st] || st)}</span>
           <div class="deal-doc-actions">${actions}</div></div>
@@ -3730,35 +3853,57 @@ function sellDocsRenderEdit() {
 async function sellDocsUploadEdit(type, input) {
   const file = input.files && input.files[0];
   input.value = '';
+  if (!file) return;
+  if (type === 'rc') sellRcReset();   // one whole file replaces any half-picked photos
+  return sellDocsUploadEditFile(type, file);
+}
+
+/* Uploads one file for a listing document. Resolves true when the server
+   accepted it. `ready`: already prepared (the joined RC), so not shrunk again. */
+async function sellDocsUploadEditFile(type, file, ready = false) {
   const st = sellDocsState;
-  if (!file || st.mode !== 'edit' || !st.view) return;
+  if (!file || st.mode !== 'edit' || !st.view) return false;
   const row = (st.view.documents || []).find(x => x.type === type);
   if (row && row.status === 'approved' && !(await dlAsk({
     tone: 'warn', title: 'Replace a verified document?',
     body: `<p><strong>${dlEsc(row.label)}</strong> is already verified. The new file has to be checked again, and a deal on this listing can’t lock until it is.</p>`,
     ok: 'Replace document', cancel: 'Keep current',
-  }))) return;
+  }))) return false;
   const pid = st.pid;
   st.busy = type;
   st.errors = { ...(st.errors || {}), [type]: null };
   sellDocsRenderEdit();
   let error = null;
+  let failed = false;
   try {
     await dlRules();
-    const prep = await dlPrepareDocFile(file);
+    const prep = ready ? { file } : await dlPrepareDocFile(file);
     if (prep.error) throw new Error(prep.error);
     const v = await listingDocsApi.upload(pid, type, prep.file);
     if (sellDocsState.pid === pid) sellDocsState.view = v;
-    showToast('Uploaded. It will be checked soon.', 'success');
+    const now = (v.documents || []).find(x => x.type === type);
+    showToast(now && now.status === 'approved' ? 'Uploaded and verified.' : 'Uploaded. It will be checked soon.', 'success');
   } catch (err) {
+    failed = true;
     error = dlUploadErrorText(err);
     showToast(error, 'error');
+    // A file refused by the automatic check is recorded on the listing as
+    // rejected (with the reason), so show the row as it now is.
+    try {
+      const v = await listingDocsApi.get(pid);
+      if (sellDocsState.pid === pid) {
+        sellDocsState.view = v;
+        const now = (v.documents || []).find(x => x.type === type);
+        if (now && now.status === 'rejected' && now.document && now.document.reject_reason) error = null;
+      }
+    } catch { /* keep the old view and the error line */ }
   }
   if (sellDocsState.pid === pid) {
     sellDocsState.busy = null;
     sellDocsState.errors = { ...(sellDocsState.errors || {}), [type]: error };
     sellDocsRenderEdit();
   }
+  return !error && !failed;
 }
 
 /* My Listings "Add documents": the Edit listing form, at its documents. */

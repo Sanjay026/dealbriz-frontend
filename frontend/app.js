@@ -755,6 +755,7 @@ const MODAL_HIDE = {
   },
   emi: () => document.getElementById('emiModal').classList.add('hidden'),
   lightbox: () => document.getElementById('imageLightbox').classList.add('hidden'),
+  share: () => document.getElementById('shareModal').classList.add('hidden'),
   bot: () => setBotPanel(false),
   avatarCrop: () => {
     document.getElementById('avatarCropModal').classList.add('hidden');
@@ -1653,19 +1654,62 @@ async function loadSimilarProducts(p) {
   } catch { /* similar products are a nicety — silence is better than an error box */ }
 }
 
-async function shareListing(id) {
-  const p = currentProduct && currentProduct.id === id ? currentProduct : null;
+/* Opens the share box for a listing: its own link (/item/<title-place>-<id>,
+   which opens straight on that listing), a copy button and the usual apps. */
+let shareState = null;
+function shareListing(id) {
+  const p = (currentProduct && currentProduct.id === id ? currentProduct : null)
+    || myListingsCache.find(x => x.id === id) || buyListings.find(x => x.id === id) || null;
   const url = location.origin + itemPath(id, p?.title, p?.location);
   const title = p ? p.title : 'DealBriz listing';
-  try {
-    if (navigator.share) { await navigator.share({ title, url }); return; }
-    await navigator.clipboard.writeText(url);
-    showToast('Link copied to clipboard.', 'success');
-  } catch (err) {
-    // Closing the share sheet is not an error. Anything else (clipboard
-    // blocked, share refused) used to fail silently, so the button looked dead.
+  const text = `${title} on DealBriz`;
+  shareState = { url, title, text };
+  const enc = encodeURIComponent;
+  document.getElementById('shareItemName').textContent = title;
+  document.getElementById('shareLinkInput').value = url;
+  document.getElementById('shareWhatsApp').href = `https://wa.me/?text=${enc(text + ' ' + url)}`;
+  document.getElementById('shareTelegram').href = `https://t.me/share/url?url=${enc(url)}&text=${enc(text)}`;
+  document.getElementById('shareFacebook').href = `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}`;
+  document.getElementById('shareEmail').href = `mailto:?subject=${enc(text)}&body=${enc(url)}`;
+  // "More" is the phone's own share sheet, where the browser has one.
+  document.getElementById('shareMore').classList.toggle('hidden', !navigator.share);
+  shareCopyLabel(false);
+  if (!modalStack.includes('share')) {
+    document.getElementById('shareModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    pushModal('share');
+  }
+}
+
+function shareCopyLabel(done) {
+  const btn = document.getElementById('shareCopyBtn');
+  if (!btn) return;
+  btn.classList.toggle('is-done', done);
+  btn.innerHTML = done ? '<i class="fas fa-check"></i> Copied' : '<i class="fas fa-copy"></i> Copy link';
+}
+
+async function copyShareLink() {
+  if (!shareState) return;
+  const input = document.getElementById('shareLinkInput');
+  let ok = false;
+  try { await navigator.clipboard.writeText(shareState.url); ok = true; }
+  catch {
+    // Clipboard API blocked (older browser, not https): the old way still works.
+    try { input.focus(); input.select(); ok = document.execCommand('copy'); } catch { ok = false; }
+  }
+  if (!ok) { input.focus(); input.select(); showToast('Press Ctrl/Cmd + C to copy the link.', 'info'); return; }
+  shareCopyLabel(true);
+  showToast('Link copied.', 'success');
+  setTimeout(() => shareCopyLabel(false), 2500);
+}
+
+async function shareNative() {
+  if (!shareState || !navigator.share) return;
+  try { await navigator.share({ title: shareState.title, text: shareState.text, url: shareState.url }); }
+  catch (err) {
+    // Closing the share sheet is not an error.
     if (err && err.name === 'AbortError') return;
-    showToast("Couldn't share. Copy the link from the address bar.", 'error');
+    showToast("Couldn't open sharing. Copy the link instead.", 'error');
   }
 }
 
@@ -2841,6 +2885,7 @@ async function renderMyListings() {
             : `<button class="btn-sm btn-sm-red" onclick="deleteListing('${p.id}')">Delete</button>`}
           ${p.status === 'active' && !p.dealStage ? `<button class="btn-sm" style="background:var(--gold-light);color:#92400E" onclick="markAsSold('${p.id}')">Mark Sold</button>` : ''}
           ${p.status === 'sold' ? `<button class="btn-sm" onclick="unmarkAsSold('${p.id}')"><i class="fas fa-rotate-left"></i> Relist</button>` : ''}
+          ${p.status === 'active' ? `<button class="btn-sm btn-sm-share" onclick="shareListing('${p.id}')"><i class="fas fa-share-nodes"></i> Share</button>` : ''}
         </div>
       </div>
     </div>`).join('');
