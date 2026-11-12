@@ -369,7 +369,10 @@ async function refreshCurrentUser() {
         sections: profile.sections || [],
         // Lender (NBFC) users are not staff, but they work in the admin
         // panel's Lender portal tab, so they get the panel link too.
-        hasPanel: !!(profile.is_admin || profile.is_staff || (profile.sections || []).includes('lender')),
+        // Any section the server grants opens the panel: lenders (Lender
+        // portal) and the dev role (Logs, read-only views) aren't "staff",
+        // and the dev role used to get no way in at all.
+        hasPanel: !!(profile.is_admin || profile.is_staff || (profile.sections || []).length > 0),
         // DealLock: set while new listings and deals are paused (3 locked
         // deals cancelled in a row). The server enforces it either way.
         dealBanUntil: profile.deal_ban_until || null,
@@ -4884,8 +4887,8 @@ function renderAdminProductsTable() {
       <td>${Number(p.views) || 0}</td>
       <td>
         <button class="btn-sm btn-sm-blue" onclick="adminViewProduct('${p.id}')">View</button>
-        <button class="btn-sm" onclick="editListing('${p.id}', true)">Edit</button>
-        <button class="btn-sm btn-sm-red" onclick="adminDeleteProductConfirm('${p.id}')">Delete</button>
+        ${userCan('products.edit') ? `<button class="btn-sm" onclick="editListing('${p.id}', true)">Edit</button>` : ''}
+        ${userCan('products.delete') ? `<button class="btn-sm btn-sm-red" onclick="adminDeleteProductConfirm('${p.id}')">Delete</button>` : ''}
       </td>
     </tr>`).join('');
 }
@@ -4979,12 +4982,12 @@ async function adminViewProduct(pid) {
       <div class="admin-detail-section"><h4>Sale</h4>${purchaseBlock}</div>
 
       <div class="pm-actions">
-        <button class="btn-primary" onclick="closeProductModal(); editListing('${p.id}', true)">
+        ${userCan('products.edit') ? `<button class="btn-primary" onclick="closeProductModal(); editListing('${p.id}', true)">
           <i class="fas fa-edit"></i> Edit Listing
-        </button>
-        <button class="btn-sm btn-sm-red" onclick="closeProductModal(); adminDeleteProductConfirm('${p.id}')">
+        </button>` : ''}
+        ${userCan('products.delete') ? `<button class="btn-sm btn-sm-red" onclick="closeProductModal(); adminDeleteProductConfirm('${p.id}')">
           <i class="fas fa-trash"></i> Delete
-        </button>
+        </button>` : ''}
       </div>
     </div>`;
 }

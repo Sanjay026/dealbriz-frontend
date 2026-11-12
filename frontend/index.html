@@ -20,14 +20,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=20261111d">
+<link rel="stylesheet" href="/style.css?v=20261112a">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
-<link rel="stylesheet" href="/home.css?v=20261111a">
-<link rel="stylesheet" href="/how-it-works.css?v=20261111a">
+<link rel="stylesheet" href="/home.css?v=20261102a">
+<link rel="stylesheet" href="/how-it-works.css?v=20261027a">
 <link rel="stylesheet" href="/lottie.css?v=20261026a">
-<link rel="stylesheet" href="/browse-categories.css?v=20261111a">
-<link rel="stylesheet" href="/deals.css?v=20261111b">
+<link rel="stylesheet" href="/browse-categories.css?v=20261102a">
+<link rel="stylesheet" href="/deals.css?v=20261112a">
 
 <script src="/seo.js?v=20261029a"></script>
 
@@ -37,6 +37,9 @@
   function gtag(){dataLayer.push(arguments);}
   gtag('js', new Date());
   gtag('config', 'G-M2WVWHBX5H', { send_page_view: false });
+</script>
+<script>
+(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||t==='light'){document.documentElement.setAttribute('data-theme',t);}else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches){document.documentElement.setAttribute('data-theme','dark');t='dark';}if(t==='dark'){var m=document.querySelector('meta[name="theme-color"]');if(m)m.setAttribute('content','#0F1117');}}catch(e){}})();
 </script>
 </head>
 <body>
@@ -280,6 +283,9 @@
       <a href="/#how-it-works" onclick="goHowItWorks(); return false;">Why DealBriz</a>
     </div>
     <div class="nav-actions">
+      <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+        <i class="fas fa-moon"></i>
+      </button>
             <button class="nav-icon-btn nav-badge-btn nav-chat-glow" id="navChatBtn" onclick="openChatsFromNav()"
               aria-label="Chats" title="Chats">
         <svg class="nav-chat-icon" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1207,8 +1213,8 @@
 <script src="/geo.js?v=20261022c"></script>
 <script src="/api-client.js?v=20261102a"></script>
 <script src="/track.js?v=20261030a"></script>
-<script src="/app.js?v=20261111b"></script>
-<script src="/deals.js?v=20261111d"></script>
+<script src="/app.js?v=20261112a"></script>
+<script src="/deals.js?v=20261112a"></script>
 <script src="/how-it-works.js?v=20261027a"></script>
 <script src="/browse-categories.js?v=20261102b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie_light.min.js" defer></script>
@@ -1556,6 +1562,30 @@
     <button type="submit" class="bot-send" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
   </form>
 </div>
+
+<script>
+function toggleTheme() {
+  var html = document.documentElement;
+  var current = html.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  try { localStorage.setItem('theme', next); } catch(e) {}
+  updateThemeIcon(next);
+  var meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', next === 'dark' ? '#0F1117' : '#0A1628');
+}
+function updateThemeIcon(theme) {
+  var btn = document.getElementById('themeToggle');
+  if (!btn) return;
+  var i = btn.querySelector('i');
+  if (theme === 'dark') { i.className = 'fas fa-sun'; }
+  else { i.className = 'fas fa-moon'; }
+}
+(function() {
+  var t = document.documentElement.getAttribute('data-theme') || 'light';
+  updateThemeIcon(t);
+})();
+</script>
 
 </body>
 </html>
